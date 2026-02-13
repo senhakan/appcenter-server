@@ -10,12 +10,24 @@ Bu dokuman production ortami icin deploy, smoke ve rollback adimlarini tanimlar.
 - Service: `appcenter` (systemd)
 - Reverse proxy: nginx
 
+### 1.1 Bu Sunucuda Aktif Deployment Profili
+
+- Kaynak repo dizini: `/root/appcenter/server`
+- Calisan uygulama dizini: `/opt/appcenter/server`
+- Virtual env: `/opt/appcenter/server/venv`
+- Environment file: `/opt/appcenter/server/.env`
+- Uvicorn bind: `127.0.0.1:8000`
+- systemd unit: `/etc/systemd/system/appcenter.service`
+- nginx conf: `/etc/nginx/custom-conf/appcenter.akgun.com.tr.conf`
+
 ## 2. Deploy Adimlari
+
+### 2.1 Git Pull ile Deploy (opsiyonel)
 
 ```bash
 cd /opt/appcenter/server
 git pull
-source venv39/bin/activate
+source venv/bin/activate
 pip install -r requirements.txt
 sudo systemctl restart appcenter
 sudo systemctl status appcenter --no-pager
@@ -24,6 +36,27 @@ sudo systemctl status appcenter --no-pager
 Not:
 - `rsync --delete` ile deploy yapiliyorsa `.env` dosyasi korunmalidir.
 - Ornek: `--exclude '.env'`
+
+### 2.2 Bu Sunucuda Kullanilan Rsync Deploy Akisi
+
+```bash
+rsync -av --delete \
+  --exclude '.git' \
+  --exclude 'venv' \
+  --exclude 'venv39' \
+  --exclude '.env' \
+  /root/appcenter/server/ /opt/appcenter/server/
+
+sudo systemctl restart appcenter
+sudo systemctl is-active appcenter
+```
+
+### 2.3 .env Kritik Notlari
+
+- `CORS_ORIGINS` degeri JSON list formatinda olmali:
+  - dogru: `CORS_ORIGINS=["*"]`
+  - yanlis: `CORS_ORIGINS=*`
+- `rsync --delete` `.env` dosyasini silebilir; mutlaka exclude edin.
 
 ## 3. Hizli Production Smoke
 
@@ -42,6 +75,13 @@ Web login ve kritik akislar manuel kontrol edilir:
 - agent update upload/download
 
 Detayli checklist: `docs/SMOKE_CHECKLIST.md`.
+
+### 3.1 Bu Sunucuda Dogrudan Uygulama Kontrolu
+
+```bash
+curl -sS http://127.0.0.1:8000/health
+curl -sS http://127.0.0.1:8000/ | jq .
+```
 
 ## 4. Log ve Izleme
 
@@ -67,3 +107,8 @@ source venv39/bin/activate
 pip install -r requirements.txt
 sudo systemctl restart appcenter
 ```
+
+## 6. Nginx Notu (Bu Sunucu)
+
+- Root path davranisi `/login`e yonlendirecek sekilde ayarlidir.
+- App upstream: `127.0.0.1:8000`
