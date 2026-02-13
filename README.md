@@ -124,3 +124,10 @@ pytest -q
 - `tests/conftest.py`
 - `tests/test_phase5_api.py`
 - Son sonuc: `4 passed`
+
+## Dokumantasyon
+
+- `docs/DEVELOPMENT_WORKFLOW.md`
+- `docs/OPERATIONS_RUNBOOK.md`
+- `docs/SMOKE_CHECKLIST.md`
+- `docs/TESTING_AND_CI.md`
