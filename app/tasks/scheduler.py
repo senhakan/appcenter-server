@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import text
@@ -8,7 +9,7 @@ from sqlalchemy import text
 from app.database import SessionLocal
 from app.models import Agent, Setting
 
-scheduler = AsyncIOScheduler(timezone="UTC")
+scheduler: Optional[AsyncIOScheduler] = None
 
 
 def _get_setting(db, key: str, default: str) -> str:
@@ -44,14 +45,32 @@ def cleanup_old_logs() -> None:
 
 
 def start_scheduler() -> None:
+    global scheduler
+    if scheduler is None:
+        scheduler = AsyncIOScheduler(timezone="UTC")
+
     if scheduler.running:
         return
+
     scheduler.add_job(check_offline_agents, "interval", minutes=2, id="offline_check", replace_existing=True)
     scheduler.add_job(cleanup_old_logs, "cron", hour=3, minute=0, id="log_cleanup", replace_existing=True)
-    scheduler.start()
+    try:
+        scheduler.start()
+    except RuntimeError:
+        # Test/worker lifecycles may close event loops between app startups.
+        scheduler = AsyncIOScheduler(timezone="UTC")
+        scheduler.add_job(check_offline_agents, "interval", minutes=2, id="offline_check", replace_existing=True)
+        scheduler.add_job(cleanup_old_logs, "cron", hour=3, minute=0, id="log_cleanup", replace_existing=True)
+        scheduler.start()
 
 
 def stop_scheduler() -> None:
+    global scheduler
+    if not scheduler:
+        return
     if scheduler.running:
-        scheduler.shutdown(wait=False)
-
+        try:
+            scheduler.shutdown(wait=False)
+        except RuntimeError:
+            pass
+    scheduler = None
