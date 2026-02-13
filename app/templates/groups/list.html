@@ -158,7 +158,10 @@
     const rows = document.getElementById('group-rows');
     rows.innerHTML = '';
     groups.forEach((g) => {
-      const count = agents.filter((a) => a.group_id === g.id).length;
+      const count = agents.filter((a) => {
+        if (Array.isArray(a.group_ids)) return a.group_ids.includes(g.id);
+        return Number(a.group_id || 0) === g.id;
+      }).length;
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${g.id}</td>
@@ -188,8 +191,8 @@
     const groupId = Number(document.getElementById('assign-group-id').value || 0);
     const availableEl = document.getElementById('available-agent-uuids');
     const assignedEl = document.getElementById('assigned-agent-uuids');
-    const inGroup = agents.filter((a) => Number(a.group_id || 0) === groupId);
-    const outGroup = agents.filter((a) => Number(a.group_id || 0) !== groupId);
+    const inGroup = agents.filter((a) => Array.isArray(a.group_ids) && a.group_ids.includes(groupId));
+    const outGroup = agents.filter((a) => !Array.isArray(a.group_ids) || !a.group_ids.includes(groupId));
     availableEl.innerHTML = '';
     assignedEl.innerHTML = '';
     outGroup.forEach((a) => availableEl.appendChild(toOption(a)));

@@ -205,6 +205,7 @@ class AgentResponse(BaseModel):
     last_seen: Optional[datetime] = None
     status: str
     group_id: Optional[int] = None
+    group_ids: list[int] = Field(default_factory=list)
     cpu_model: Optional[str] = None
     ram_gb: Optional[int] = None
     disk_free_gb: Optional[int] = None

@@ -41,6 +41,7 @@ class Group(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     agents: Mapped[list["Agent"]] = relationship(back_populates="group")
+    agent_groups: Mapped[list["AgentGroup"]] = relationship(back_populates="group", cascade="all, delete-orphan")
 
 
 class Agent(Base):
@@ -69,6 +70,26 @@ class Agent(Base):
 
     group: Mapped[Optional[Group]] = relationship(back_populates="agents")
     agent_applications: Mapped[list["AgentApplication"]] = relationship(back_populates="agent")
+    agent_groups: Mapped[list["AgentGroup"]] = relationship(back_populates="agent", cascade="all, delete-orphan")
+
+    @property
+    def group_ids(self) -> list[int]:
+        return sorted({item.group_id for item in self.agent_groups})
+
+
+class AgentGroup(Base):
+    __tablename__ = "agent_groups"
+    __table_args__ = (
+        UniqueConstraint("agent_uuid", "group_id", name="uq_agent_group_agent_uuid_group_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    agent_uuid: Mapped[str] = mapped_column(ForeignKey("agents.uuid", ondelete="CASCADE"), nullable=False)
+    group_id: Mapped[int] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    agent: Mapped[Agent] = relationship(back_populates="agent_groups")
+    group: Mapped[Group] = relationship(back_populates="agent_groups")
 
 
 class Application(Base):
@@ -192,6 +213,8 @@ Index("idx_group_name", Group.name)
 Index("idx_agent_status", Agent.status)
 Index("idx_agent_last_seen", Agent.last_seen)
 Index("idx_agent_group", Agent.group_id)
+Index("idx_agent_groups_agent", AgentGroup.agent_uuid)
+Index("idx_agent_groups_group", AgentGroup.group_id)
 Index("idx_app_name", Application.display_name)
 Index("idx_app_visible", Application.is_visible_in_store)
 Index("idx_app_active", Application.is_active)

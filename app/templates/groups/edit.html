@@ -99,8 +99,14 @@
   function renderAgentLists() {
     const availableEl = document.getElementById('available-agent-uuids');
     const assignedEl = document.getElementById('assigned-agent-uuids');
-    const inGroup = agents.filter((a) => Number(a.group_id || 0) === groupId);
-    const outGroup = agents.filter((a) => Number(a.group_id || 0) !== groupId);
+    const inGroup = agents.filter((a) => {
+      if (Array.isArray(a.group_ids)) return a.group_ids.includes(groupId);
+      return Number(a.group_id || 0) === groupId;
+    });
+    const outGroup = agents.filter((a) => {
+      if (Array.isArray(a.group_ids)) return !a.group_ids.includes(groupId);
+      return Number(a.group_id || 0) !== groupId;
+    });
     availableEl.innerHTML = '';
     assignedEl.innerHTML = '';
     outGroup.forEach((a) => availableEl.appendChild(toOption(a)));

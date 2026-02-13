@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.config import get_settings
 from app.database import get_db
-from app.models import Agent, AgentApplication, Application, Deployment, Group, Setting, TaskHistory, User
+from app.models import Agent, AgentApplication, AgentGroup, Application, Deployment, Group, Setting, TaskHistory, User
 from app.schemas import (
     AgentListResponse,
     AgentResponse,
@@ -185,9 +185,37 @@ def groups_assign_agents(
         if existing_count != len(target_uuids):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="One or more agents not found")
 
-    db.query(Agent).filter(Agent.group_id == group_id).update({Agent.group_id: None}, synchronize_session=False)
-    if target_uuids:
-        db.query(Agent).filter(Agent.uuid.in_(target_uuids)).update({Agent.group_id: group_id}, synchronize_session=False)
+    current_rows = db.query(AgentGroup).filter(AgentGroup.group_id == group_id).all()
+    current_uuids = {row.agent_uuid for row in current_rows}
+
+    remove_uuids = current_uuids - target_uuids
+    add_uuids = target_uuids - current_uuids
+
+    if remove_uuids:
+        db.query(AgentGroup).filter(
+            AgentGroup.group_id == group_id,
+            AgentGroup.agent_uuid.in_(remove_uuids),
+        ).delete(synchronize_session=False)
+
+    for agent_uuid in add_uuids:
+        db.add(AgentGroup(agent_uuid=agent_uuid, group_id=group_id))
+
+    # Keep legacy single-group field populated with one membership for backward compatibility.
+    touched_uuids = remove_uuids.union(add_uuids)
+    if touched_uuids:
+        touched_agents = db.query(Agent).filter(Agent.uuid.in_(touched_uuids)).all()
+        for agent in touched_agents:
+            group_ids = sorted(
+                {
+                    row.group_id
+                    for row in db.query(AgentGroup)
+                    .filter(AgentGroup.agent_uuid == agent.uuid)
+                    .all()
+                }
+            )
+            agent.group_id = group_ids[0] if group_ids else None
+            db.add(agent)
+
     db.commit()
     return MessageResponse(status="success", message="Group agents updated")
 

@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.models import Agent, AgentApplication, Application, Deployment
+from app.models import Agent, AgentApplication, AgentGroup, Application, Deployment
 from app.schemas import DeploymentCreateRequest, DeploymentUpdateRequest
 
 
@@ -19,7 +19,12 @@ def _resolve_target_agents(db: Session, target_type: str, target_id: Optional[st
             group_id = int(target_id)
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="target_id must be group id") from exc
-        return db.query(Agent).filter(Agent.group_id == group_id).all()
+        return (
+            db.query(Agent)
+            .join(AgentGroup, AgentGroup.agent_uuid == Agent.uuid)
+            .filter(AgentGroup.group_id == group_id)
+            .all()
+        )
     if target_type == "Agent":
         if not target_id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="target_id required for Agent")

@@ -305,3 +305,59 @@ def test_edit_endpoints_for_app_group_deployment(client: TestClient, auth_header
     assert dep_update.json()['target_type'] == 'Agent'
     assert dep_update.json()['target_id'] == 'agent-edit-1'
     assert dep_update.json()['priority'] == 8
+
+
+def test_agent_can_belong_to_multiple_groups(client: TestClient, auth_headers: dict[str, str]) -> None:
+    agent_headers = _register_agent(client, uuid='agent-multi-group-1')
+
+    g1 = client.post('/api/v1/groups', headers=auth_headers, json={'name': 'MG-Group-1'})
+    g2 = client.post('/api/v1/groups', headers=auth_headers, json={'name': 'MG-Group-2'})
+    assert g1.status_code == 200
+    assert g2.status_code == 200
+    g1_id = g1.json()['id']
+    g2_id = g2.json()['id']
+
+    a1 = client.put(
+        f'/api/v1/groups/{g1_id}/agents',
+        headers=auth_headers,
+        json={'agent_uuids': ['agent-multi-group-1']},
+    )
+    a2 = client.put(
+        f'/api/v1/groups/{g2_id}/agents',
+        headers=auth_headers,
+        json={'agent_uuids': ['agent-multi-group-1']},
+    )
+    assert a1.status_code == 200
+    assert a2.status_code == 200
+
+    agent_detail = client.get('/api/v1/agents/agent-multi-group-1', headers=auth_headers)
+    assert agent_detail.status_code == 200
+    gids = set(agent_detail.json().get('group_ids', []))
+    assert g1_id in gids
+    assert g2_id in gids
+
+    app1 = _upload_application(client, auth_headers, name='MG App 1')
+    app2 = _upload_application(client, auth_headers, name='MG App 2')
+
+    d1 = client.post(
+        '/api/v1/deployments',
+        headers=auth_headers,
+        json={'app_id': app1, 'target_type': 'Group', 'target_id': str(g1_id), 'is_active': True},
+    )
+    d2 = client.post(
+        '/api/v1/deployments',
+        headers=auth_headers,
+        json={'app_id': app2, 'target_type': 'Group', 'target_id': str(g2_id), 'is_active': True},
+    )
+    assert d1.status_code == 200
+    assert d2.status_code == 200
+
+    hb = client.post(
+        '/api/v1/agent/heartbeat',
+        headers=agent_headers,
+        json={'hostname': 'PC-MULTI', 'apps_changed': False, 'installed_apps': []},
+    )
+    assert hb.status_code == 200
+    cmd_app_ids = {c.get('app_id') for c in hb.json().get('commands', [])}
+    assert app1 in cmd_app_ids
+    assert app2 in cmd_app_ids

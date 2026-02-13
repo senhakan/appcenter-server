@@ -82,6 +82,7 @@ def init_db() -> None:
 def _run_startup_migrations() -> None:
     if is_sqlite:
         _migrate_sqlite_applications_table()
+        _migrate_sqlite_agent_groups_table()
 
 
 def _migrate_sqlite_applications_table() -> None:
@@ -109,6 +110,40 @@ def _migrate_sqlite_applications_table() -> None:
             if column_name in existing_columns:
                 continue
             conn.execute(text(f"ALTER TABLE applications ADD COLUMN {column_name} {column_type}"))
+
+
+def _migrate_sqlite_agent_groups_table() -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS agent_groups (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    agent_uuid VARCHAR NOT NULL,
+                    group_id INTEGER NOT NULL,
+                    created_at DATETIME,
+                    UNIQUE(agent_uuid, group_id),
+                    FOREIGN KEY(agent_uuid) REFERENCES agents(uuid) ON DELETE CASCADE,
+                    FOREIGN KEY(group_id) REFERENCES groups(id) ON DELETE CASCADE
+                )
+                """
+            )
+        )
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_agent_groups_agent ON agent_groups(agent_uuid)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_agent_groups_group ON agent_groups(group_id)"))
+
+        # Backfill from legacy single-group mapping.
+        conn.execute(
+            text(
+                """
+                INSERT OR IGNORE INTO agent_groups (agent_uuid, group_id, created_at)
+                SELECT uuid, group_id, :now_utc
+                FROM agents
+                WHERE group_id IS NOT NULL
+                """
+            ),
+            {"now_utc": datetime.now(timezone.utc).isoformat()},
+        )
 
 
 def seed_initial_data() -> None:
