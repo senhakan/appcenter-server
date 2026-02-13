@@ -1,11 +1,33 @@
 {% extends 'base.html' %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
-<div class="grid cols-4">
-  <div class="card"><div class="muted">Toplam Ajan</div><div class="metric" id="m-total-agents">-</div></div>
-  <div class="card"><div class="muted">Online</div><div class="metric" id="m-online">-</div></div>
-  <div class="card"><div class="muted">Uygulamalar</div><div class="metric" id="m-apps">-</div></div>
-  <div class="card"><div class="muted">Dagitimlar</div><div class="metric" id="m-deployments">-</div></div>
+<style>
+  .metrics-grid {
+    align-items: stretch;
+  }
+  .metric-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 116px;
+    margin: 0 !important;
+  }
+  .metric-label {
+    min-height: 22px;
+    display: flex;
+    align-items: center;
+  }
+  .metric-value {
+    min-height: 42px;
+    display: flex;
+    align-items: flex-end;
+  }
+</style>
+<div class="grid cols-4 metrics-grid">
+  <div class="card metric-card"><div class="muted metric-label">Toplam Ajan</div><div class="metric metric-value" id="m-total-agents">-</div></div>
+  <div class="card metric-card"><div class="muted metric-label">Online</div><div class="metric metric-value" id="m-online">-</div></div>
+  <div class="card metric-card"><div class="muted metric-label">Uygulamalar</div><div class="metric metric-value" id="m-apps">-</div></div>
+  <div class="card metric-card"><div class="muted metric-label">Dagitimlar</div><div class="metric metric-value" id="m-deployments">-</div></div>
 </div>
 <div class="card">
   <div class="row spread wrap">

@@ -3,14 +3,33 @@
 {% block content %}
 <style>
   .groups-grid {
-    align-items: start;
+    align-items: stretch;
   }
-  .groups-grid .card {
+  .groups-grid > .card {
+    display: flex;
+    flex-direction: column;
     height: 100%;
+    margin: 0 !important;
+  }
+  .groups-card-head {
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .groups-card-head h3 {
+    margin: 0;
+  }
+  .groups-grid form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    flex: 1;
   }
   .groups-actions {
     display: flex;
     justify-content: flex-end;
+    margin-top: auto;
   }
   .groups-hint {
     font-size: 0.85rem;
@@ -33,7 +52,9 @@
 
 <div class="grid cols-2 groups-grid">
   <div class="card">
-    <h3 style="margin-top: 0;">Grup Olustur</h3>
+    <div class="groups-card-head">
+      <h3>Grup Olustur</h3>
+    </div>
     <form id="group-create-form" class="grid">
       <div>
         <label>Grup Adi</label>
@@ -49,7 +70,9 @@
     </form>
   </div>
   <div class="card">
-    <h3 style="margin-top: 0;">Gruba Ajan Ata</h3>
+    <div class="groups-card-head">
+      <h3>Gruba Ajan Ata</h3>
+    </div>
     <form id="group-assign-form" class="grid">
       <div>
         <label>Grup</label>

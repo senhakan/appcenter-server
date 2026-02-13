@@ -156,3 +156,4 @@ pytest -q
 - `docs/OPERATIONS_RUNBOOK.md`
 - `docs/SMOKE_CHECKLIST.md`
 - `docs/TESTING_AND_CI.md`
+- `docs/ROADMAP_AND_THEME.md`

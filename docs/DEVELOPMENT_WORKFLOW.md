@@ -31,6 +31,9 @@ pip install -r requirements.txt
 - Audit log (kim, neyi, ne zaman degistirdi)
 - kritik degisikliklerde onay/ikinci adim
 
+Detayli yol haritasi ve tema notlari:
+- `docs/ROADMAP_AND_THEME.md`
+
 ## 3. Kod Standarti
 
 - DB degisikliklerinde SQLite PRAGMA kurallari korunur.
