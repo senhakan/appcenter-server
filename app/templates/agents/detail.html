@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}Ajan Detay{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row spread wrap">
+    <h3 style="margin: 0;">Ajan Detay</h3>
+    <a class="btn secondary" href="/agents">Listeye Don</a>
+  </div>
+  <div id="agent-detail" class="grid cols-2"></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+  const agentId = "{{ agent_uuid }}";
+
+  async function loadAgentDetail() {
+    try {
+      const data = await AppCenterApi.req(`/agents/${agentId}`);
+      const el = document.getElementById('agent-detail');
+      el.innerHTML = `
+        <div><label>UUID</label><div>${data.uuid}</div></div>
+        <div><label>Hostname</label><div>${data.hostname || '-'}</div></div>
+        <div><label>IP</label><div>${data.ip_address || '-'}</div></div>
+        <div><label>Durum</label><div>${data.status || '-'}</div></div>
+        <div><label>Version</label><div>${data.version || '-'}</div></div>
+        <div><label>Son Gorulme</label><div>${data.last_seen || '-'}</div></div>
+      `;
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  loadAgentDetail();
+</script>
+{% endblock %}

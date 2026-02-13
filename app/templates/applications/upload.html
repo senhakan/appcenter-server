@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}Uygulama Yukle{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 760px;">
+  <div class="row spread wrap">
+    <h3 style="margin: 0;">Yeni Uygulama Yukle</h3>
+    <a class="btn secondary" href="/applications">Liste</a>
+  </div>
+  <form id="upload-form" class="grid" style="margin-top: 10px;">
+    <div>
+      <label>Gorunen Ad</label>
+      <input name="display_name" required />
+    </div>
+    <div>
+      <label>Versiyon</label>
+      <input name="version" required />
+    </div>
+    <div>
+      <label>Aciklama</label>
+      <textarea name="description"></textarea>
+    </div>
+    <div>
+      <label>Kurulum Dosyasi (.msi / .exe)</label>
+      <input name="file" type="file" accept=".msi,.exe" required />
+    </div>
+    <button class="btn" type="submit">Yukle</button>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+  document.getElementById('upload-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      const form = new FormData(e.target);
+      await AppCenterApi.req('/applications', { method: 'POST', body: form });
+      AppCenterApi.toast('Yukleme tamamlandi');
+      setTimeout(() => { location.href = '/applications'; }, 700);
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="grid cols-4">
+  <div class="card"><div class="muted">Toplam Ajan</div><div class="metric" id="m-total-agents">-</div></div>
+  <div class="card"><div class="muted">Online</div><div class="metric" id="m-online">-</div></div>
+  <div class="card"><div class="muted">Uygulamalar</div><div class="metric" id="m-apps">-</div></div>
+  <div class="card"><div class="muted">Dagitimlar</div><div class="metric" id="m-deployments">-</div></div>
+</div>
+<div class="card">
+  <div class="row spread wrap">
+    <h3 style="margin: 0;">Hizli Durum</h3>
+    <button class="btn secondary" onclick="loadDashboard()">Yenile</button>
+  </div>
+  <p class="muted">Bu ekran 10 saniyede bir otomatik yenilenir.</p>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+
+  async function loadDashboard() {
+    try {
+      const stats = await AppCenterApi.req('/dashboard/stats');
+      document.getElementById('m-total-agents').textContent = stats.total_agents;
+      document.getElementById('m-online').textContent = stats.online_agents;
+      document.getElementById('m-apps').textContent = stats.total_applications;
+      document.getElementById('m-deployments').textContent = stats.active_deployments;
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  loadDashboard();
+  setInterval(loadDashboard, 10000);
+</script>
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block title %}Dagitim Olustur{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 780px;">
+  <div class="row spread wrap">
+    <h3 style="margin: 0;">Yeni Dagitim</h3>
+    <a class="btn secondary" href="/deployments">Liste</a>
+  </div>
+  <form id="dep-form" class="grid" style="margin-top: 10px;">
+    <div class="grid cols-2">
+      <div>
+        <label>Uygulama ID</label>
+        <input name="app_id" type="number" required />
+      </div>
+      <div>
+        <label>Oncelik</label>
+        <input name="priority" type="number" value="5" required />
+      </div>
+    </div>
+    <div class="grid cols-2">
+      <div>
+        <label>Hedef Tipi</label>
+        <select name="target_type" id="target_type">
+          <option value="All">All</option>
+          <option value="Group">Group</option>
+          <option value="Agent">Agent</option>
+        </select>
+      </div>
+      <div>
+        <label>Hedef ID (Group ID veya Agent UUID)</label>
+        <input name="target_id" id="target_id" />
+      </div>
+    </div>
+    <div class="row wrap">
+      <label><input type="checkbox" name="is_mandatory" /> Zorunlu</label>
+      <label><input type="checkbox" name="force_update" /> Force Update</label>
+      <label><input type="checkbox" name="is_active" checked /> Aktif</label>
+    </div>
+    <button class="btn" type="submit">Olustur</button>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+  document.getElementById('dep-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = new FormData(e.target);
+    const targetType = form.get('target_type');
+    const payload = {
+      app_id: Number(form.get('app_id')),
+      target_type: targetType,
+      target_id: (form.get('target_id') || '').trim() || null,
+      is_mandatory: form.get('is_mandatory') === 'on',
+      force_update: form.get('force_update') === 'on',
+      priority: Number(form.get('priority')),
+      is_active: form.get('is_active') === 'on',
+    };
+    if (targetType === 'All') payload.target_id = null;
+    try {
+      await AppCenterApi.req('/deployments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      AppCenterApi.toast('Dagitim olusturuldu');
+      setTimeout(() => { location.href = '/deployments'; }, 700);
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+</script>
+{% endblock %}

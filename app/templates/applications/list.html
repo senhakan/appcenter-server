@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}Uygulamalar{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row spread wrap">
+    <h3 style="margin: 0;">Uygulamalar</h3>
+    <div class="row">
+      <a class="btn" href="/applications/upload">Yeni Yukle</a>
+      <button class="btn secondary" onclick="loadApps()">Yenile</button>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>Ad</th><th>Versiyon</th><th>Tip</th><th>Boyut</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="app-rows"></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+
+  function formatBytes(n) {
+    if (!n) return '-';
+    return `${(n / (1024 * 1024)).toFixed(2)} MB`;
+  }
+
+  async function removeApp(id) {
+    if (!confirm(`Uygulama silinsin mi? (${id})`)) return;
+    try {
+      await AppCenterApi.req(`/applications/${id}`, { method: 'DELETE' });
+      AppCenterApi.toast('Silindi');
+      loadApps();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  async function loadApps() {
+    try {
+      const data = await AppCenterApi.req('/applications');
+      const rows = document.getElementById('app-rows');
+      rows.innerHTML = '';
+      (data.items || []).forEach((app) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${app.id}</td>
+          <td>${app.display_name}</td>
+          <td>${app.version}</td>
+          <td>${app.file_type}</td>
+          <td>${formatBytes(app.file_size_bytes)}</td>
+          <td><button class="btn danger" onclick="removeApp(${app.id})">Sil</button></td>
+        `;
+        rows.appendChild(tr);
+      });
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  loadApps();
+</script>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}Dagitimlar{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row spread wrap">
+    <h3 style="margin: 0;">Dagitimlar</h3>
+    <div class="row">
+      <a class="btn" href="/deployments/create">Yeni Dagitim</a>
+      <button class="btn secondary" onclick="loadDeployments()">Yenile</button>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>App ID</th><th>Hedef</th><th>Oncelik</th><th>Aktif</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="dep-rows"></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+
+  async function removeDeployment(id) {
+    if (!confirm(`Dagitim silinsin mi? (${id})`)) return;
+    try {
+      await AppCenterApi.req(`/deployments/${id}`, { method: 'DELETE' });
+      AppCenterApi.toast('Silindi');
+      loadDeployments();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  async function loadDeployments() {
+    try {
+      const data = await AppCenterApi.req('/deployments');
+      const rows = document.getElementById('dep-rows');
+      rows.innerHTML = '';
+      (data.items || []).forEach((d) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${d.id}</td>
+          <td>${d.app_id}</td>
+          <td>${d.target_type}${d.target_id ? ' / ' + d.target_id : ''}</td>
+          <td>${d.priority}</td>
+          <td>${d.is_active ? '<span class="badge ok">aktif</span>' : '<span class="badge warn">pasif</span>'}</td>
+          <td><button class="btn danger" onclick="removeDeployment(${d.id})">Sil</button></td>
+        `;
+        rows.appendChild(tr);
+      });
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  loadDeployments();
+</script>
+{% endblock %}

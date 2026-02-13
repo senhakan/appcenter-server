@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}Ajanlar{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row spread wrap">
+    <h3 style="margin: 0;">Ajan Listesi</h3>
+    <button class="btn secondary" onclick="loadAgents()">Yenile</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>UUID</th><th>Hostname</th><th>Durum</th><th>Version</th><th>Son Gorulme</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="agent-rows"></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+
+  async function loadAgents() {
+    try {
+      const data = await AppCenterApi.req('/agents');
+      const rows = document.getElementById('agent-rows');
+      rows.innerHTML = '';
+      (data.items || []).forEach((agent) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${agent.uuid}</td>
+          <td>${agent.hostname || '-'}</td>
+          <td><span class="badge ${agent.status === 'online' ? 'ok' : 'warn'}">${agent.status}</span></td>
+          <td>${agent.version || '-'}</td>
+          <td>${agent.last_seen || '-'}</td>
+          <td><a class="btn secondary" href="/agents/${agent.uuid}">Detay</a></td>
+        `;
+        rows.appendChild(tr);
+      });
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  loadAgents();
+  setInterval(loadAgents, 10000);
+</script>
+{% endblock %}

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>AppCenter Login</title>
+    <link rel="stylesheet" href="/static/css/app.css" />
+  </head>
+  <body>
+    <div class="layout" style="max-width: 480px; padding-top: 80px;">
+      <div class="card">
+        <h2 style="margin-top: 0;">AppCenter Giris</h2>
+        <p class="muted">Varsayilan: admin / admin123</p>
+        <form id="login-form" class="grid">
+          <div>
+            <label>Kullanici Adi</label>
+            <input id="username" value="admin" required />
+          </div>
+          <div>
+            <label>Sifre</label>
+            <input id="password" value="admin123" type="password" required />
+          </div>
+          <button class="btn" type="submit">Giris Yap</button>
+        </form>
+      </div>
+    </div>
+    <div id="toast"></div>
+    <script src="/static/js/api.js"></script>
+    <script>
+      document.getElementById("login-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        try {
+          const res = await fetch("/api/v1/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              username: document.getElementById("username").value,
+              password: document.getElementById("password").value,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || "Login failed");
+          AppCenterApi.setToken(data.access_token);
+          location.href = "/dashboard";
+        } catch (err) {
+          AppCenterApi.toast(err.message);
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -106,48 +106,79 @@ server/
 ## GELİŞTİRME SIRASI
 
 ### Faz 1: Temel Altyapı
-1. `database.py` - SQLAlchemy engine + WAL pragma'ları
-2. `models.py` - Tüm tablo modelleri
-3. `config.py` - .env okuma
-4. `main.py` - FastAPI app, CORS, static files, startup event
-5. `auth.py` - JWT oluşturma/doğrulama
-6. `api/v1/auth.py` - Login endpoint
-7. `api/v1/agent.py` - Register + basit heartbeat
+1. [x] `database.py` - SQLAlchemy engine + WAL pragma'ları
+2. [x] `models.py` - Tüm tablo modelleri
+3. [x] `config.py` - .env okuma
+4. [x] `main.py` - FastAPI app, CORS, static files, startup event
+5. [x] `auth.py` - JWT oluşturma/doğrulama
+6. [x] `api/v1/auth.py` - Login endpoint
+7. [x] `api/v1/agent.py` - Register + basit heartbeat
 
 **Test:** Agent register olabiliyor mu? Heartbeat gönderiyor mu?
 
 ### Faz 2: Uygulama Yönetimi
-1. `utils/file_handler.py` - Güvenli upload, sanitize filename, hash hesaplama
-2. `services/application_service.py` - CRUD operasyonları
-3. `api/v1/web.py` - Application upload/list/delete endpoints
-4. Download endpoint (Range header desteği)
+1. [x] `utils/file_handler.py` - Güvenli upload, sanitize filename, hash hesaplama
+2. [x] `services/application_service.py` - CRUD operasyonları
+3. [x] `api/v1/web.py` - Application upload/list/delete endpoints
+4. [x] Download endpoint (Range header desteği)
 
 **Test:** Upload çalışıyor mu? Hash doğru mu? Download + resume çalışıyor mu?
 
+### Uygulanan Son Durum (2026-02-13)
+- Faz 1 tamamlandı ve doğrulandı:
+  - `/health` -> 200
+  - `POST /api/v1/agent/register` -> 200
+  - `POST /api/v1/agent/heartbeat` -> 200
+  - `POST /api/v1/auth/login` (`admin` / `admin123`) -> 200
+- Faz 2 tamamlandı:
+  - `POST /api/v1/applications` (multipart upload)
+  - `GET /api/v1/applications`
+  - `GET /api/v1/applications/{app_id}`
+  - `DELETE /api/v1/applications/{app_id}`
+  - `GET /api/v1/agent/download/{app_id}` (Range destegi)
+- Faz 3 tamamlandı ve doğrulandı:
+  - `POST /api/v1/deployments` -> deployment olusuyor ve `agent_applications` kaydi aciliyor
+  - `POST /api/v1/agent/heartbeat` -> pending task command donduruyor
+  - ikinci heartbeat'te ayni task tekrar donmuyor
+  - `POST /api/v1/agent/task/{task_id}/status` -> task/application status guncelleniyor
+  - scheduler aktif: offline check (2 dk), log cleanup (03:00 UTC)
+- Faz 4 tamamlandı ve doğrulandı:
+  - `GET /login`, `GET /dashboard`, `GET /agents`, `GET /applications`, `GET /deployments`, `GET /settings` -> 200
+  - `templates/*` ve `static/js/api.js` ile temel web akislari eklendi
+  - dashboard ve agent list sayfalarinda 10 saniye polling aktif
+- Faz 5 tamamlandı ve doğrulandı:
+  - `GET /api/v1/dashboard/stats` -> 200
+  - `GET /api/v1/settings`, `PUT /api/v1/settings` -> 200
+  - `GET /api/v1/agent/store` -> 200
+  - `POST /api/v1/agent-update/upload` -> 200
+  - `GET /api/v1/agent/update/download/{filename}` -> 200
+  - API hata cevabi standardi eklendi: `{\"status\":\"error\",\"detail\":\"...\"}`
+  - `pytest -q` -> 4 passed (`tests/conftest.py`, `tests/test_phase5_api.py`)
+
 ### Faz 3: Deployment & Task
-1. `services/deployment_service.py` - Deployment CRUD
-2. `services/heartbeat_service.py` - Tam heartbeat logic (task assignment)
-3. `tasks/scheduler.py` - Offline detection + log cleanup
-4. Task status reporting endpoint
+1. [x] `services/deployment_service.py` - Deployment CRUD
+2. [x] `services/heartbeat_service.py` - Tam heartbeat logic (task assignment)
+3. [x] `tasks/scheduler.py` - Offline detection + log cleanup
+4. [x] Task status reporting endpoint
 
 **Test:** Deployment oluştur → Agent heartbeat gönder → Task alıyor mu?
 
 ### Faz 4: Web UI
-1. `templates/base.html` - Layout (TailwindCSS CDN)
-2. `templates/auth/login.html`
-3. `templates/dashboard.html`
-4. `templates/agents/list.html` + `detail.html`
-5. `templates/applications/list.html` + `upload.html`
-6. `templates/deployments/list.html` + `create.html`
-7. `templates/settings.html`
-8. `static/js/api.js` - AJAX calls + polling
+1. [x] `templates/base.html` - Layout
+2. [x] `templates/auth/login.html`
+3. [x] `templates/dashboard.html`
+4. [x] `templates/agents/list.html` + `detail.html`
+5. [x] `templates/applications/list.html` + `upload.html`
+6. [x] `templates/deployments/list.html` + `create.html`
+7. [x] `templates/settings.html`
+8. [x] `static/js/api.js` - AJAX calls + polling
 
 ### Faz 5: Polish
-1. Store API endpoint
-2. Settings endpoint (okuma/yazma)
-3. Dashboard istatistikleri
-4. Agent update upload
-5. Error handling iyileştirmesi
+1. [x] Store API endpoint
+2. [x] Settings endpoint (okuma/yazma)
+3. [x] Dashboard istatistikleri
+4. [x] Agent update upload
+5. [x] Error handling iyileştirmesi
 
 ---
 

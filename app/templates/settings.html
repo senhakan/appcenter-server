@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% block title %}Ayarlar{% endblock %}
+{% block content %}
+<div class="grid cols-2">
+  <div class="card">
+    <h3 style="margin-top: 0;">Sistem Ayarlari</h3>
+    <form id="settings-form" class="grid">
+      <div><label>Bandwidth Limit (KB/s)</label><input id="s-bandwidth" /></div>
+      <div><label>Heartbeat Interval (sn)</label><input id="s-heartbeat" /></div>
+      <div><label>Agent Timeout (sn)</label><input id="s-agent-timeout" /></div>
+      <div><label>Log Retention (gun)</label><input id="s-log-retention" /></div>
+      <button class="btn" type="submit">Ayarlari Kaydet</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top: 0;">Agent Guncelleme Paketi</h3>
+    <form id="agent-update-form" class="grid">
+      <div><label>Versiyon</label><input name="version" placeholder="1.0.1" required /></div>
+      <div><label>Paket (.exe / .msi)</label><input name="file" type="file" accept=".exe,.msi" required /></div>
+      <button class="btn" type="submit">Paketi Yukle</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+
+  async function loadSettings() {
+    try {
+      const data = await AppCenterApi.req('/settings');
+      const map = {};
+      (data.items || []).forEach((x) => { map[x.key] = x.value; });
+      document.getElementById('s-bandwidth').value = map.bandwidth_limit_kbps || '1024';
+      document.getElementById('s-heartbeat').value = map.heartbeat_interval_sec || '60';
+      document.getElementById('s-agent-timeout').value = map.agent_timeout_sec || '300';
+      document.getElementById('s-log-retention').value = map.log_retention_days || '30';
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  document.getElementById('settings-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await AppCenterApi.req('/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          values: {
+            bandwidth_limit_kbps: document.getElementById('s-bandwidth').value,
+            heartbeat_interval_sec: document.getElementById('s-heartbeat').value,
+            agent_timeout_sec: document.getElementById('s-agent-timeout').value,
+            log_retention_days: document.getElementById('s-log-retention').value,
+          },
+        }),
+      });
+      AppCenterApi.toast('Ayarlar kaydedildi');
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+
+  document.getElementById('agent-update-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      const form = new FormData(e.target);
+      const result = await AppCenterApi.req('/agent-update/upload', { method: 'POST', body: form });
+      AppCenterApi.toast(`Agent paketi yuklendi: ${result.version}`);
+      await loadSettings();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+
+  loadSettings();
+</script>
+{% endblock %}
