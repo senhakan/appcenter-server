@@ -97,6 +97,8 @@ def get_deployment(db: Session, deployment_id: int) -> Deployment:
 def update_deployment(db: Session, deployment_id: int, payload: DeploymentUpdateRequest) -> Deployment:
     deployment = get_deployment(db, deployment_id)
     data = payload.model_dump(exclude_unset=True)
+    if "app_id" in data and data["app_id"] is not None:
+        _ensure_application_exists(db, data["app_id"])
     for key, value in data.items():
         setattr(deployment, key, value)
     db.add(deployment)
@@ -111,4 +113,3 @@ def delete_deployment(db: Session, deployment_id: int) -> None:
     deployment = get_deployment(db, deployment_id)
     db.delete(deployment)
     db.commit()
-

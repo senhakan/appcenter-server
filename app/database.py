@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Generator
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from app.config import get_settings
@@ -76,6 +76,39 @@ def init_db() -> None:
     from app import models  # pylint: disable=import-outside-toplevel
 
     Base.metadata.create_all(bind=engine)
+    _run_startup_migrations()
+
+
+def _run_startup_migrations() -> None:
+    if is_sqlite:
+        _migrate_sqlite_applications_table()
+
+
+def _migrate_sqlite_applications_table() -> None:
+    # Lightweight, idempotent migration for instances created before v1.1 schema additions.
+    expected_columns = {
+        "install_args": "TEXT",
+        "uninstall_args": "TEXT",
+        "icon_url": "VARCHAR",
+        "category": "VARCHAR",
+        "dependencies": "TEXT",
+        "min_os_version": "VARCHAR",
+    }
+
+    with engine.begin() as conn:
+        table_exists = conn.execute(
+            text("SELECT 1 FROM sqlite_master WHERE type='table' AND name='applications' LIMIT 1")
+        ).first()
+        if not table_exists:
+            return
+
+        rows = conn.execute(text("PRAGMA table_info(applications)")).mappings().all()
+        existing_columns = {row["name"] for row in rows}
+
+        for column_name, column_type in expected_columns.items():
+            if column_name in existing_columns:
+                continue
+            conn.execute(text(f"ALTER TABLE applications ADD COLUMN {column_name} {column_type}"))
 
 
 def seed_initial_data() -> None:

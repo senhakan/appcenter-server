@@ -49,7 +49,10 @@
           <td>${d.target_type}${d.target_id ? ' / ' + d.target_id : ''}</td>
           <td>${d.priority}</td>
           <td>${d.is_active ? '<span class="badge ok">aktif</span>' : '<span class="badge warn">pasif</span>'}</td>
-          <td><button class="btn danger" onclick="removeDeployment(${d.id})">Sil</button></td>
+          <td class="row">
+            <a class="btn secondary" href="/deployments/${d.id}/edit">Duzenle</a>
+            <button class="btn danger" onclick="removeDeployment(${d.id})">Sil</button>
+          </td>
         `;
         rows.appendChild(tr);
       });

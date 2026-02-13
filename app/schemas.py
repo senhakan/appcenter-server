@@ -119,6 +119,7 @@ class ApplicationResponse(BaseModel):
     install_args: Optional[str] = None
     uninstall_args: Optional[str] = None
     is_visible_in_store: bool
+    icon_url: Optional[str] = None
     category: Optional[str] = None
     is_active: bool
     created_at: datetime
@@ -128,6 +129,17 @@ class ApplicationResponse(BaseModel):
 class ApplicationListResponse(BaseModel):
     items: list[ApplicationResponse]
     total: int
+
+
+class ApplicationUpdateRequest(BaseModel):
+    display_name: Optional[str] = None
+    version: Optional[str] = None
+    description: Optional[str] = None
+    install_args: Optional[str] = None
+    uninstall_args: Optional[str] = None
+    is_visible_in_store: Optional[bool] = None
+    category: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 class DeploymentCreateRequest(BaseModel):
@@ -141,6 +153,7 @@ class DeploymentCreateRequest(BaseModel):
 
 
 class DeploymentUpdateRequest(BaseModel):
+    app_id: Optional[int] = None
     target_type: Optional[str] = None
     target_id: Optional[str] = None
     is_mandatory: Optional[bool] = None
@@ -202,6 +215,34 @@ class AgentResponse(BaseModel):
 class AgentListResponse(BaseModel):
     items: list[AgentResponse]
     total: int
+
+
+class GroupResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    description: Optional[str] = None
+    created_at: datetime
+
+
+class GroupListResponse(BaseModel):
+    items: list[GroupResponse]
+    total: int
+
+
+class GroupCreateRequest(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+
+class GroupUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
+class GroupAssignAgentsRequest(BaseModel):
+    agent_uuids: list[str] = Field(default_factory=list)
 
 
 class DashboardStatsResponse(BaseModel):

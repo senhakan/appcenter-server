@@ -33,3 +33,17 @@ Her deploy sonrasi minimum kontrol listesi.
 ## E. UI Sayfalari
 
 - `/login`, `/dashboard`, `/agents`, `/applications`, `/deployments`, `/settings` -> 200
+- `/groups` -> 200
+- `/applications/{app_id}/edit` -> 200
+- `/deployments/{deployment_id}/edit` -> 200
+- `/groups/{group_id}/edit` -> 200
+
+## F. Duzenleme Akislari
+
+- Uygulama duzenleme:
+- ad/versiyon/kurulum parametreleri guncellenir, kayit kalici olur
+- Grup duzenleme:
+- grup adi/aciklama guncellenir
+- dual-listbox ile ajan atamasi degisir ve kalici olur
+- Deployment duzenleme:
+- hedef tipi/target/priorite/aktiflik guncellenir

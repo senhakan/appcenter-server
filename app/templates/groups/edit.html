@@ -1,0 +1,177 @@
+{% extends 'base.html' %}
+{% block title %}Grup Duzenle{% endblock %}
+{% block content %}
+<style>
+  .transfer {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 12px;
+    align-items: center;
+  }
+  .transfer-actions {
+    display: grid;
+    gap: 8px;
+  }
+  .transfer select {
+    min-height: 280px;
+  }
+</style>
+<div class="card" style="max-width: 980px;">
+  <div class="row spread wrap">
+    <h3 style="margin: 0;">Grup Duzenle</h3>
+    <a class="btn secondary" href="/groups">Liste</a>
+  </div>
+
+  <form id="group-meta-form" class="grid" style="margin-top: 12px;">
+    <div class="grid cols-2">
+      <div>
+        <label>Grup Adi</label>
+        <input name="name" required />
+      </div>
+      <div>
+        <label>Aciklama</label>
+        <input name="description" />
+      </div>
+    </div>
+    <div class="row" style="justify-content: flex-end;">
+      <button class="btn" type="submit">Grup Bilgilerini Kaydet</button>
+    </div>
+  </form>
+
+  <hr style="border: 0; border-top: 1px solid var(--border); margin: 18px 0;" />
+
+  <form id="group-assign-form" class="grid">
+    <div class="transfer">
+      <div>
+        <label>Atanmamis Ajanlar</label>
+        <select id="available-agent-uuids" multiple></select>
+      </div>
+      <div class="transfer-actions">
+        <button class="btn secondary" type="button" id="move-right-all">>></button>
+        <button class="btn secondary" type="button" id="move-right">></button>
+        <button class="btn secondary" type="button" id="move-left"><</button>
+        <button class="btn secondary" type="button" id="move-left-all"><<</button>
+      </div>
+      <div>
+        <label>Gruptaki Ajanlar</label>
+        <select id="assigned-agent-uuids" multiple></select>
+      </div>
+    </div>
+    <div class="muted" id="assign-summary"></div>
+    <div class="row" style="justify-content: flex-end;">
+      <button class="btn" type="submit">Ajan Atamalarini Kaydet</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+  const groupId = Number("{{ group_id }}");
+  let groupItem = null;
+  let agents = [];
+
+  function toOption(agent) {
+    const o = document.createElement('option');
+    o.value = agent.uuid;
+    o.textContent = `${agent.hostname || agent.uuid} (${agent.uuid})`;
+    return o;
+  }
+
+  function selectValues(selectEl) {
+    return Array.from(selectEl.options || []).map((o) => o.value);
+  }
+
+  function moveSelected(fromEl, toEl) {
+    Array.from(fromEl.selectedOptions || []).forEach((opt) => {
+      toEl.appendChild(opt);
+      opt.selected = false;
+    });
+  }
+
+  function moveAll(fromEl, toEl) {
+    Array.from(fromEl.options || []).forEach((opt) => {
+      toEl.appendChild(opt);
+      opt.selected = false;
+    });
+  }
+
+  function renderAgentLists() {
+    const availableEl = document.getElementById('available-agent-uuids');
+    const assignedEl = document.getElementById('assigned-agent-uuids');
+    const inGroup = agents.filter((a) => Number(a.group_id || 0) === groupId);
+    const outGroup = agents.filter((a) => Number(a.group_id || 0) !== groupId);
+    availableEl.innerHTML = '';
+    assignedEl.innerHTML = '';
+    outGroup.forEach((a) => availableEl.appendChild(toOption(a)));
+    inGroup.forEach((a) => assignedEl.appendChild(toOption(a)));
+    document.getElementById('assign-summary').textContent =
+      `Mevcut atama: ${inGroup.length} ajan | Atanmamis: ${outGroup.length}`;
+  }
+
+  async function loadData() {
+    const [groupData, agentData] = await Promise.all([
+      AppCenterApi.req(`/groups/${groupId}`),
+      AppCenterApi.req('/agents'),
+    ]);
+    groupItem = groupData;
+    agents = agentData.items || [];
+
+    const form = document.getElementById('group-meta-form');
+    form.name.value = groupData.name || '';
+    form.description.value = groupData.description || '';
+    renderAgentLists();
+  }
+
+  document.getElementById('group-meta-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!groupItem) return;
+    const form = new FormData(e.target);
+    try {
+      await AppCenterApi.req(`/groups/${groupId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: (form.get('name') || '').toString(),
+          description: (form.get('description') || '').toString() || null,
+        }),
+      });
+      AppCenterApi.toast('Grup bilgileri guncellendi');
+      await loadData();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+
+  document.getElementById('move-right').addEventListener('click', () => {
+    moveSelected(document.getElementById('available-agent-uuids'), document.getElementById('assigned-agent-uuids'));
+  });
+  document.getElementById('move-left').addEventListener('click', () => {
+    moveSelected(document.getElementById('assigned-agent-uuids'), document.getElementById('available-agent-uuids'));
+  });
+  document.getElementById('move-right-all').addEventListener('click', () => {
+    moveAll(document.getElementById('available-agent-uuids'), document.getElementById('assigned-agent-uuids'));
+  });
+  document.getElementById('move-left-all').addEventListener('click', () => {
+    moveAll(document.getElementById('assigned-agent-uuids'), document.getElementById('available-agent-uuids'));
+  });
+
+  document.getElementById('group-assign-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const uuids = selectValues(document.getElementById('assigned-agent-uuids'));
+    try {
+      await AppCenterApi.req(`/groups/${groupId}/agents`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_uuids: uuids }),
+      });
+      AppCenterApi.toast('Ajan atamalari guncellendi');
+      await loadData();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+
+  loadData().catch((err) => AppCenterApi.toast(err.message));
+</script>
+{% endblock %}

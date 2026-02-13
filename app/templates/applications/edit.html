@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% block title %}Uygulama Duzenle{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 900px;">
+  <div class="row spread wrap">
+    <h3 style="margin: 0;">Uygulama Duzenle</h3>
+    <a class="btn secondary" href="/applications">Liste</a>
+  </div>
+  <form id="app-edit-form" class="grid" style="margin-top: 10px;">
+    <div class="grid cols-2">
+      <div>
+        <label>Gorunen Ad</label>
+        <input name="display_name" required />
+      </div>
+      <div>
+        <label>Versiyon</label>
+        <input name="version" required />
+      </div>
+    </div>
+    <div>
+      <label>Aciklama</label>
+      <textarea name="description"></textarea>
+    </div>
+    <div class="grid cols-2">
+      <div>
+        <label>Kurulum Parametreleri</label>
+        <input name="install_args" placeholder="/S /qn" />
+      </div>
+      <div>
+        <label>Kaldirma Parametreleri</label>
+        <input name="uninstall_args" placeholder="/uninstall /quiet" />
+      </div>
+    </div>
+    <div class="grid cols-2">
+      <div>
+        <label>Kategori</label>
+        <input name="category" />
+      </div>
+      <div class="row wrap" style="margin-top: 26px;">
+        <label><input type="checkbox" name="is_visible_in_store" /> Store'da gorunsun</label>
+        <label><input type="checkbox" name="is_active" /> Aktif</label>
+      </div>
+    </div>
+    <div class="row" style="justify-content: flex-end;">
+      <button class="btn" type="submit">Kaydet</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+  const appId = Number("{{ app_id }}");
+
+  async function loadApp() {
+    const data = await AppCenterApi.req(`/applications/${appId}`);
+    const form = document.getElementById('app-edit-form');
+    form.display_name.value = data.display_name || '';
+    form.version.value = data.version || '';
+    form.description.value = data.description || '';
+    form.install_args.value = data.install_args || '';
+    form.uninstall_args.value = data.uninstall_args || '';
+    form.category.value = data.category || '';
+    form.is_visible_in_store.checked = !!data.is_visible_in_store;
+    form.is_active.checked = !!data.is_active;
+  }
+
+  document.getElementById('app-edit-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = new FormData(e.target);
+    const payload = {
+      display_name: (form.get('display_name') || '').toString(),
+      version: (form.get('version') || '').toString(),
+      description: (form.get('description') || '').toString() || null,
+      install_args: (form.get('install_args') || '').toString() || null,
+      uninstall_args: (form.get('uninstall_args') || '').toString() || null,
+      category: (form.get('category') || '').toString() || null,
+      is_visible_in_store: form.get('is_visible_in_store') === 'on',
+      is_active: form.get('is_active') === 'on',
+    };
+    try {
+      await AppCenterApi.req(`/applications/${appId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      AppCenterApi.toast('Uygulama guncellendi');
+      setTimeout(() => { location.href = '/applications'; }, 700);
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+
+  loadApp().catch((err) => AppCenterApi.toast(err.message));
+</script>
+{% endblock %}

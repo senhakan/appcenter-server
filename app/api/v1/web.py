@@ -11,18 +11,24 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.config import get_settings
 from app.database import get_db
-from app.models import Agent, AgentApplication, Application, Deployment, Setting, TaskHistory, User
+from app.models import Agent, AgentApplication, Application, Deployment, Group, Setting, TaskHistory, User
 from app.schemas import (
     AgentListResponse,
     AgentResponse,
     AgentUpdateUploadResponse,
     ApplicationListResponse,
     ApplicationResponse,
+    ApplicationUpdateRequest,
     DashboardStatsResponse,
     DeploymentCreateRequest,
     DeploymentListResponse,
     DeploymentResponse,
     DeploymentUpdateRequest,
+    GroupAssignAgentsRequest,
+    GroupCreateRequest,
+    GroupListResponse,
+    GroupResponse,
+    GroupUpdateRequest,
     MessageResponse,
     SettingItem,
     SettingsListResponse,
@@ -33,6 +39,7 @@ from app.services.application_service import (
     delete_application,
     get_application,
     list_applications,
+    update_application,
 )
 from app.services.deployment_service import (
     create_deployment,
@@ -66,6 +73,123 @@ def agents_detail(
     if not agent:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
     return AgentResponse.model_validate(agent)
+
+
+@router.put("/agents/{agent_uuid}/group", response_model=AgentResponse)
+def agents_update_group(
+    agent_uuid: str,
+    group_id: Optional[int] = Form(None),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> AgentResponse:
+    agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
+    if not agent:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
+
+    if group_id is not None:
+        exists = db.query(Group.id).filter(Group.id == group_id).first()
+        if not exists:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+    agent.group_id = group_id
+    db.add(agent)
+    db.commit()
+    db.refresh(agent)
+    return AgentResponse.model_validate(agent)
+
+
+@router.get("/groups", response_model=GroupListResponse)
+def groups_list(
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> GroupListResponse:
+    items = db.query(Group).order_by(Group.name.asc()).all()
+    return GroupListResponse(items=items, total=len(items))
+
+
+@router.get("/groups/{group_id}", response_model=GroupResponse)
+def groups_detail(
+    group_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> GroupResponse:
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+    return GroupResponse.model_validate(group)
+
+
+@router.post("/groups", response_model=GroupResponse)
+def groups_create(
+    payload: GroupCreateRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> GroupResponse:
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Group name is required")
+    exists = db.query(Group.id).filter(func.lower(Group.name) == name.lower()).first()
+    if exists:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Group name already exists")
+    group = Group(name=name, description=(payload.description or "").strip() or None)
+    db.add(group)
+    db.commit()
+    db.refresh(group)
+    return GroupResponse.model_validate(group)
+
+
+@router.put("/groups/{group_id}", response_model=GroupResponse)
+def groups_update(
+    group_id: int,
+    payload: GroupUpdateRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> GroupResponse:
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+
+    if payload.name is not None:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Group name is required")
+        exists = (
+            db.query(Group.id)
+            .filter(Group.id != group.id, func.lower(Group.name) == name.lower())
+            .first()
+        )
+        if exists:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Group name already exists")
+        group.name = name
+    if payload.description is not None:
+        group.description = payload.description.strip() or None
+    db.add(group)
+    db.commit()
+    db.refresh(group)
+    return GroupResponse.model_validate(group)
+
+
+@router.put("/groups/{group_id}/agents", response_model=MessageResponse)
+def groups_assign_agents(
+    group_id: int,
+    payload: GroupAssignAgentsRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> MessageResponse:
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+
+    target_uuids = {uuid.strip() for uuid in payload.agent_uuids if uuid and uuid.strip()}
+    if target_uuids:
+        existing_count = db.query(func.count(Agent.uuid)).filter(Agent.uuid.in_(target_uuids)).scalar() or 0
+        if existing_count != len(target_uuids):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="One or more agents not found")
+
+    db.query(Agent).filter(Agent.group_id == group_id).update({Agent.group_id: None}, synchronize_session=False)
+    if target_uuids:
+        db.query(Agent).filter(Agent.uuid.in_(target_uuids)).update({Agent.group_id: group_id}, synchronize_session=False)
+    db.commit()
+    return MessageResponse(status="success", message="Group agents updated")
 
 
 @router.get("/dashboard/stats", response_model=DashboardStatsResponse)
@@ -120,6 +244,7 @@ async def applications_upload(
     uninstall_args: Optional[str] = Form(None),
     is_visible_in_store: bool = Form(True),
     category: Optional[str] = Form(None),
+    icon: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ) -> ApplicationResponse:
@@ -133,6 +258,29 @@ async def applications_upload(
         uninstall_args=uninstall_args,
         is_visible_in_store=is_visible_in_store,
         category=category,
+        icon_file=icon,
+    )
+    return ApplicationResponse.model_validate(app)
+
+
+@router.put("/applications/{app_id}", response_model=ApplicationResponse)
+def applications_update(
+    app_id: int,
+    payload: ApplicationUpdateRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> ApplicationResponse:
+    app = update_application(
+        db=db,
+        app_id=app_id,
+        display_name=payload.display_name,
+        version=payload.version,
+        description=payload.description,
+        install_args=payload.install_args,
+        uninstall_args=payload.uninstall_args,
+        is_visible_in_store=payload.is_visible_in_store,
+        category=payload.category,
+        is_active=payload.is_active,
     )
     return ApplicationResponse.model_validate(app)
 

@@ -54,6 +54,7 @@ app.add_middleware(
 )
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(agent_router, prefix=settings.api_v1_prefix)
 app.include_router(web_router, prefix=settings.api_v1_prefix)
@@ -114,6 +115,11 @@ def agents_page(request: Request):
     return templates.TemplateResponse("agents/list.html", {"request": request, "active_page": "agents"})
 
 
+@app.get("/groups")
+def groups_page(request: Request):
+    return templates.TemplateResponse("groups/list.html", {"request": request, "active_page": "groups"})
+
+
 @app.get("/agents/{agent_uuid}")
 def agent_detail_page(request: Request, agent_uuid: str):
     return templates.TemplateResponse(
@@ -127,6 +133,14 @@ def applications_page(request: Request):
     return templates.TemplateResponse(
         "applications/list.html",
         {"request": request, "active_page": "applications"},
+    )
+
+
+@app.get("/applications/{app_id}/edit")
+def applications_edit_page(request: Request, app_id: int):
+    return templates.TemplateResponse(
+        "applications/edit.html",
+        {"request": request, "active_page": "applications", "app_id": app_id},
     )
 
 
@@ -154,6 +168,22 @@ def deployments_create_page(request: Request):
     )
 
 
+@app.get("/deployments/{deployment_id}/edit")
+def deployments_edit_page(request: Request, deployment_id: int):
+    return templates.TemplateResponse(
+        "deployments/edit.html",
+        {"request": request, "active_page": "deployments", "deployment_id": deployment_id},
+    )
+
+
 @app.get("/settings")
 def settings_page(request: Request):
     return templates.TemplateResponse("settings.html", {"request": request, "active_page": "settings"})
+
+
+@app.get("/groups/{group_id}/edit")
+def groups_edit_page(request: Request, group_id: int):
+    return templates.TemplateResponse(
+        "groups/edit.html",
+        {"request": request, "active_page": "groups", "group_id": group_id},
+    )

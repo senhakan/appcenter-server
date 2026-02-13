@@ -83,6 +83,31 @@
 - Error handling:
 - API exception formati standardlastirildi (`status` + `detail`)
 
+## Faz 6 Tamamlananlar (UI + Yönetim Iyilestirmeleri)
+
+- Uygulama yukleme akisi:
+- `install_args` / `uninstall_args` alanlari eklendi
+- opsiyonel ikon yukleme eklendi
+- `/uploads` static mount ile ikon servisleme aktif
+- Uygulama adi tekilligi:
+- `display_name` case-insensitive unique kontrolu (create/update)
+- Grup yonetimi:
+- `GET /api/v1/groups`
+- `GET /api/v1/groups/{group_id}`
+- `POST /api/v1/groups`
+- `PUT /api/v1/groups/{group_id}`
+- `PUT /api/v1/groups/{group_id}/agents`
+- Duzenleme ekranlari (full form):
+- `GET /applications/{app_id}/edit`
+- `GET /deployments/{deployment_id}/edit`
+- `GET /groups/{group_id}/edit`
+- Deployment form iyilestirmesi:
+- uygulama/grup/agent secimi combobox uzerinden
+- Group assignment:
+- soldan saga dual-listbox akisi (atanmamis -> gruptaki ajanlar)
+- SQLite startup migration:
+- eski veritabani icin `applications` tablosuna eksik kolonlari idempotent ekleme
+
 ## Son Dogrulama (2026-02-13)
 
 - `POST /api/v1/auth/login` -> `200`
@@ -123,7 +148,7 @@ pytest -q
 - Test dosyalari:
 - `tests/conftest.py`
 - `tests/test_phase5_api.py`
-- Son sonuc: `4 passed`
+- Son sonuc: `8 passed`
 
 ## Dokumantasyon
 

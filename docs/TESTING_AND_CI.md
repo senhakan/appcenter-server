@@ -11,6 +11,12 @@ Mevcut test dosyalari:
 - `tests/conftest.py`
 - `tests/test_phase5_api.py`
 
+Guncel kapsam:
+- upload + icon + install args
+- deployment assignment + task status
+- group management + group target deployment
+- app/group/deployment edit endpointleri
+
 ## 2. CI
 
 Workflow dosyasi:

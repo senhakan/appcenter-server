@@ -13,10 +13,23 @@ pip install -r requirements.txt
 ## 2. Gelistirme Sirasi
 
 - Faz bazli ilerle (1 -> 5).
+- Faz 6 (UI yonetim iyilestirmeleri) aktif olarak faz 5 uzerine iteratif ilerletilir.
 - Her faz sonunda:
   - API smoke test
   - `pytest -q`
   - Dokuman guncellemesi (`README.md`, gerekirse `CLAUDE.md`).
+
+## 2.1 Sonraki Asama Plani
+
+1. Faz 6.1:
+- Edit formlarinda validation + daha net hata mesaji
+- uygulama/dağıtım/grup duzenleme icin frontend form kontrolleri
+2. Faz 6.2:
+- Gruplar icin silme/pasife alma stratejisi
+- deployment listesinde app/group/agent isimlerinin zengin gosterimi
+3. Faz 6.3:
+- Audit log (kim, neyi, ne zaman degistirdi)
+- kritik degisikliklerde onay/ikinci adim
 
 ## 3. Kod Standarti
 

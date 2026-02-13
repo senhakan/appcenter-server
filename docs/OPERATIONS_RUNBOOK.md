@@ -21,6 +21,10 @@ sudo systemctl restart appcenter
 sudo systemctl status appcenter --no-pager
 ```
 
+Not:
+- `rsync --delete` ile deploy yapiliyorsa `.env` dosyasi korunmalidir.
+- Ornek: `--exclude '.env'`
+
 ## 3. Hizli Production Smoke
 
 ```bash
@@ -31,6 +35,8 @@ Web login ve kritik akislar manuel kontrol edilir:
 - `/login`
 - app upload
 - deployment create
+- application/deployment/group edit ekranlari
+- group create + dual-listbox agent assignment
 - agent heartbeat/task flow
 - settings update
 - agent update upload/download

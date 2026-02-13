@@ -13,7 +13,7 @@
     <table>
       <thead>
         <tr>
-          <th>ID</th><th>Ad</th><th>Versiyon</th><th>Tip</th><th>Boyut</th><th></th>
+          <th>ID</th><th>Ikon</th><th>Ad</th><th>Versiyon</th><th>Kurulum Param.</th><th>Tip</th><th>Boyut</th><th></th>
         </tr>
       </thead>
       <tbody id="app-rows"></tbody>
@@ -50,11 +50,16 @@
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${app.id}</td>
+          <td>${app.icon_url ? `<img src="${app.icon_url}" alt="icon" style="width:28px;height:28px;border-radius:6px;object-fit:cover;border:1px solid #dbe3ef;" />` : '-'}</td>
           <td>${app.display_name}</td>
           <td>${app.version}</td>
+          <td>${app.install_args || '-'}</td>
           <td>${app.file_type}</td>
           <td>${formatBytes(app.file_size_bytes)}</td>
-          <td><button class="btn danger" onclick="removeApp(${app.id})">Sil</button></td>
+          <td class="row">
+            <a class="btn secondary" href="/applications/${app.id}/edit">Duzenle</a>
+            <button class="btn danger" onclick="removeApp(${app.id})">Sil</button>
+          </td>
         `;
         rows.appendChild(tr);
       });

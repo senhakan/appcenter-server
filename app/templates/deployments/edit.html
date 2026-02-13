@@ -1,12 +1,12 @@
 {% extends 'base.html' %}
-{% block title %}Dagitim Olustur{% endblock %}
+{% block title %}Dagitim Duzenle{% endblock %}
 {% block content %}
-<div class="card" style="max-width: 780px;">
+<div class="card" style="max-width: 900px;">
   <div class="row spread wrap">
-    <h3 style="margin: 0;">Yeni Dagitim</h3>
+    <h3 style="margin: 0;">Dagitim Duzenle</h3>
     <a class="btn secondary" href="/deployments">Liste</a>
   </div>
-  <form id="dep-form" class="grid" style="margin-top: 10px;">
+  <form id="dep-edit-form" class="grid" style="margin-top: 10px;">
     <div class="grid cols-2">
       <div>
         <label>Uygulama</label>
@@ -14,7 +14,7 @@
       </div>
       <div>
         <label>Oncelik</label>
-        <input name="priority" type="number" value="5" required />
+        <input name="priority" type="number" min="1" value="5" required />
       </div>
     </div>
     <div class="grid cols-2">
@@ -38,30 +38,34 @@
     <div class="row wrap">
       <label><input type="checkbox" name="is_mandatory" /> Zorunlu</label>
       <label><input type="checkbox" name="force_update" /> Force Update</label>
-      <label><input type="checkbox" name="is_active" checked /> Aktif</label>
+      <label><input type="checkbox" name="is_active" /> Aktif</label>
     </div>
-    <button class="btn" type="submit">Olustur</button>
+    <div class="row" style="justify-content: flex-end;">
+      <button class="btn" type="submit">Kaydet</button>
+    </div>
   </form>
 </div>
 {% endblock %}
 {% block scripts %}
 <script>
   AppCenterApi.protectPage();
+  const deploymentId = Number("{{ deployment_id }}");
+  let loadedDeployment = null;
 
   function syncTargetInputs() {
     const targetType = document.getElementById('target_type').value;
-    const groupWrap = document.getElementById('target-group-wrap');
-    const agentWrap = document.getElementById('target-agent-wrap');
-    groupWrap.style.display = targetType === 'Group' ? '' : 'none';
-    agentWrap.style.display = targetType === 'Agent' ? '' : 'none';
+    document.getElementById('target-group-wrap').style.display = targetType === 'Group' ? '' : 'none';
+    document.getElementById('target-agent-wrap').style.display = targetType === 'Agent' ? '' : 'none';
   }
 
   async function loadFormData() {
-    const [appsData, agentsData, groupsData] = await Promise.all([
+    const [dep, appsData, agentsData, groupsData] = await Promise.all([
+      AppCenterApi.req(`/deployments/${deploymentId}`),
       AppCenterApi.req('/applications?only_active=true'),
       AppCenterApi.req('/agents'),
       AppCenterApi.req('/groups'),
     ]);
+    loadedDeployment = dep;
 
     const appSelect = document.getElementById('app_id');
     appSelect.innerHTML = '';
@@ -77,13 +81,9 @@
     (agentsData.items || []).forEach((agent) => {
       const option = document.createElement('option');
       option.value = agent.uuid;
-      option.textContent = `${agent.hostname} (${agent.uuid})`;
+      option.textContent = `${agent.hostname || agent.uuid} (${agent.uuid})`;
       agentSelect.appendChild(option);
     });
-
-    if (!appSelect.value) {
-      throw new Error('Aktif uygulama bulunamadi. Once uygulama ekleyin.');
-    }
 
     const groupSelect = document.getElementById('target_group_id');
     groupSelect.innerHTML = '';
@@ -93,50 +93,49 @@
       option.textContent = `${group.name} (#${group.id})`;
       groupSelect.appendChild(option);
     });
+
+    const form = document.getElementById('dep-edit-form');
+    form.app_id.value = String(dep.app_id);
+    form.priority.value = String(dep.priority || 5);
+    form.target_type.value = dep.target_type || 'All';
+    if (dep.target_type === 'Group' && dep.target_id) form.target_group_id.value = dep.target_id;
+    if (dep.target_type === 'Agent' && dep.target_id) form.target_agent_uuid.value = dep.target_id;
+    form.is_mandatory.checked = !!dep.is_mandatory;
+    form.force_update.checked = !!dep.force_update;
+    form.is_active.checked = !!dep.is_active;
+    syncTargetInputs();
   }
 
   document.getElementById('target_type').addEventListener('change', syncTargetInputs);
-  document.getElementById('dep-form').addEventListener('submit', async (e) => {
+  document.getElementById('dep-edit-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (!loadedDeployment) return;
     const form = new FormData(e.target);
-    const targetType = form.get('target_type');
+    const targetType = (form.get('target_type') || '').toString();
     let targetId = null;
-    if (targetType === 'Group') {
-      const raw = (form.get('target_group_id') || '').toString().trim();
-      targetId = raw || null;
-    } else if (targetType === 'Agent') {
-      const raw = (form.get('target_agent_uuid') || '').toString().trim();
-      targetId = raw || null;
-    }
-    const payload = {
-      app_id: Number(form.get('app_id')),
-      target_type: targetType,
-      target_id: targetId,
-      is_mandatory: form.get('is_mandatory') === 'on',
-      force_update: form.get('force_update') === 'on',
-      priority: Number(form.get('priority')),
-      is_active: form.get('is_active') === 'on',
-    };
+    if (targetType === 'Group') targetId = (form.get('target_group_id') || '').toString() || null;
+    if (targetType === 'Agent') targetId = (form.get('target_agent_uuid') || '').toString() || null;
     try {
-      await AppCenterApi.req('/deployments', {
-        method: 'POST',
+      await AppCenterApi.req(`/deployments/${deploymentId}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          app_id: Number(form.get('app_id')),
+          target_type: targetType,
+          target_id: targetType === 'All' ? null : targetId,
+          priority: Number(form.get('priority')),
+          is_mandatory: form.get('is_mandatory') === 'on',
+          force_update: form.get('force_update') === 'on',
+          is_active: form.get('is_active') === 'on',
+        }),
       });
-      AppCenterApi.toast('Dagitim olusturuldu');
+      AppCenterApi.toast('Dagitim guncellendi');
       setTimeout(() => { location.href = '/deployments'; }, 700);
     } catch (err) {
       AppCenterApi.toast(err.message);
     }
   });
 
-  (async () => {
-    try {
-      await loadFormData();
-      syncTargetInputs();
-    } catch (err) {
-      AppCenterApi.toast(err.message);
-    }
-  })();
+  loadFormData().catch((err) => AppCenterApi.toast(err.message));
 </script>
 {% endblock %}

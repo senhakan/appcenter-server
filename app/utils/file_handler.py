@@ -11,6 +11,7 @@ import aiofiles
 from fastapi import HTTPException, UploadFile, status
 
 ALLOWED_EXTENSIONS = {".msi", ".exe"}
+ALLOWED_ICON_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".svg"}
 READ_CHUNK_SIZE = 1024 * 1024  # 1MB
 
 
@@ -79,6 +80,49 @@ async def save_upload_to_temp(
 def move_temp_to_final(temp_path: Path, final_path: Path) -> None:
     final_path.parent.mkdir(parents=True, exist_ok=True)
     os.replace(temp_path, final_path)
+
+
+async def save_icon_file(
+    icon_file: UploadFile,
+    upload_dir: str,
+    max_icon_size: int,
+    app_id: int,
+) -> tuple[str, str]:
+    ext = get_extension(icon_file.filename or "")
+    if ext not in ALLOWED_ICON_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid icon type. Allowed: .png, .jpg, .jpeg, .webp, .svg",
+        )
+
+    icons_dir = ensure_upload_dir(str(Path(upload_dir) / "icons"))
+    safe_name = f"app_{app_id}_{uuid4().hex[:12]}{ext}"
+    temp_path = icons_dir / f"temp_{uuid4().hex}{ext}"
+    final_path = icons_dir / safe_name
+    total_size = 0
+
+    try:
+        async with aiofiles.open(temp_path, "wb") as out_file:
+            while True:
+                chunk = await icon_file.read(READ_CHUNK_SIZE)
+                if not chunk:
+                    break
+                total_size += len(chunk)
+                if total_size > max_icon_size:
+                    raise HTTPException(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail="Icon too large. Max 5MB.",
+                    )
+                await out_file.write(chunk)
+        move_temp_to_final(temp_path, final_path)
+    except Exception:
+        temp_path.unlink(missing_ok=True)
+        final_path.unlink(missing_ok=True)
+        raise
+    finally:
+        await icon_file.close()
+
+    return safe_name, f"/uploads/icons/{safe_name}"
 
 
 def parse_range_header(range_header: Optional[str], file_size: int) -> Optional[tuple[int, int]]:
