@@ -11,6 +11,7 @@
       <div><label>Log Retention (gun)</label><input id="s-log-retention" /></div>
       <div><label>Envanter Tarama Araligi (dk)</label><input id="s-inv-interval" /></div>
       <div><label>Envanter Gecmis Saklama (gun)</label><input id="s-inv-retention" /></div>
+      <div><label>Sistem Gecmisi Saklama (gun)</label><input id="s-system-retention" /></div>
       <button class="btn" type="submit">Ayarlari Kaydet</button>
     </form>
   </div>
@@ -40,6 +41,7 @@
       document.getElementById('s-log-retention').value = map.log_retention_days || '30';
       document.getElementById('s-inv-interval').value = map.inventory_scan_interval_min || '10';
       document.getElementById('s-inv-retention').value = map.inventory_history_retention_days || '90';
+      document.getElementById('s-system-retention').value = map.system_history_retention_days || '360';
     } catch (err) {
       AppCenterApi.toast(err.message);
     }
@@ -59,6 +61,7 @@
             log_retention_days: document.getElementById('s-log-retention').value,
             inventory_scan_interval_min: document.getElementById('s-inv-interval').value,
             inventory_history_retention_days: document.getElementById('s-inv-retention').value,
+            system_history_retention_days: document.getElementById('s-system-retention').value,
           },
         }),
       });

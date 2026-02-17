@@ -6,7 +6,10 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.database import get_db
 from app.services import inventory_service
+from app.services import system_profile_service
 from app.schemas import (
+    AgentSystemHistoryListResponse,
+    SystemProfileHistoryItemResponse,
     AgentChangeHistoryListResponse,
     AgentInventoryListResponse,
     ChangeHistoryItemResponse,
@@ -59,6 +62,21 @@ def get_agent_change_history(
     items, total = inventory_service.get_agent_change_history(db, agent_uuid, limit, offset)
     return AgentChangeHistoryListResponse(
         items=[ChangeHistoryItemResponse.model_validate(i) for i in items],
+        total=total,
+    )
+
+
+@router.get("/agents/{agent_uuid}/system/history", response_model=AgentSystemHistoryListResponse)
+def get_agent_system_history(
+    agent_uuid: str,
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    items, total = system_profile_service.get_agent_system_history(db, agent_uuid, limit, offset)
+    return AgentSystemHistoryListResponse(
+        items=[SystemProfileHistoryItemResponse.model_validate(i) for i in items],
         total=total,
     )
 

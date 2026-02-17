@@ -58,6 +58,40 @@ class LoggedInSession(BaseModel):
     logon_id: Optional[str] = None
 
 
+class SystemDisk(BaseModel):
+    index: int
+    size_gb: Optional[int] = None
+    model: Optional[str] = None
+    bus_type: Optional[str] = None
+
+
+class VirtualizationInfo(BaseModel):
+    is_virtual: bool = False
+    vendor: Optional[str] = None
+    model: Optional[str] = None
+
+
+class SystemProfile(BaseModel):
+    os_full_name: Optional[str] = None
+    os_version: Optional[str] = None
+    build_number: Optional[str] = None
+    architecture: Optional[str] = None
+
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+
+    cpu_model: Optional[str] = None
+    cpu_cores_physical: Optional[int] = None
+    cpu_cores_logical: Optional[int] = None
+
+    total_memory_gb: Optional[int] = None
+
+    disk_count: Optional[int] = None
+    disks: list[SystemDisk] = Field(default_factory=list)
+
+    virtualization: Optional[VirtualizationInfo] = None
+
+
 class HeartbeatRequest(BaseModel):
     hostname: str
     ip_address: Optional[str] = None
@@ -71,6 +105,7 @@ class HeartbeatRequest(BaseModel):
     installed_apps: list[InstalledAppItem] = Field(default_factory=list)
     inventory_hash: Optional[str] = None
     logged_in_sessions: Optional[list[LoggedInSession]] = None
+    system_profile: Optional[SystemProfile] = None
 
 
 class CommandItem(BaseModel):
@@ -223,8 +258,24 @@ class AgentResponse(BaseModel):
     disk_free_gb: Optional[int] = None
     logged_in_sessions: list[LoggedInSession] = Field(default_factory=list)
     logged_in_sessions_updated_at: Optional[datetime] = None
+    system_profile: Optional[SystemProfile] = None
+    system_profile_updated_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+
+
+class SystemProfileHistoryItemResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    detected_at: datetime
+    changed_fields: list[str] = Field(default_factory=list)
+    system_profile: SystemProfile
+
+
+class AgentSystemHistoryListResponse(BaseModel):
+    items: list[SystemProfileHistoryItemResponse]
+    total: int
 
 
 class AgentListResponse(BaseModel):

@@ -78,6 +78,11 @@ class Agent(Base):
     logged_in_sessions_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     logged_in_sessions_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # System profile snapshot (static-ish info) + last update.
+    system_profile_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    system_profile_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    system_profile_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
     agent_applications: Mapped[list["AgentApplication"]] = relationship(back_populates="agent")
     agent_groups: Mapped[list["AgentGroup"]] = relationship(back_populates="agent", cascade="all, delete-orphan")
 
@@ -97,6 +102,17 @@ class Agent(Base):
             return []
         except Exception:
             return []
+
+    @property
+    def system_profile(self) -> Optional[dict]:
+        """Parsed system profile snapshot from system_profile_json (best-effort)."""
+        if not self.system_profile_json:
+            return None
+        try:
+            data = json.loads(self.system_profile_json)
+            return data if isinstance(data, dict) else None
+        except Exception:
+            return None
 
 
 class AgentGroup(Base):
@@ -323,6 +339,39 @@ Index("idx_inv_normalized_name", AgentSoftwareInventory.normalized_name)
 Index("idx_change_agent", SoftwareChangeHistory.agent_uuid)
 Index("idx_change_detected", SoftwareChangeHistory.detected_at)
 Index("idx_change_type", SoftwareChangeHistory.change_type)
+
+
+class AgentSystemProfileHistory(Base):
+    __tablename__ = "agent_system_profile_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    agent_uuid: Mapped[str] = mapped_column(ForeignKey("agents.uuid", ondelete="CASCADE"), nullable=False)
+    detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    profile_hash: Mapped[str] = mapped_column(String, nullable=False)
+    profile_json: Mapped[str] = mapped_column(Text, nullable=False)
+    changed_fields_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    @property
+    def system_profile(self) -> dict:
+        try:
+            data = json.loads(self.profile_json or "{}")
+            return data if isinstance(data, dict) else {}
+        except Exception:
+            return {}
+
+    @property
+    def changed_fields(self) -> list[str]:
+        if not self.changed_fields_json:
+            return []
+        try:
+            data = json.loads(self.changed_fields_json)
+            return data if isinstance(data, list) else []
+        except Exception:
+            return []
+
+
+Index("idx_systemhist_agent", AgentSystemProfileHistory.agent_uuid)
+Index("idx_systemhist_detected", AgentSystemProfileHistory.detected_at)
 Index("idx_norm_pattern", SoftwareNormalizationRule.pattern)
 Index("idx_license_pattern", SoftwareLicense.software_name_pattern)
 Index("idx_license_type", SoftwareLicense.license_type)

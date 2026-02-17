@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from app.models import Agent, AgentApplication, Application, Deployment, TaskHistory
+from app.models import Agent, AgentApplication, AgentSystemProfileHistory, Application, Deployment, TaskHistory
 from app.schemas import CommandItem, HeartbeatConfig, HeartbeatRequest
 
 
@@ -106,6 +107,59 @@ def _pending_commands(db: Session, agent: Agent, now: datetime) -> list[CommandI
     return commands
 
 
+def _hash_json_dict(data: dict) -> str:
+    # Deterministic, order-independent hashing for change detection.
+    b = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    return hashlib.sha256(b).hexdigest()
+
+
+def _diff_system_profile(old: dict | None, new: dict) -> list[str]:
+    if not old:
+        return ["initial"]
+
+    changed: list[str] = []
+    keys = [
+        "os_full_name",
+        "os_version",
+        "build_number",
+        "architecture",
+        "manufacturer",
+        "model",
+        "cpu_model",
+        "cpu_cores_physical",
+        "cpu_cores_logical",
+        "total_memory_gb",
+    ]
+    for k in keys:
+        if old.get(k) != new.get(k):
+            changed.append(k)
+
+    # Disks: compare by index.
+    def disk_map(d: dict | None) -> dict[int, dict]:
+        out: dict[int, dict] = {}
+        if not d:
+            return out
+        for item in d.get("disks") or []:
+            if not isinstance(item, dict):
+                continue
+            idx = item.get("index")
+            if isinstance(idx, int):
+                out[idx] = {
+                    "size_gb": item.get("size_gb"),
+                    "model": item.get("model"),
+                    "bus_type": item.get("bus_type"),
+                }
+        return out
+
+    if disk_map(old) != disk_map(new) or old.get("disk_count") != new.get("disk_count"):
+        changed.append("disks")
+
+    if old.get("virtualization") != new.get("virtualization"):
+        changed.append("virtualization")
+
+    return changed
+
+
 def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> tuple[datetime, HeartbeatConfig, list[CommandItem], bool]:
     now = datetime.now(timezone.utc)
     agent.hostname = payload.hostname
@@ -120,6 +174,25 @@ def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> t
     if payload.logged_in_sessions is not None:
         agent.logged_in_sessions_json = json.dumps([s.model_dump() for s in payload.logged_in_sessions])
         agent.logged_in_sessions_updated_at = now
+
+    # System profile snapshot - sent periodically (not on every heartbeat).
+    if payload.system_profile is not None:
+        profile_dict = payload.system_profile.model_dump()
+        profile_hash = _hash_json_dict(profile_dict)
+        if agent.system_profile_hash != profile_hash:
+            changed_fields = _diff_system_profile(agent.system_profile, profile_dict)
+            db.add(
+                AgentSystemProfileHistory(
+                    agent_uuid=agent.uuid,
+                    detected_at=now,
+                    profile_hash=profile_hash,
+                    profile_json=json.dumps(profile_dict),
+                    changed_fields_json=json.dumps(changed_fields),
+                )
+            )
+            agent.system_profile_json = json.dumps(profile_dict)
+            agent.system_profile_hash = profile_hash
+            agent.system_profile_updated_at = now
 
     agent.last_seen = now
     agent.status = "online"

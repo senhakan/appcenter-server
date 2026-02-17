@@ -53,6 +53,7 @@ DEFAULT_SETTINGS = {
     "server_timezone": ("UTC", "Server timezone (always UTC)"),
     "inventory_scan_interval_min": ("10", "Agent envanter tarama araligi (dakika)"),
     "inventory_history_retention_days": ("90", "Yazilim degisim gecmisi saklama suresi (gun)"),
+    "system_history_retention_days": ("360", "Sistem profili degisim gecmisi saklama suresi (gun)"),
 }
 
 DEFAULT_GROUPS = {
@@ -87,6 +88,7 @@ def _run_startup_migrations() -> None:
         _migrate_sqlite_agent_groups_table()
         _migrate_sqlite_agents_inventory_columns()
         _migrate_sqlite_agents_session_columns()
+        _migrate_sqlite_agents_system_profile_columns()
 
 
 def _migrate_sqlite_applications_table() -> None:
@@ -179,6 +181,30 @@ def _migrate_sqlite_agents_session_columns() -> None:
     expected_columns = {
         "logged_in_sessions_json": "TEXT",
         "logged_in_sessions_updated_at": "DATETIME",
+    }
+
+    with engine.begin() as conn:
+        table_exists = conn.execute(
+            text("SELECT 1 FROM sqlite_master WHERE type='table' AND name='agents' LIMIT 1")
+        ).first()
+        if not table_exists:
+            return
+
+        rows = conn.execute(text("PRAGMA table_info(agents)")).mappings().all()
+        existing_columns = {row["name"] for row in rows}
+
+        for column_name, column_type in expected_columns.items():
+            if column_name in existing_columns:
+                continue
+            conn.execute(text(f"ALTER TABLE agents ADD COLUMN {column_name} {column_type}"))
+
+
+def _migrate_sqlite_agents_system_profile_columns() -> None:
+    """Add system profile snapshot columns to agents table."""
+    expected_columns = {
+        "system_profile_json": "TEXT",
+        "system_profile_hash": "VARCHAR",
+        "system_profile_updated_at": "DATETIME",
     }
 
     with engine.begin() as conn:

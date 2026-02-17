@@ -13,6 +13,7 @@
   <div class="row" style="gap: 8px; margin-bottom: 16px;">
     <button class="btn" id="tab-inventory" onclick="showTab('inventory')">Yuklu Yazilimlar</button>
     <button class="btn secondary" id="tab-changes" onclick="showTab('changes')">Degisim Gecmisi</button>
+    <button class="btn secondary" id="tab-system" onclick="showTab('system')">Sistem Gecmisi</button>
   </div>
 
   <div id="panel-inventory">
@@ -35,6 +36,23 @@
       <button class="btn secondary" id="changes-more" onclick="loadMoreChanges()">Daha Fazla</button>
     </div>
   </div>
+
+  <div id="panel-system" style="display:none;">
+    <div class="row spread wrap" style="margin-bottom: 8px;">
+      <div>
+        <div style="font-weight:600;">Sistem Profili (Son)</div>
+        <div class="muted" id="sys-updated"></div>
+      </div>
+    </div>
+    <div id="sys-current" class="grid cols-2" style="margin-bottom: 12px;"></div>
+    <table>
+      <thead><tr><th>Tarih</th><th>Degisen Alanlar</th><th>Ozet</th></tr></thead>
+      <tbody id="sys-body"></tbody>
+    </table>
+    <div class="row spread" style="margin-top: 8px;">
+      <button class="btn secondary" id="sys-more" onclick="loadMoreSystem()">Daha Fazla</button>
+    </div>
+  </div>
 </div>
 {% endblock %}
 {% block scripts %}
@@ -43,12 +61,16 @@
   const agentId = "{{ agent_uuid }}";
   let allInventory = [];
   let changesOffset = 0;
+  let systemOffset = 0;
+  let currentSystemProfile = null;
 
   function showTab(tab) {
     document.getElementById('panel-inventory').style.display = tab === 'inventory' ? '' : 'none';
     document.getElementById('panel-changes').style.display = tab === 'changes' ? '' : 'none';
+    document.getElementById('panel-system').style.display = tab === 'system' ? '' : 'none';
     document.getElementById('tab-inventory').className = tab === 'inventory' ? 'btn' : 'btn secondary';
     document.getElementById('tab-changes').className = tab === 'changes' ? 'btn' : 'btn secondary';
+    document.getElementById('tab-system').className = tab === 'system' ? 'btn' : 'btn secondary';
   }
 
   async function loadAgentDetail() {
@@ -58,6 +80,8 @@
       const sessions = (data.logged_in_sessions || []).map(s => `${s.username} (${s.session_type})`);
       const sessionsText = sessions.length ? sessions.join('<br/>') : '-';
       const sessionsUpdated = data.logged_in_sessions_updated_at ? new Date(data.logged_in_sessions_updated_at).toLocaleString() : '-';
+      currentSystemProfile = data.system_profile || null;
+      document.getElementById('sys-updated').textContent = data.system_profile_updated_at ? `Guncelleme: ${new Date(data.system_profile_updated_at).toLocaleString()}` : 'Guncelleme: -';
       el.innerHTML = `
         <div><label>UUID</label><div>${data.uuid}</div></div>
         <div><label>Hostname</label><div>${data.hostname || '-'}</div></div>
@@ -68,9 +92,31 @@
         <div><label>Login Olan Kullanici(lar)</label><div>${sessionsText}</div></div>
         <div><label>Session Guncelleme</label><div>${sessionsUpdated}</div></div>
       `;
+
+      renderCurrentSystem();
     } catch (err) {
       AppCenterApi.toast(err.message);
     }
+  }
+
+  function renderCurrentSystem() {
+    const el = document.getElementById('sys-current');
+    if (!currentSystemProfile) {
+      el.innerHTML = '<div class="muted">Sistem profili verisi yok</div>';
+      return;
+    }
+    const p = currentSystemProfile;
+    const disks = (p.disks || []).map(d => `Disk ${d.index}: ${d.size_gb || '?'} GB (${d.bus_type || '?'}) ${d.model || ''}`).join('<br/>') || '-';
+    const virt = p.virtualization ? `${p.virtualization.is_virtual ? 'Evet' : 'Hayir'} ${p.virtualization.vendor || ''} ${p.virtualization.model || ''}`.trim() : '-';
+    el.innerHTML = `
+      <div><label>OS</label><div>${p.os_full_name || '-'} ${p.os_version || ''} ${p.build_number ? '(Build ' + p.build_number + ')' : ''}</div></div>
+      <div><label>Mimari</label><div>${p.architecture || '-'}</div></div>
+      <div><label>Marka/Model</label><div>${(p.manufacturer || '-') + ' ' + (p.model || '')}</div></div>
+      <div><label>CPU</label><div>${p.cpu_model || '-'} (P:${p.cpu_cores_physical || '-'} L:${p.cpu_cores_logical || '-'})</div></div>
+      <div><label>RAM</label><div>${p.total_memory_gb != null ? (p.total_memory_gb + ' GB') : '-'}</div></div>
+      <div><label>Virtual</label><div>${virt || '-'}</div></div>
+      <div style="grid-column: span 2;"><label>Diskler</label><div>${disks}</div></div>
+    `;
   }
 
   async function loadInventory() {
@@ -127,8 +173,33 @@
 
   function loadMoreChanges() { loadChanges(); }
 
+  async function loadSystemHistory() {
+    try {
+      const data = await AppCenterApi.req(`/agents/${agentId}/system/history?limit=50&offset=${systemOffset}`);
+      const items = data.items || [];
+      const body = document.getElementById('sys-body');
+      items.forEach(i => {
+        const changed = (i.changed_fields || []).length ? (i.changed_fields || []).join(', ') : '-';
+        const p = i.system_profile || {};
+        const summary = `${p.os_full_name || '-'} | ${p.cpu_model || '-'} | ${p.total_memory_gb != null ? (p.total_memory_gb + ' GB') : '-'}`;
+        body.innerHTML += `<tr>
+          <td>${new Date(i.detected_at).toLocaleString()}</td>
+          <td>${changed}</td>
+          <td>${summary}</td>
+        </tr>`;
+      });
+      systemOffset += items.length;
+      if (items.length < 50) document.getElementById('sys-more').style.display = 'none';
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  function loadMoreSystem() { loadSystemHistory(); }
+
   loadAgentDetail();
   loadInventory();
   loadChanges();
+  loadSystemHistory();
 </script>
 {% endblock %}
