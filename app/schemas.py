@@ -294,10 +294,27 @@ class AgentTimelineItemResponse(BaseModel):
     old_ip_address: Optional[str] = None
     new_ip_address: Optional[str] = None
 
+    # status event
+    old_status: Optional[str] = None
+    new_status: Optional[str] = None
+    reason: Optional[str] = None
+
 
 class AgentTimelineListResponse(BaseModel):
     items: list[AgentTimelineItemResponse]
     total: int
+
+
+class DashboardTimelineItemResponse(BaseModel):
+    event_type: str
+    detected_at: datetime
+    agent_uuid: str
+    hostname: Optional[str] = None
+    summary: str
+
+
+class DashboardTimelineListResponse(BaseModel):
+    items: list[DashboardTimelineItemResponse]
 
 
 class AgentListResponse(BaseModel):

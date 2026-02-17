@@ -91,6 +91,7 @@ def _run_startup_migrations() -> None:
         _migrate_sqlite_agents_system_profile_columns()
         _migrate_sqlite_system_profile_history_columns()
         _migrate_sqlite_agent_identity_history_table()
+        _migrate_sqlite_agent_status_history_table()
 
 
 def _migrate_sqlite_applications_table() -> None:
@@ -270,6 +271,28 @@ def _migrate_sqlite_agent_identity_history_table() -> None:
         )
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_identityhist_agent ON agent_identity_history(agent_uuid)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_identityhist_detected ON agent_identity_history(detected_at)"))
+
+
+def _migrate_sqlite_agent_status_history_table() -> None:
+    """Create agent_status_history table for online/offline transitions."""
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS agent_status_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    agent_uuid VARCHAR NOT NULL,
+                    detected_at DATETIME,
+                    old_status VARCHAR,
+                    new_status VARCHAR,
+                    reason VARCHAR,
+                    FOREIGN KEY(agent_uuid) REFERENCES agents(uuid) ON DELETE CASCADE
+                )
+                """
+            )
+        )
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_statushist_agent ON agent_status_history(agent_uuid)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_statushist_detected ON agent_status_history(detected_at)"))
 
 
 def seed_initial_data() -> None:

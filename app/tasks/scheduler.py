@@ -7,8 +7,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import text
 
 from app.database import SessionLocal
-from app.models import Agent, Setting, SoftwareChangeHistory
-from app.services.system_profile_service import cleanup_old_identity_history, cleanup_old_system_history
+from app.models import Agent, AgentStatusHistory, Setting, SoftwareChangeHistory
+from app.services.system_profile_service import cleanup_old_identity_history, cleanup_old_status_history, cleanup_old_system_history
 
 scheduler: Optional[AsyncIOScheduler] = None
 
@@ -25,6 +25,15 @@ def check_offline_agents() -> None:
         threshold = datetime.now(timezone.utc) - timedelta(seconds=timeout_sec)
         agents = db.query(Agent).filter(Agent.last_seen < threshold, Agent.status == "online").all()
         for agent in agents:
+            db.add(
+                AgentStatusHistory(
+                    agent_uuid=agent.uuid,
+                    detected_at=datetime.now(timezone.utc),
+                    old_status=agent.status,
+                    new_status="offline",
+                    reason="timeout",
+                )
+            )
             agent.status = "offline"
             db.add(agent)
         db.commit()
@@ -62,6 +71,7 @@ def cleanup_old_system_history_job() -> None:
         retention = int(_get_setting(db, "system_history_retention_days", "360"))
         cleanup_old_system_history(db, retention)
         cleanup_old_identity_history(db, retention)
+        cleanup_old_status_history(db, retention)
     finally:
         db.close()
 

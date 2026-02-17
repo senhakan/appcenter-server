@@ -21,6 +21,10 @@ def get_agent_timeline(
         text("SELECT COUNT(1) FROM agent_identity_history WHERE agent_uuid = :uuid"),
         {"uuid": agent_uuid},
     ).scalar() or 0
+    total_status = db.execute(
+        text("SELECT COUNT(1) FROM agent_status_history WHERE agent_uuid = :uuid"),
+        {"uuid": agent_uuid},
+    ).scalar() or 0
 
     rows = db.execute(
         text(
@@ -34,7 +38,10 @@ def get_agent_timeline(
                    NULL AS old_hostname,
                    NULL AS new_hostname,
                    NULL AS old_ip_address,
-                   NULL AS new_ip_address
+                   NULL AS new_ip_address,
+                   NULL AS old_status,
+                   NULL AS new_status,
+                   NULL AS reason
             FROM agent_system_profile_history
             WHERE agent_uuid = :uuid
             UNION ALL
@@ -47,8 +54,27 @@ def get_agent_timeline(
                    old_hostname,
                    new_hostname,
                    old_ip_address,
-                   new_ip_address
+                   new_ip_address,
+                   NULL AS old_status,
+                   NULL AS new_status,
+                   NULL AS reason
             FROM agent_identity_history
+            WHERE agent_uuid = :uuid
+            UNION ALL
+            SELECT 'status' AS event_type,
+                   detected_at,
+                   id,
+                   NULL AS changed_fields_json,
+                   NULL AS diff_json,
+                   NULL AS profile_json,
+                   NULL AS old_hostname,
+                   NULL AS new_hostname,
+                   NULL AS old_ip_address,
+                   NULL AS new_ip_address,
+                   old_status,
+                   new_status,
+                   reason
+            FROM agent_status_history
             WHERE agent_uuid = :uuid
             ORDER BY detected_at DESC, id DESC
             LIMIT :limit OFFSET :offset
@@ -94,16 +120,26 @@ def get_agent_timeline(
                 }
             )
         else:
-            items.append(
-                {
-                    "event_type": "identity",
-                    "detected_at": detected_at,
-                    "old_hostname": r["old_hostname"],
-                    "new_hostname": r["new_hostname"],
-                    "old_ip_address": r["old_ip_address"],
-                    "new_ip_address": r["new_ip_address"],
-                }
-            )
+            if r["event_type"] == "identity":
+                items.append(
+                    {
+                        "event_type": "identity",
+                        "detected_at": detected_at,
+                        "old_hostname": r["old_hostname"],
+                        "new_hostname": r["new_hostname"],
+                        "old_ip_address": r["old_ip_address"],
+                        "new_ip_address": r["new_ip_address"],
+                    }
+                )
+            else:
+                items.append(
+                    {
+                        "event_type": "status",
+                        "detected_at": detected_at,
+                        "old_status": r["old_status"],
+                        "new_status": r["new_status"],
+                        "reason": r["reason"],
+                    }
+                )
 
-    return items, int(total_system) + int(total_identity)
-
+    return items, int(total_system) + int(total_identity) + int(total_status)

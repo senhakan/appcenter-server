@@ -43,3 +43,14 @@ def cleanup_old_identity_history(db: Session, retention_days: int) -> int:
     count = res.rowcount or 0
     db.commit()
     return count
+
+
+def cleanup_old_status_history(db: Session, retention_days: int) -> int:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+    res = db.execute(
+        text("DELETE FROM agent_status_history WHERE detected_at < :cutoff"),
+        {"cutoff": cutoff},
+    )
+    count = res.rowcount or 0
+    db.commit()
+    return count

@@ -169,6 +169,11 @@
             <div><b>hostname</b>: ${hOld} → ${hNew}</div>
             <div><b>ip</b>: ${ipOld} → ${ipNew}</div>
           `;
+        } else if (i.event_type === 'status') {
+          const sOld = i.old_status || '-';
+          const sNew = i.new_status || '-';
+          const reason = i.reason ? ` (${i.reason})` : '';
+          details = `<div><b>status</b>: ${sOld} → ${sNew}${reason}</div>`;
         } else {
           const p = i.system_profile || {};
           const fields = (i.changed_fields || []);

@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from app.models import Agent, AgentApplication, AgentIdentityHistory, AgentSystemProfileHistory, Application, Deployment, TaskHistory
+from app.models import Agent, AgentApplication, AgentIdentityHistory, AgentStatusHistory, AgentSystemProfileHistory, Application, Deployment, TaskHistory
 from app.schemas import CommandItem, HeartbeatConfig, HeartbeatRequest
 
 
@@ -211,6 +211,9 @@ def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> t
             )
         )
 
+    # Track status transitions (e.g. offline -> online when heartbeat resumes).
+    old_status = agent.status
+
     agent.hostname = payload.hostname
     agent.ip_address = payload.ip_address
     agent.os_user = payload.os_user
@@ -249,6 +252,17 @@ def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> t
     agent.status = "online"
     agent.updated_at = now
     db.add(agent)
+
+    if old_status != agent.status:
+        db.add(
+            AgentStatusHistory(
+                agent_uuid=agent.uuid,
+                detected_at=now,
+                old_status=old_status,
+                new_status=agent.status,
+                reason="heartbeat",
+            )
+        )
 
     _sync_installed_apps(db, agent, payload, now)
     commands = _pending_commands(db, agent, now)

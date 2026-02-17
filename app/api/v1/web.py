@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
@@ -20,6 +20,8 @@ from app.schemas import (
     ApplicationResponse,
     ApplicationUpdateRequest,
     DashboardStatsResponse,
+    DashboardTimelineItemResponse,
+    DashboardTimelineListResponse,
     DeploymentCreateRequest,
     DeploymentListResponse,
     DeploymentResponse,
@@ -240,6 +242,101 @@ def dashboard_stats(
         failed_tasks=failed_tasks,
         active_deployments=active_deployments,
     )
+
+
+@router.get("/dashboard/timeline", response_model=DashboardTimelineListResponse)
+def dashboard_timeline(
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> DashboardTimelineListResponse:
+    rows = db.execute(
+        text(
+            """
+            SELECT event_type, detected_at, agent_uuid, hostname,
+                   old_status, new_status, reason,
+                   old_hostname, new_hostname, old_ip_address, new_ip_address,
+                   changed_fields_json
+            FROM (
+              SELECT 'status' AS event_type,
+                     h.detected_at AS detected_at,
+                     h.agent_uuid AS agent_uuid,
+                     a.hostname AS hostname,
+                     h.old_status AS old_status,
+                     h.new_status AS new_status,
+                     h.reason AS reason,
+                     NULL AS old_hostname,
+                     NULL AS new_hostname,
+                     NULL AS old_ip_address,
+                     NULL AS new_ip_address,
+                     NULL AS changed_fields_json
+              FROM agent_status_history h
+              JOIN agents a ON a.uuid = h.agent_uuid
+              UNION ALL
+              SELECT 'identity' AS event_type,
+                     h.detected_at AS detected_at,
+                     h.agent_uuid AS agent_uuid,
+                     a.hostname AS hostname,
+                     NULL AS old_status,
+                     NULL AS new_status,
+                     NULL AS reason,
+                     h.old_hostname AS old_hostname,
+                     h.new_hostname AS new_hostname,
+                     h.old_ip_address AS old_ip_address,
+                     h.new_ip_address AS new_ip_address,
+                     NULL AS changed_fields_json
+              FROM agent_identity_history h
+              JOIN agents a ON a.uuid = h.agent_uuid
+              UNION ALL
+              SELECT 'system_profile' AS event_type,
+                     h.detected_at AS detected_at,
+                     h.agent_uuid AS agent_uuid,
+                     a.hostname AS hostname,
+                     NULL AS old_status,
+                     NULL AS new_status,
+                     NULL AS reason,
+                     NULL AS old_hostname,
+                     NULL AS new_hostname,
+                     NULL AS old_ip_address,
+                     NULL AS new_ip_address,
+                     h.changed_fields_json AS changed_fields_json
+              FROM agent_system_profile_history h
+              JOIN agents a ON a.uuid = h.agent_uuid
+            )
+            ORDER BY detected_at DESC
+            LIMIT 10
+            """
+        )
+    ).mappings().all()
+
+    items: list[DashboardTimelineItemResponse] = []
+    for r in rows:
+        et = r["event_type"]
+        summary = ""
+        if et == "status":
+            summary = f"Status: {r['old_status'] or '-'} → {r['new_status'] or '-'}"
+            if r.get("reason"):
+                summary += f" ({r['reason']})"
+        elif et == "identity":
+            hn = ""
+            ip = ""
+            if (r.get("old_hostname") or "") != (r.get("new_hostname") or ""):
+                hn = f"hostname {r.get('old_hostname') or '-'} → {r.get('new_hostname') or '-'}"
+            if (r.get("old_ip_address") or "") != (r.get("new_ip_address") or ""):
+                ip = f"ip {r.get('old_ip_address') or '-'} → {r.get('new_ip_address') or '-'}"
+            summary = "Identity: " + " | ".join([x for x in [hn, ip] if x]) if (hn or ip) else "Identity change"
+        else:
+            summary = "System profile updated"
+        items.append(
+            DashboardTimelineItemResponse(
+                event_type=et,
+                detected_at=r["detected_at"],
+                agent_uuid=r["agent_uuid"],
+                hostname=r.get("hostname"),
+                summary=summary,
+            )
+        )
+
+    return DashboardTimelineListResponse(items=items)
 
 
 @router.get("/applications", response_model=ApplicationListResponse)
