@@ -43,7 +43,7 @@ Her deploy sonrasi minimum kontrol listesi.
 
 - `/agents/{agent_uuid}` ekraninda:
   - "Ajan Detay" alaninda `system_profile` goruntulenir (OS/CPU/RAM/disk/virt)
-  - "Sistem Gecmisi" tabinda yalnizca degisen alanlar listelenir
+  - "Sistem Gecmisi" tabinda yalnizca degisen alanlar eski → yeni olarak listelenir
 
 ## F. Duzenleme Akislari
 
