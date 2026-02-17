@@ -136,6 +136,8 @@
   - hostname/IP degisimleri
   - sistem profili degisimleri
 - API: `GET /api/v1/dashboard/timeline`
+- Zaman gosterimleri UI timezone ayarina gore formatlanir:
+  - Setting key: `ui_timezone` (IANA, or: `Europe/Istanbul`)
 
 ## Son Dogrulama (2026-02-13)
 
