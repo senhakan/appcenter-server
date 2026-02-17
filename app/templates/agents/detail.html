@@ -38,15 +38,8 @@
   </div>
 
   <div id="panel-system" style="display:none;">
-    <div class="row spread wrap" style="margin-bottom: 8px;">
-      <div>
-        <div style="font-weight:600;">Sistem Profili (Son)</div>
-        <div class="muted" id="sys-updated"></div>
-      </div>
-    </div>
-    <div id="sys-current" class="grid cols-2" style="margin-bottom: 12px;"></div>
     <table>
-      <thead><tr><th>Tarih</th><th>Degisen Alanlar</th><th>Ozet</th></tr></thead>
+      <thead><tr><th>Tarih</th><th>Degisen Bilgiler</th></tr></thead>
       <tbody id="sys-body"></tbody>
     </table>
     <div class="row spread" style="margin-top: 8px;">
@@ -62,7 +55,6 @@
   let allInventory = [];
   let changesOffset = 0;
   let systemOffset = 0;
-  let currentSystemProfile = null;
 
   function showTab(tab) {
     document.getElementById('panel-inventory').style.display = tab === 'inventory' ? '' : 'none';
@@ -80,8 +72,10 @@
       const sessions = (data.logged_in_sessions || []).map(s => `${s.username} (${s.session_type})`);
       const sessionsText = sessions.length ? sessions.join('<br/>') : '-';
       const sessionsUpdated = data.logged_in_sessions_updated_at ? new Date(data.logged_in_sessions_updated_at).toLocaleString() : '-';
-      currentSystemProfile = data.system_profile || null;
-      document.getElementById('sys-updated').textContent = data.system_profile_updated_at ? `Guncelleme: ${new Date(data.system_profile_updated_at).toLocaleString()}` : 'Guncelleme: -';
+      const sys = data.system_profile || null;
+      const sysUpdated = data.system_profile_updated_at ? new Date(data.system_profile_updated_at).toLocaleString() : '-';
+      const sysDisks = sys ? ((sys.disks || []).map(d => `Disk ${d.index}: ${d.size_gb || '?'} GB (${d.bus_type || '?'}) ${d.model || ''}`.trim()).join('<br/>') || '-') : '-';
+      const sysVirt = sys && sys.virtualization ? `${sys.virtualization.is_virtual ? 'Evet' : 'Hayir'} ${sys.virtualization.vendor || ''} ${sys.virtualization.model || ''}`.trim() : '-';
       el.innerHTML = `
         <div><label>UUID</label><div>${data.uuid}</div></div>
         <div><label>Hostname</label><div>${data.hostname || '-'}</div></div>
@@ -91,32 +85,18 @@
         <div><label>Son Gorulme</label><div>${data.last_seen || '-'}</div></div>
         <div><label>Login Olan Kullanici(lar)</label><div>${sessionsText}</div></div>
         <div><label>Session Guncelleme</label><div>${sessionsUpdated}</div></div>
+        <div><label>Sistem Profili Guncelleme</label><div>${sysUpdated}</div></div>
+        <div><label>OS</label><div>${sys ? ((sys.os_full_name || '-') + ' ' + (sys.os_version || '') + (sys.build_number ? (' (Build ' + sys.build_number + ')') : '')) : '-'}</div></div>
+        <div><label>Mimari</label><div>${sys ? (sys.architecture || '-') : '-'}</div></div>
+        <div><label>Marka/Model</label><div>${sys ? ((sys.manufacturer || '-') + ' ' + (sys.model || '')) : '-'}</div></div>
+        <div><label>CPU</label><div>${sys ? ((sys.cpu_model || '-') + ' (P:' + (sys.cpu_cores_physical ?? '-') + ' L:' + (sys.cpu_cores_logical ?? '-') + ')') : '-'}</div></div>
+        <div><label>RAM</label><div>${sys && sys.total_memory_gb != null ? (sys.total_memory_gb + ' GB') : '-'}</div></div>
+        <div><label>Virtual</label><div>${sysVirt || '-'}</div></div>
+        <div style="grid-column: span 2;"><label>Diskler</label><div>${sysDisks}</div></div>
       `;
-
-      renderCurrentSystem();
     } catch (err) {
       AppCenterApi.toast(err.message);
     }
-  }
-
-  function renderCurrentSystem() {
-    const el = document.getElementById('sys-current');
-    if (!currentSystemProfile) {
-      el.innerHTML = '<div class="muted">Sistem profili verisi yok</div>';
-      return;
-    }
-    const p = currentSystemProfile;
-    const disks = (p.disks || []).map(d => `Disk ${d.index}: ${d.size_gb || '?'} GB (${d.bus_type || '?'}) ${d.model || ''}`).join('<br/>') || '-';
-    const virt = p.virtualization ? `${p.virtualization.is_virtual ? 'Evet' : 'Hayir'} ${p.virtualization.vendor || ''} ${p.virtualization.model || ''}`.trim() : '-';
-    el.innerHTML = `
-      <div><label>OS</label><div>${p.os_full_name || '-'} ${p.os_version || ''} ${p.build_number ? '(Build ' + p.build_number + ')' : ''}</div></div>
-      <div><label>Mimari</label><div>${p.architecture || '-'}</div></div>
-      <div><label>Marka/Model</label><div>${(p.manufacturer || '-') + ' ' + (p.model || '')}</div></div>
-      <div><label>CPU</label><div>${p.cpu_model || '-'} (P:${p.cpu_cores_physical || '-'} L:${p.cpu_cores_logical || '-'})</div></div>
-      <div><label>RAM</label><div>${p.total_memory_gb != null ? (p.total_memory_gb + ' GB') : '-'}</div></div>
-      <div><label>Virtual</label><div>${virt || '-'}</div></div>
-      <div style="grid-column: span 2;"><label>Diskler</label><div>${disks}</div></div>
-    `;
   }
 
   async function loadInventory() {
@@ -179,13 +159,32 @@
       const items = data.items || [];
       const body = document.getElementById('sys-body');
       items.forEach(i => {
-        const changed = (i.changed_fields || []).length ? (i.changed_fields || []).join(', ') : '-';
         const p = i.system_profile || {};
-        const summary = `${p.os_full_name || '-'} | ${p.cpu_model || '-'} | ${p.total_memory_gb != null ? (p.total_memory_gb + ' GB') : '-'}`;
+        const fields = (i.changed_fields || []);
+        let details = '';
+
+        if (fields.includes('initial')) {
+          const summary = `${p.os_full_name || '-'} | ${(p.manufacturer || '-') + ' ' + (p.model || '')} | ${p.cpu_model || '-'} | ${p.total_memory_gb != null ? (p.total_memory_gb + ' GB') : '-'}`;
+          details = `<div><b>initial</b>: ${summary}</div>`;
+        } else if (!fields.length) {
+          details = `<div class="muted">-</div>`;
+        } else {
+          details = fields.map(f => {
+            if (f === 'disks') {
+              const disks = (p.disks || []).map(d => `Disk ${d.index}: ${d.size_gb || '?'} GB (${d.bus_type || '?'}) ${d.model || ''}`.trim()).join('; ') || '-';
+              return `<div><b>disks</b>: ${(p.disk_count != null ? (p.disk_count + ' adet') : '-')}; ${disks}</div>`;
+            }
+            if (f === 'virtualization') {
+              const v = p.virtualization || {};
+              const virt = `${v.is_virtual ? 'Evet' : 'Hayir'} ${v.vendor || ''} ${v.model || ''}`.trim() || '-';
+              return `<div><b>virtualization</b>: ${virt}</div>`;
+            }
+            return `<div><b>${f}</b>: ${p[f] != null && p[f] !== '' ? p[f] : '-'}</div>`;
+          }).join('');
+        }
         body.innerHTML += `<tr>
           <td>${new Date(i.detected_at).toLocaleString()}</td>
-          <td>${changed}</td>
-          <td>${summary}</td>
+          <td>${details}</td>
         </tr>`;
       });
       systemOffset += items.length;
