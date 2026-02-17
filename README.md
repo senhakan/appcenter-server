@@ -8,6 +8,15 @@
 - Faz 4 tamamlandı.
 - Faz 5 tamamlandı.
 
+## Bu Sunucuda Canli Calisma Notu
+
+- Bu repo bu sunucuda canli olarak kullanilir:
+  - kaynak: `/root/appcenter/server`
+  - calisan uygulama: `/opt/appcenter/server`
+  - servis: `appcenter` (`127.0.0.1:8000`)
+- Yapilan degisiklikler deploy edilmeden tamamlanmis sayilmaz.
+- Testler ve smoke dogrulamalari bu sunucuda calisan servis uzerinde yapilmalidir.
+
 ## Faz 1 Tamamlananlar
 
 - Cekirdek altyapi: `app/database.py`, `app/models.py`, `app/config.py`, `app/main.py`, `app/auth.py`

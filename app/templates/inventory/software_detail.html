@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}Yazilim Detay{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row spread wrap">
+    <h3 style="margin: 0;" id="sw-title">{{ software_name }}</h3>
+    <a class="btn secondary" href="/inventory">Geri</a>
+  </div>
+  <table>
+    <thead><tr><th>Ajan UUID</th><th>Hostname</th><th>Versiyon</th><th>Durum</th></tr></thead>
+    <tbody id="agents-body"></tbody>
+  </table>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+  const swName = "{{ software_name }}";
+
+  async function loadAgents() {
+    try {
+      const data = await AppCenterApi.req(`/inventory/software/${encodeURIComponent(swName)}/agents`);
+      const body = document.getElementById('agents-body');
+      const items = data.items || [];
+      if (!items.length) { body.innerHTML = '<tr><td colspan="4" class="muted">Agent bulunamadi</td></tr>'; return; }
+      body.innerHTML = items.map(i => {
+        const badge = i.status === 'online' ? 'color:#22c55e' : 'color:#ef4444';
+        return `<tr>
+          <td><a href="/agents/${i.agent_uuid}">${i.agent_uuid.substring(0,12)}...</a></td>
+          <td>${i.hostname}</td>
+          <td>${i.software_version || '-'}</td>
+          <td><span style="${badge};font-weight:600">${i.status}</span></td>
+        </tr>`;
+      }).join('');
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  loadAgents();
+</script>
+{% endblock %}

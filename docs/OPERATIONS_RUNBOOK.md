@@ -16,7 +16,7 @@ Bu dokuman production ortami icin deploy, smoke ve rollback adimlarini tanimlar.
 - Calisan uygulama dizini: `/opt/appcenter/server`
 - Virtual env: `/opt/appcenter/server/venv`
 - Environment file: `/opt/appcenter/server/.env`
-- Uvicorn bind: `127.0.0.1:8000`
+- Uvicorn bind: `0.0.0.0:8000` (nginx upstream `127.0.0.1:8000`)
 - systemd unit: `/etc/systemd/system/appcenter.service`
 - nginx conf: `/etc/nginx/custom-conf/appcenter.akgun.com.tr.conf`
 
@@ -36,6 +36,7 @@ sudo systemctl status appcenter --no-pager
 Not:
 - `rsync --delete` ile deploy yapiliyorsa `.env` dosyasi korunmalidir.
 - Ornek: `--exclude '.env'`
+- `venv` kopyalama/overwrite, `uvicorn` shebang'lerini bozup systemd `203/EXEC` hatasi uretebilir. Bu nedenle `venv` dizinlerini deploy kapsamindan cikarin.
 
 ### 2.2 Bu Sunucuda Kullanilan Rsync Deploy Akisi
 
@@ -83,6 +84,15 @@ curl -sS http://127.0.0.1:8000/health
 curl -sS http://127.0.0.1:8000/ | jq .
 ```
 
+### 3.2 Inventory Dashboard Kart Dogrulamasi
+
+- `GET /api/v1/inventory/dashboard` cevabinda asagidaki alanlar bulunmalidir:
+  - `total_unique_software`
+  - `agents_with_inventory`
+  - `added_today`
+  - `removed_today`
+  - `license_violations`
+
 ## 4. Log ve Izleme
 
 ```bash
@@ -94,6 +104,8 @@ DB saglik kontrolu:
 ```bash
 sqlite3 /var/lib/appcenter/appcenter.db "PRAGMA integrity_check;"
 ```
+
+Not: Bu hostta `sqlite3` binary her zaman kurulu olmayabilir. Alternatif olarak `/opt/appcenter/server/venv/bin/python` ile DB kontrol script'i calistirilabilir.
 
 ## 5. Rollback
 

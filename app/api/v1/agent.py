@@ -14,6 +14,8 @@ from app.models import Agent, AgentApplication, Application, Setting, TaskHistor
 from app.services.heartbeat_service import process_heartbeat
 from app.schemas import (
     AgentConfig,
+    AgentInventoryRequest,
+    AgentInventoryResponse,
     AgentRegisterRequest,
     AgentRegisterResponse,
     HeartbeatRequest,
@@ -23,6 +25,7 @@ from app.schemas import (
     StoreResponse,
     TaskStatusRequest,
 )
+from app.services import inventory_service
 from app.utils.file_handler import parse_range_header
 
 router = APIRouter(prefix="/agent", tags=["agent"])
@@ -97,7 +100,7 @@ def heartbeat(
     db: Session = Depends(get_db),
 ) -> HeartbeatResponse:
     agent = _authenticate_agent(db, x_agent_uuid, x_agent_secret)
-    now, config, commands = process_heartbeat(db, agent, payload)
+    now, config, commands, _inv_sync = process_heartbeat(db, agent, payload)
     return HeartbeatResponse(server_time=now, config=config, commands=commands)
 
 
@@ -214,6 +217,18 @@ def report_task_status(
 
     db.commit()
     return MessageResponse(status="ok", message="Task status updated")
+
+
+@router.post("/inventory", response_model=AgentInventoryResponse)
+def submit_inventory(
+    payload: AgentInventoryRequest,
+    x_agent_uuid: str = Header(..., alias="X-Agent-UUID"),
+    x_agent_secret: str = Header(..., alias="X-Agent-Secret"),
+    db: Session = Depends(get_db),
+) -> AgentInventoryResponse:
+    _authenticate_agent(db, x_agent_uuid, x_agent_secret)
+    changes = inventory_service.submit_inventory(db, x_agent_uuid, payload.inventory_hash, payload.items)
+    return AgentInventoryResponse(message="Inventory updated", changes=changes)
 
 
 @router.get("/store", response_model=StoreResponse)

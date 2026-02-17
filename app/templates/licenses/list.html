@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% block title %}Lisanslar{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row spread wrap">
+    <h3 style="margin: 0;">Lisans Tanimlari</h3>
+    <a class="btn" href="/licenses/create">Yeni Lisans</a>
+  </div>
+  <table>
+    <thead><tr><th>Yazilim Deseni</th><th>Tip</th><th>Toplam Lisans</th><th>Eslestirme</th><th>Islemler</th></tr></thead>
+    <tbody id="lic-body"></tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h3 style="margin-top: 0;">Lisans Kullanim Raporu</h3>
+  <table>
+    <thead><tr><th>Yazilim</th><th>Tip</th><th>Toplam</th><th>Kullanim</th><th>Durum</th></tr></thead>
+    <tbody id="report-body"></tbody>
+  </table>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+
+  async function loadLicenses() {
+    try {
+      const data = await AppCenterApi.req('/licenses');
+      const body = document.getElementById('lic-body');
+      const items = data.items || [];
+      if (!items.length) { body.innerHTML = '<tr><td colspan="5" class="muted">Lisans tanimi yok</td></tr>'; return; }
+      body.innerHTML = items.map(i => {
+        const typeBadge = i.license_type === 'prohibited'
+          ? '<span style="color:#ef4444;font-weight:600">Yasak</span>'
+          : '<span style="color:#3b82f6;font-weight:600">Lisansli</span>';
+        return `<tr>
+          <td>${i.software_name_pattern}</td>
+          <td>${typeBadge}</td>
+          <td>${i.license_type === 'licensed' ? i.total_licenses : '-'}</td>
+          <td>${i.match_type}</td>
+          <td>
+            <a class="btn secondary" href="/licenses/${i.id}/edit">Duzenle</a>
+            <button class="btn secondary" onclick="deleteLicense(${i.id})">Sil</button>
+          </td>
+        </tr>`;
+      }).join('');
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  async function loadReport() {
+    try {
+      const data = await AppCenterApi.req('/licenses/report');
+      const body = document.getElementById('report-body');
+      const items = data.items || [];
+      if (!items.length) { body.innerHTML = '<tr><td colspan="5" class="muted">Rapor verisi yok</td></tr>'; return; }
+      body.innerHTML = items.map(i => {
+        let statusBadge;
+        if (i.license_type === 'prohibited' && i.is_violation) {
+          statusBadge = '<span style="color:#ef4444;font-weight:600">Yasak Tespit</span>';
+        } else if (i.is_violation) {
+          statusBadge = '<span style="color:#f97316;font-weight:600">Asim</span>';
+        } else {
+          statusBadge = '<span style="color:#22c55e;font-weight:600">OK</span>';
+        }
+        return `<tr>
+          <td>${i.pattern}</td>
+          <td>${i.license_type === 'prohibited' ? 'Yasak' : 'Lisansli'}</td>
+          <td>${i.license_type === 'licensed' ? i.total_licenses : '-'}</td>
+          <td>${i.usage}</td>
+          <td>${statusBadge}</td>
+        </tr>`;
+      }).join('');
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  async function deleteLicense(id) {
+    if (!confirm('Lisansi silmek istediginize emin misiniz?')) return;
+    try {
+      await AppCenterApi.req(`/licenses/${id}`, { method: 'DELETE' });
+      AppCenterApi.toast('Lisans silindi');
+      loadLicenses();
+      loadReport();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  loadLicenses();
+  loadReport();
+</script>
+{% endblock %}

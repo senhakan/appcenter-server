@@ -9,6 +9,8 @@
       <div><label>Heartbeat Interval (sn)</label><input id="s-heartbeat" /></div>
       <div><label>Agent Timeout (sn)</label><input id="s-agent-timeout" /></div>
       <div><label>Log Retention (gun)</label><input id="s-log-retention" /></div>
+      <div><label>Envanter Tarama Araligi (dk)</label><input id="s-inv-interval" /></div>
+      <div><label>Envanter Gecmis Saklama (gun)</label><input id="s-inv-retention" /></div>
       <button class="btn" type="submit">Ayarlari Kaydet</button>
     </form>
   </div>
@@ -36,6 +38,8 @@
       document.getElementById('s-heartbeat').value = map.heartbeat_interval_sec || '60';
       document.getElementById('s-agent-timeout').value = map.agent_timeout_sec || '300';
       document.getElementById('s-log-retention').value = map.log_retention_days || '30';
+      document.getElementById('s-inv-interval').value = map.inventory_scan_interval_min || '10';
+      document.getElementById('s-inv-retention').value = map.inventory_history_retention_days || '90';
     } catch (err) {
       AppCenterApi.toast(err.message);
     }
@@ -53,6 +57,8 @@
             heartbeat_interval_sec: document.getElementById('s-heartbeat').value,
             agent_timeout_sec: document.getElementById('s-agent-timeout').value,
             log_retention_days: document.getElementById('s-log-retention').value,
+            inventory_scan_interval_min: document.getElementById('s-inv-interval').value,
+            inventory_history_retention_days: document.getElementById('s-inv-retention').value,
           },
         }),
       });

@@ -8,11 +8,48 @@
   </div>
   <div id="agent-detail" class="grid cols-2"></div>
 </div>
+
+<div class="card">
+  <div class="row" style="gap: 8px; margin-bottom: 16px;">
+    <button class="btn" id="tab-inventory" onclick="showTab('inventory')">Yuklu Yazilimlar</button>
+    <button class="btn secondary" id="tab-changes" onclick="showTab('changes')">Degisim Gecmisi</button>
+  </div>
+
+  <div id="panel-inventory">
+    <div class="row spread wrap" style="margin-bottom: 8px;">
+      <input id="inv-search" type="text" placeholder="Yazilim ara..." oninput="filterInventory()" style="max-width:300px;" />
+      <span class="muted" id="inv-updated"></span>
+    </div>
+    <table>
+      <thead><tr><th>Yazilim Adi</th><th>Versiyon</th><th>Yayinci</th><th>Boyut (KB)</th><th>Mimari</th></tr></thead>
+      <tbody id="inv-body"></tbody>
+    </table>
+  </div>
+
+  <div id="panel-changes" style="display:none;">
+    <table>
+      <thead><tr><th>Tarih</th><th>Yazilim</th><th>Islem</th><th>Detay</th></tr></thead>
+      <tbody id="changes-body"></tbody>
+    </table>
+    <div class="row spread" style="margin-top: 8px;">
+      <button class="btn secondary" id="changes-more" onclick="loadMoreChanges()">Daha Fazla</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>
   AppCenterApi.protectPage();
   const agentId = "{{ agent_uuid }}";
+  let allInventory = [];
+  let changesOffset = 0;
+
+  function showTab(tab) {
+    document.getElementById('panel-inventory').style.display = tab === 'inventory' ? '' : 'none';
+    document.getElementById('panel-changes').style.display = tab === 'changes' ? '' : 'none';
+    document.getElementById('tab-inventory').className = tab === 'inventory' ? 'btn' : 'btn secondary';
+    document.getElementById('tab-changes').className = tab === 'changes' ? 'btn' : 'btn secondary';
+  }
 
   async function loadAgentDetail() {
     try {
@@ -31,6 +68,62 @@
     }
   }
 
+  async function loadInventory() {
+    try {
+      const data = await AppCenterApi.req(`/agents/${agentId}/inventory`);
+      allInventory = data.items || [];
+      document.getElementById('inv-updated').textContent = `${allInventory.length} yazilim`;
+      renderInventory(allInventory);
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  function renderInventory(items) {
+    const body = document.getElementById('inv-body');
+    if (!items.length) { body.innerHTML = '<tr><td colspan="5" class="muted">Envanter verisi yok</td></tr>'; return; }
+    body.innerHTML = items.map(i => `<tr>
+      <td>${i.software_name}</td>
+      <td>${i.software_version || '-'}</td>
+      <td>${i.publisher || '-'}</td>
+      <td>${i.estimated_size_kb || '-'}</td>
+      <td>${i.architecture || '-'}</td>
+    </tr>`).join('');
+  }
+
+  function filterInventory() {
+    const q = document.getElementById('inv-search').value.toLowerCase();
+    const filtered = allInventory.filter(i => i.software_name.toLowerCase().includes(q));
+    renderInventory(filtered);
+  }
+
+  async function loadChanges() {
+    try {
+      const data = await AppCenterApi.req(`/agents/${agentId}/inventory/changes?limit=50&offset=${changesOffset}`);
+      const items = data.items || [];
+      const body = document.getElementById('changes-body');
+      const badges = { installed: 'color:#22c55e', removed: 'color:#ef4444', updated: 'color:#3b82f6' };
+      const labels = { installed: 'Yuklendi', removed: 'Kaldirildi', updated: 'Guncellendi' };
+      items.forEach(i => {
+        const detail = i.change_type === 'updated' ? `${i.previous_version || '?'} → ${i.software_version || '?'}` : (i.software_version || '-');
+        body.innerHTML += `<tr>
+          <td>${new Date(i.detected_at).toLocaleString()}</td>
+          <td>${i.software_name}</td>
+          <td><span style="${badges[i.change_type] || ''};font-weight:600">${labels[i.change_type] || i.change_type}</span></td>
+          <td>${detail}</td>
+        </tr>`;
+      });
+      changesOffset += items.length;
+      if (items.length < 50) document.getElementById('changes-more').style.display = 'none';
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  function loadMoreChanges() { loadChanges(); }
+
   loadAgentDetail();
+  loadInventory();
+  loadChanges();
 </script>
 {% endblock %}

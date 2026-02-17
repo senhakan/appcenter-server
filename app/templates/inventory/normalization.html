@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block title %}Normalizasyon Kurallari{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row spread wrap">
+    <h3 style="margin: 0;">Normalizasyon Kurallari</h3>
+    <a class="btn secondary" href="/inventory">Envantere Don</a>
+  </div>
+
+  <form id="add-form" class="grid cols-4" style="margin: 12px 0; gap: 8px; align-items: end;">
+    <div><label>Pattern</label><input id="f-pattern" required /></div>
+    <div><label>Normalize Adi</label><input id="f-normalized" required /></div>
+    <div><label>Eslestirme</label>
+      <select id="f-match">
+        <option value="contains">Contains</option>
+        <option value="exact">Exact</option>
+        <option value="starts_with">Starts With</option>
+      </select>
+    </div>
+    <div><button class="btn" type="submit">Ekle</button></div>
+  </form>
+
+  <table>
+    <thead><tr><th>Pattern</th><th>Normalize Adi</th><th>Eslestirme</th><th>Aktif</th><th>Islemler</th></tr></thead>
+    <tbody id="rules-body"></tbody>
+  </table>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+
+  async function loadRules() {
+    try {
+      const data = await AppCenterApi.req('/inventory/normalization');
+      const body = document.getElementById('rules-body');
+      const items = data.items || [];
+      if (!items.length) { body.innerHTML = '<tr><td colspan="5" class="muted">Kural yok</td></tr>'; return; }
+      body.innerHTML = items.map(i => `<tr>
+        <td>${i.pattern}</td>
+        <td>${i.normalized_name}</td>
+        <td>${i.match_type}</td>
+        <td>${i.is_active ? 'Evet' : 'Hayir'}</td>
+        <td><button class="btn secondary" onclick="deleteRule(${i.id})">Sil</button></td>
+      </tr>`).join('');
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  document.getElementById('add-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await AppCenterApi.req('/inventory/normalization', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pattern: document.getElementById('f-pattern').value,
+          normalized_name: document.getElementById('f-normalized').value,
+          match_type: document.getElementById('f-match').value,
+        }),
+      });
+      document.getElementById('f-pattern').value = '';
+      document.getElementById('f-normalized').value = '';
+      AppCenterApi.toast('Kural eklendi');
+      loadRules();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+
+  async function deleteRule(id) {
+    if (!confirm('Kurali silmek istediginize emin misiniz?')) return;
+    try {
+      await AppCenterApi.req(`/inventory/normalization/${id}`, { method: 'DELETE' });
+      AppCenterApi.toast('Kural silindi');
+      loadRules();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  loadRules();
+</script>
+{% endblock %}

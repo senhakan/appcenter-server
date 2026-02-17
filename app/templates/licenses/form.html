@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block title %}{% if license_id %}Lisans Duzenle{% else %}Yeni Lisans{% endif %}{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row spread wrap">
+    <h3 style="margin: 0;">{% if license_id %}Lisans Duzenle{% else %}Yeni Lisans{% endif %}</h3>
+    <a class="btn secondary" href="/licenses">Listeye Don</a>
+  </div>
+  <form id="license-form" class="grid" style="max-width: 500px;">
+    <div><label>Yazilim Deseni</label><input id="f-pattern" required /></div>
+    <div><label>Eslestirme Tipi</label>
+      <select id="f-match">
+        <option value="contains">Contains</option>
+        <option value="exact">Exact</option>
+        <option value="starts_with">Starts With</option>
+      </select>
+    </div>
+    <div><label>Lisans Tipi</label>
+      <select id="f-type" onchange="toggleTotal()">
+        <option value="licensed">Lisansli</option>
+        <option value="prohibited">Yasak</option>
+      </select>
+    </div>
+    <div id="total-row"><label>Toplam Lisans</label><input id="f-total" type="number" min="0" value="0" /></div>
+    <div><label>Aciklama</label><textarea id="f-desc" rows="3"></textarea></div>
+    <button class="btn" type="submit">Kaydet</button>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+  const licenseId = {{ license_id|tojson }};
+
+  function toggleTotal() {
+    document.getElementById('total-row').style.display = document.getElementById('f-type').value === 'licensed' ? '' : 'none';
+  }
+
+  async function loadLicense() {
+    if (!licenseId) return;
+    try {
+      const data = await AppCenterApi.req(`/licenses/${licenseId}`);
+      document.getElementById('f-pattern').value = data.software_name_pattern;
+      document.getElementById('f-match').value = data.match_type;
+      document.getElementById('f-type').value = data.license_type;
+      document.getElementById('f-total').value = data.total_licenses;
+      document.getElementById('f-desc').value = data.description || '';
+      toggleTotal();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  document.getElementById('license-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = {
+      software_name_pattern: document.getElementById('f-pattern').value,
+      match_type: document.getElementById('f-match').value,
+      license_type: document.getElementById('f-type').value,
+      total_licenses: parseInt(document.getElementById('f-total').value) || 0,
+      description: document.getElementById('f-desc').value || null,
+    };
+    try {
+      if (licenseId) {
+        await AppCenterApi.req(`/licenses/${licenseId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        AppCenterApi.toast('Lisans guncellendi');
+      } else {
+        await AppCenterApi.req('/licenses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        AppCenterApi.toast('Lisans olusturuldu');
+        location.href = '/licenses';
+      }
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+
+  toggleTotal();
+  loadLicense();
+</script>
+{% endblock %}

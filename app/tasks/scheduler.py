@@ -7,7 +7,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import text
 
 from app.database import SessionLocal
-from app.models import Agent, Setting
+from app.models import Agent, Setting, SoftwareChangeHistory
 
 scheduler: Optional[AsyncIOScheduler] = None
 
@@ -44,6 +44,17 @@ def cleanup_old_logs() -> None:
         db.close()
 
 
+def cleanup_old_inventory_history() -> None:
+    db = SessionLocal()
+    try:
+        retention = int(_get_setting(db, "inventory_history_retention_days", "90"))
+        cutoff = datetime.now(timezone.utc) - timedelta(days=retention)
+        db.query(SoftwareChangeHistory).filter(SoftwareChangeHistory.detected_at < cutoff).delete()
+        db.commit()
+    finally:
+        db.close()
+
+
 def start_scheduler() -> None:
     global scheduler
     if scheduler is None:
@@ -54,6 +65,7 @@ def start_scheduler() -> None:
 
     scheduler.add_job(check_offline_agents, "interval", minutes=2, id="offline_check", replace_existing=True)
     scheduler.add_job(cleanup_old_logs, "cron", hour=3, minute=0, id="log_cleanup", replace_existing=True)
+    scheduler.add_job(cleanup_old_inventory_history, "cron", hour=3, minute=10, id="inventory_history_cleanup", replace_existing=True)
     try:
         scheduler.start()
     except RuntimeError:
@@ -61,6 +73,7 @@ def start_scheduler() -> None:
         scheduler = AsyncIOScheduler(timezone="UTC")
         scheduler.add_job(check_offline_agents, "interval", minutes=2, id="offline_check", replace_existing=True)
         scheduler.add_job(cleanup_old_logs, "cron", hour=3, minute=0, id="log_cleanup", replace_existing=True)
+        scheduler.add_job(cleanup_old_inventory_history, "cron", hour=3, minute=10, id="inventory_history_cleanup", replace_existing=True)
         scheduler.start()
 
 

@@ -105,7 +105,7 @@ def _pending_commands(db: Session, agent: Agent, now: datetime) -> list[CommandI
     return commands
 
 
-def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> tuple[datetime, HeartbeatConfig, list[CommandItem]]:
+def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> tuple[datetime, HeartbeatConfig, list[CommandItem], bool]:
     now = datetime.now(timezone.utc)
     agent.hostname = payload.hostname
     agent.ip_address = payload.ip_address
@@ -121,7 +121,16 @@ def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> t
 
     _sync_installed_apps(db, agent, payload, now)
     commands = _pending_commands(db, agent, now)
+
+    inventory_sync_required = False
+    if payload.inventory_hash is not None:
+        if agent.inventory_hash is None or agent.inventory_hash != payload.inventory_hash:
+            inventory_sync_required = True
+
     config = get_heartbeat_config(db)
+    config.inventory_scan_interval_min = int(_get_setting(db, "inventory_scan_interval_min", "10"))
+    config.inventory_sync_required = inventory_sync_required
+
     db.commit()
-    return now, config, commands
+    return now, config, commands, inventory_sync_required
 

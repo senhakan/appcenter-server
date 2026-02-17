@@ -51,6 +51,8 @@ DEFAULT_SETTINGS = {
     "agent_download_url": ("", "Agent self-update download URL"),
     "agent_hash": ("", "Agent installer SHA256 hash"),
     "server_timezone": ("UTC", "Server timezone (always UTC)"),
+    "inventory_scan_interval_min": ("10", "Agent envanter tarama araligi (dakika)"),
+    "inventory_history_retention_days": ("90", "Yazilim degisim gecmisi saklama suresi (gun)"),
 }
 
 DEFAULT_GROUPS = {
@@ -83,6 +85,7 @@ def _run_startup_migrations() -> None:
     if is_sqlite:
         _migrate_sqlite_applications_table()
         _migrate_sqlite_agent_groups_table()
+        _migrate_sqlite_agents_inventory_columns()
 
 
 def _migrate_sqlite_applications_table() -> None:
@@ -144,6 +147,30 @@ def _migrate_sqlite_agent_groups_table() -> None:
             ),
             {"now_utc": datetime.now(timezone.utc).isoformat()},
         )
+
+
+def _migrate_sqlite_agents_inventory_columns() -> None:
+    """Add inventory_hash, inventory_updated_at, software_count to agents table."""
+    expected_columns = {
+        "inventory_hash": "VARCHAR",
+        "inventory_updated_at": "DATETIME",
+        "software_count": "INTEGER DEFAULT 0",
+    }
+
+    with engine.begin() as conn:
+        table_exists = conn.execute(
+            text("SELECT 1 FROM sqlite_master WHERE type='table' AND name='agents' LIMIT 1")
+        ).first()
+        if not table_exists:
+            return
+
+        rows = conn.execute(text("PRAGMA table_info(agents)")).mappings().all()
+        existing_columns = {row["name"] for row in rows}
+
+        for column_name, column_type in expected_columns.items():
+            if column_name in existing_columns:
+                continue
+            conn.execute(text(f"ALTER TABLE agents ADD COLUMN {column_name} {column_type}"))
 
 
 def seed_initial_data() -> None:

@@ -61,6 +61,7 @@ class HeartbeatRequest(BaseModel):
     current_status: Optional[str] = None
     apps_changed: bool = False
     installed_apps: list[InstalledAppItem] = Field(default_factory=list)
+    inventory_hash: Optional[str] = None
 
 
 class CommandItem(BaseModel):
@@ -84,6 +85,8 @@ class HeartbeatConfig(BaseModel):
     latest_agent_version: str = "1.0.0"
     agent_download_url: Optional[str] = None
     agent_hash: Optional[str] = None
+    inventory_sync_required: bool = False
+    inventory_scan_interval_min: int = 10
 
 
 class HeartbeatResponse(BaseModel):
@@ -296,3 +299,181 @@ class AgentUpdateUploadResponse(BaseModel):
     file_hash: str
     filename: str
     download_url: str
+
+
+# --- Inventory schemas ---
+
+
+class SoftwareItem(BaseModel):
+    name: str
+    version: Optional[str] = None
+    publisher: Optional[str] = None
+    install_date: Optional[str] = None
+    estimated_size_kb: Optional[int] = None
+    architecture: Optional[str] = None
+
+
+class AgentInventoryRequest(BaseModel):
+    inventory_hash: str
+    software_count: int
+    items: list[SoftwareItem]
+
+
+class AgentInventoryResponse(BaseModel):
+    status: str = "ok"
+    message: str
+    changes: dict
+
+
+class InventoryItemResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    software_name: str
+    software_version: Optional[str] = None
+    publisher: Optional[str] = None
+    install_date: Optional[str] = None
+    estimated_size_kb: Optional[int] = None
+    architecture: Optional[str] = None
+    normalized_name: Optional[str] = None
+
+
+class AgentInventoryListResponse(BaseModel):
+    items: list[InventoryItemResponse]
+    total: int
+
+
+class ChangeHistoryItemResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    software_name: str
+    software_version: Optional[str] = None
+    publisher: Optional[str] = None
+    previous_version: Optional[str] = None
+    change_type: str
+    detected_at: datetime
+
+
+class AgentChangeHistoryListResponse(BaseModel):
+    items: list[ChangeHistoryItemResponse]
+    total: int
+
+
+class SoftwareSummaryItem(BaseModel):
+    name: str
+    agent_count: int
+    versions: list[str]
+
+
+class SoftwareSummaryListResponse(BaseModel):
+    items: list[SoftwareSummaryItem]
+    total: int
+
+
+class SoftwareAgentItem(BaseModel):
+    agent_uuid: str
+    hostname: str
+    software_version: Optional[str] = None
+    status: str
+
+
+class SoftwareAgentListResponse(BaseModel):
+    items: list[SoftwareAgentItem]
+    total: int
+
+
+class InventoryDashboardResponse(BaseModel):
+    total_unique_software: int
+    license_violations: int
+    prohibited_alerts: int
+    agents_with_inventory: int
+    added_today: int
+    removed_today: int
+
+
+# --- Normalization rule schemas ---
+
+
+class NormalizationRuleCreateRequest(BaseModel):
+    pattern: str
+    normalized_name: str
+    match_type: str = "contains"
+
+
+class NormalizationRuleUpdateRequest(BaseModel):
+    pattern: Optional[str] = None
+    normalized_name: Optional[str] = None
+    match_type: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class NormalizationRuleResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    pattern: str
+    normalized_name: str
+    match_type: str
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class NormalizationRuleListResponse(BaseModel):
+    items: list[NormalizationRuleResponse]
+    total: int
+
+
+# --- License schemas ---
+
+
+class LicenseCreateRequest(BaseModel):
+    software_name_pattern: str
+    match_type: str = "contains"
+    total_licenses: int = 0
+    license_type: str = "licensed"
+    description: Optional[str] = None
+
+
+class LicenseUpdateRequest(BaseModel):
+    software_name_pattern: Optional[str] = None
+    match_type: Optional[str] = None
+    total_licenses: Optional[int] = None
+    license_type: Optional[str] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class LicenseResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    software_name_pattern: str
+    match_type: str
+    total_licenses: int
+    license_type: str
+    description: Optional[str] = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class LicenseListResponse(BaseModel):
+    items: list[LicenseResponse]
+    total: int
+
+
+class LicenseUsageReportItem(BaseModel):
+    license_id: int
+    pattern: str
+    license_type: str
+    total_licenses: int
+    usage: int
+    surplus: int
+    is_violation: bool
+
+
+class LicenseUsageReportResponse(BaseModel):
+    items: list[LicenseUsageReportItem]
+    total: int

@@ -13,6 +13,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.api.v1.agent import router as agent_router
 from app.api.v1.auth import router as auth_router
+from app.api.v1.inventory import router as inventory_router
 from app.api.v1.web import router as web_router
 from app.config import get_settings
 from app.database import init_db, seed_initial_data
@@ -58,6 +59,7 @@ app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads"
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(agent_router, prefix=settings.api_v1_prefix)
 app.include_router(web_router, prefix=settings.api_v1_prefix)
+app.include_router(inventory_router, prefix=settings.api_v1_prefix)
 
 
 @app.exception_handler(HTTPException)
@@ -173,6 +175,45 @@ def deployments_edit_page(request: Request, deployment_id: int):
     return templates.TemplateResponse(
         "deployments/edit.html",
         {"request": request, "active_page": "deployments", "deployment_id": deployment_id},
+    )
+
+
+@app.get("/inventory")
+def inventory_page(request: Request):
+    return templates.TemplateResponse("inventory/list.html", {"request": request, "active_page": "inventory"})
+
+
+@app.get("/inventory/software/{software_name}/agents")
+def inventory_software_detail_page(request: Request, software_name: str):
+    return templates.TemplateResponse(
+        "inventory/software_detail.html",
+        {"request": request, "active_page": "inventory", "software_name": software_name},
+    )
+
+
+@app.get("/inventory/normalization")
+def inventory_normalization_page(request: Request):
+    return templates.TemplateResponse(
+        "inventory/normalization.html",
+        {"request": request, "active_page": "inventory"},
+    )
+
+
+@app.get("/licenses")
+def licenses_page(request: Request):
+    return templates.TemplateResponse("licenses/list.html", {"request": request, "active_page": "licenses"})
+
+
+@app.get("/licenses/create")
+def licenses_create_page(request: Request):
+    return templates.TemplateResponse("licenses/form.html", {"request": request, "active_page": "licenses", "license_id": None})
+
+
+@app.get("/licenses/{license_id}/edit")
+def licenses_edit_page(request: Request, license_id: int):
+    return templates.TemplateResponse(
+        "licenses/form.html",
+        {"request": request, "active_page": "licenses", "license_id": license_id},
     )
 
 

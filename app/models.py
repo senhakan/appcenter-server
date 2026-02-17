@@ -69,6 +69,10 @@ class Agent(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     group: Mapped[Optional[Group]] = relationship(back_populates="agents")
+    inventory_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    inventory_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    software_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     agent_applications: Mapped[list["AgentApplication"]] = relationship(back_populates="agent")
     agent_groups: Mapped[list["AgentGroup"]] = relationship(back_populates="agent", cascade="all, delete-orphan")
 
@@ -229,3 +233,78 @@ Index("idx_task_app", TaskHistory.app_id)
 Index("idx_task_status", TaskHistory.status)
 Index("idx_task_created", TaskHistory.created_at)
 Index("idx_user_username", User.username)
+
+
+class AgentSoftwareInventory(Base):
+    __tablename__ = "agent_software_inventory"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    agent_uuid: Mapped[str] = mapped_column(ForeignKey("agents.uuid", ondelete="CASCADE"), nullable=False)
+    software_name: Mapped[str] = mapped_column(String, nullable=False)
+    software_version: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    publisher: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    install_date: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    estimated_size_kb: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    architecture: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    normalized_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class SoftwareChangeHistory(Base):
+    __tablename__ = "software_change_history"
+    __table_args__ = (
+        CheckConstraint("change_type IN ('installed', 'removed', 'updated')", name="ck_change_type"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    agent_uuid: Mapped[str] = mapped_column(ForeignKey("agents.uuid", ondelete="CASCADE"), nullable=False)
+    software_name: Mapped[str] = mapped_column(String, nullable=False)
+    software_version: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    publisher: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    previous_version: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    change_type: Mapped[str] = mapped_column(String, nullable=False)
+    detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class SoftwareNormalizationRule(Base):
+    __tablename__ = "software_normalization_rules"
+    __table_args__ = (
+        CheckConstraint("match_type IN ('exact', 'contains', 'starts_with')", name="ck_norm_match_type"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    pattern: Mapped[str] = mapped_column(String, nullable=False)
+    normalized_name: Mapped[str] = mapped_column(String, nullable=False)
+    match_type: Mapped[str] = mapped_column(String, nullable=False, default="contains")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class SoftwareLicense(Base):
+    __tablename__ = "software_licenses"
+    __table_args__ = (
+        CheckConstraint("match_type IN ('exact', 'contains', 'starts_with')", name="ck_license_match_type"),
+        CheckConstraint("license_type IN ('licensed', 'prohibited')", name="ck_license_type"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    software_name_pattern: Mapped[str] = mapped_column(String, nullable=False)
+    match_type: Mapped[str] = mapped_column(String, nullable=False, default="contains")
+    total_licenses: Mapped[int] = mapped_column(Integer, default=0)
+    license_type: Mapped[str] = mapped_column(String, nullable=False, default="licensed")
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+Index("idx_inv_agent", AgentSoftwareInventory.agent_uuid)
+Index("idx_inv_software_name", AgentSoftwareInventory.software_name)
+Index("idx_inv_normalized_name", AgentSoftwareInventory.normalized_name)
+Index("idx_change_agent", SoftwareChangeHistory.agent_uuid)
+Index("idx_change_detected", SoftwareChangeHistory.detected_at)
+Index("idx_change_type", SoftwareChangeHistory.change_type)
+Index("idx_norm_pattern", SoftwareNormalizationRule.pattern)
+Index("idx_license_pattern", SoftwareLicense.software_name_pattern)
+Index("idx_license_type", SoftwareLicense.license_type)

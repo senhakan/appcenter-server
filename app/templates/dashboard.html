@@ -23,11 +23,32 @@
     align-items: flex-end;
   }
 </style>
+<div class="row spread wrap" style="margin-bottom:8px;">
+  <h3 style="margin:0;">Operasyon</h3>
+</div>
 <div class="grid cols-4 metrics-grid">
   <div class="card metric-card"><div class="muted metric-label">Toplam Ajan</div><div class="metric metric-value" id="m-total-agents">-</div></div>
   <div class="card metric-card"><div class="muted metric-label">Online</div><div class="metric metric-value" id="m-online">-</div></div>
   <div class="card metric-card"><div class="muted metric-label">Uygulamalar</div><div class="metric metric-value" id="m-apps">-</div></div>
   <div class="card metric-card"><div class="muted metric-label">Dagitimlar</div><div class="metric metric-value" id="m-deployments">-</div></div>
+</div>
+<div class="row spread wrap" style="margin:12px 0 8px 0;">
+  <h3 style="margin:0;">Envanter</h3>
+</div>
+<div class="grid cols-4 metrics-grid" style="margin-top: 0;">
+  <div class="card metric-card"><div class="muted metric-label">Benzersiz Yazilim</div><div class="metric metric-value" id="m-unique-sw">-</div></div>
+  <div class="card metric-card"><div class="muted metric-label">Envanterli Ajan</div><div class="metric metric-value" id="m-agents-inv">-</div></div>
+  <div class="card metric-card"><div class="muted metric-label">Bugun Eklenen</div><div class="metric metric-value" id="m-added-today">-</div></div>
+  <div class="card metric-card"><div class="muted metric-label">Bugun Kaldirilan</div><div class="metric metric-value" id="m-removed-today">-</div></div>
+</div>
+<div class="row spread wrap" style="margin:12px 0 8px 0;">
+  <h3 style="margin:0;">Uyumluluk</h3>
+</div>
+<div class="grid cols-4 metrics-grid" style="margin-top: 0;">
+  <div class="card metric-card"><div class="muted metric-label">Lisans Ihlali</div><div class="metric metric-value" id="m-violations">-</div></div>
+  <div class="card metric-card"><div class="muted metric-label">Yasak Yazilim</div><div class="metric metric-value" id="m-prohibited">-</div></div>
+  <div class="card metric-card"><div class="muted metric-label">Envanteri Eksik Ajan</div><div class="metric metric-value" id="m-missing-inv">-</div></div>
+  <div class="card metric-card"><div class="muted metric-label">Envanter Kapsami %</div><div class="metric metric-value" id="m-inv-coverage">-</div></div>
 </div>
 <div class="card">
   <div class="row spread wrap">
@@ -40,10 +61,12 @@
 {% block scripts %}
 <script>
   AppCenterApi.protectPage();
+  let totalAgents = 0;
 
   async function loadDashboard() {
     try {
       const stats = await AppCenterApi.req('/dashboard/stats');
+      totalAgents = stats.total_agents || 0;
       document.getElementById('m-total-agents').textContent = stats.total_agents;
       document.getElementById('m-online').textContent = stats.online_agents;
       document.getElementById('m-apps').textContent = stats.total_applications;
@@ -51,6 +74,19 @@
     } catch (err) {
       AppCenterApi.toast(err.message);
     }
+    try {
+      const inv = await AppCenterApi.req('/inventory/dashboard');
+      document.getElementById('m-unique-sw').textContent = inv.total_unique_software;
+      document.getElementById('m-agents-inv').textContent = inv.agents_with_inventory;
+      document.getElementById('m-added-today').textContent = inv.added_today;
+      document.getElementById('m-removed-today').textContent = inv.removed_today;
+      document.getElementById('m-violations').textContent = inv.license_violations;
+      document.getElementById('m-prohibited').textContent = inv.prohibited_alerts;
+      const missing = Math.max(0, (totalAgents || 0) - (inv.agents_with_inventory || 0));
+      document.getElementById('m-missing-inv').textContent = missing;
+      const coverage = totalAgents > 0 ? Math.round(((inv.agents_with_inventory || 0) / totalAgents) * 100) : 0;
+      document.getElementById('m-inv-coverage').textContent = coverage;
+    } catch (err) { /* inventory stats optional */ }
   }
 
   loadDashboard();

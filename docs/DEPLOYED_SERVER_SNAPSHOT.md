@@ -13,8 +13,8 @@ Bu dokuman mevcut production sunucuda uygulanan deployment topolojisini ozetler.
 ## 2. Runtime
 
 - Python venv: `/opt/appcenter/server/venv`
-- ASGI: `uvicorn app.main:app`
-- Bind: `127.0.0.1:8000`
+- ASGI: `/opt/appcenter/server/venv/bin/python -m uvicorn app.main:app`
+- Bind: `0.0.0.0:8000` (nginx upstream `127.0.0.1:8000`)
 - systemd service: `appcenter`
 
 Service dosyasi:
@@ -48,6 +48,12 @@ rsync -av --delete \
   /root/appcenter/server/ /opt/appcenter/server/
 sudo systemctl restart appcenter
 ```
+
+Not:
+
+- Server tarafi kod degisiklikleri bu hostta canli servise uygulanir.
+- Guncelleme sonrasi dogrulama bu hosttaki servis uzerinde yapilir (`127.0.0.1:8000`).
+  - Not: `uvicorn` binary shebang'i baska bir path'e isaret ederse (venv kopyalama/rsync ile), systemd `203/EXEC` hatasi verebilir. Bu nedenle `python -m uvicorn` kullanimi daha dayanıklidir.
 
 ## 5. Sık Hata ve Cozum
 

@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}Envanter{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row spread wrap">
+    <h3 style="margin: 0;">Yazilim Envanteri</h3>
+    <a class="btn secondary" href="/inventory/normalization">Normalizasyon Kurallari</a>
+  </div>
+  <div style="margin: 12px 0;">
+    <input id="search" type="text" placeholder="Yazilim ara..." style="max-width:300px;" />
+    <button class="btn secondary" onclick="loadSoftware()">Ara</button>
+  </div>
+  <table>
+    <thead><tr><th>Yazilim Adi</th><th>Ajan Sayisi</th><th>Versiyonlar</th></tr></thead>
+    <tbody id="sw-body"></tbody>
+  </table>
+  <div class="row spread" style="margin-top: 8px;">
+    <button class="btn secondary" id="prev-btn" onclick="changePage(-1)" disabled>Onceki</button>
+    <span id="page-info" class="muted"></span>
+    <button class="btn secondary" id="next-btn" onclick="changePage(1)">Sonraki</button>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+  let currentPage = 1;
+  const perPage = 50;
+
+  async function loadSoftware() {
+    const search = document.getElementById('search').value;
+    try {
+      const data = await AppCenterApi.req(`/inventory/software?search=${encodeURIComponent(search)}&page=${currentPage}&per_page=${perPage}`);
+      const body = document.getElementById('sw-body');
+      const items = data.items || [];
+      if (!items.length) { body.innerHTML = '<tr><td colspan="3" class="muted">Kayit bulunamadi</td></tr>'; return; }
+      body.innerHTML = items.map(i => `<tr style="cursor:pointer" onclick="location.href='/inventory/software/${encodeURIComponent(i.name)}/agents'">
+        <td>${i.name}</td>
+        <td>${i.agent_count}</td>
+        <td>${(i.versions || []).join(', ') || '-'}</td>
+      </tr>`).join('');
+      document.getElementById('page-info').textContent = `Sayfa ${currentPage}`;
+      document.getElementById('prev-btn').disabled = currentPage <= 1;
+      document.getElementById('next-btn').disabled = items.length < perPage;
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  function changePage(d) { currentPage = Math.max(1, currentPage + d); loadSoftware(); }
+
+  document.getElementById('search').addEventListener('keydown', e => { if (e.key === 'Enter') { currentPage = 1; loadSoftware(); } });
+  loadSoftware();
+</script>
+{% endblock %}
