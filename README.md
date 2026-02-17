@@ -124,6 +124,8 @@
   - Server snapshot'u saklar ve degisimleri `agent_system_profile_history` tablosunda izler
   - Agent detail ekraninda sistem bilgileri "Ajan Detay" alaninda gorunur
   - "Sistem Gecmisi" sekmesi yalnizca degisen alanlari listeler (eski → yeni diff)
+  - Ayni "Sistem Gecmisi" tabinda hostname/IP degisimleri de gorunur (`agent_identity_history`)
+  - Birlesik zaman cizelgesi endpoint'i: `GET /api/v1/agents/{agent_uuid}/timeline`
 
 ## Son Dogrulama (2026-02-13)
 
