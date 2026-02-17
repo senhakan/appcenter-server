@@ -155,31 +155,40 @@
 
   async function loadSystemHistory() {
     try {
-      const data = await AppCenterApi.req(`/agents/${agentId}/system/history?limit=50&offset=${systemOffset}`);
+      const data = await AppCenterApi.req(`/agents/${agentId}/timeline?limit=50&offset=${systemOffset}`);
       const items = data.items || [];
       const body = document.getElementById('sys-body');
       items.forEach(i => {
-        const p = i.system_profile || {};
-        const fields = (i.changed_fields || []);
         let details = '';
-
-        if (fields.includes('initial')) {
-          const summary = `${p.os_full_name || '-'} | ${(p.manufacturer || '-') + ' ' + (p.model || '')} | ${p.cpu_model || '-'} | ${p.total_memory_gb != null ? (p.total_memory_gb + ' GB') : '-'}`;
-          details = `<div><b>initial</b>: ${summary}</div>`;
-        } else if (!fields.length) {
-          details = `<div class="muted">-</div>`;
+        if (i.event_type === 'identity') {
+          const hOld = i.old_hostname || '-';
+          const hNew = i.new_hostname || '-';
+          const ipOld = i.old_ip_address || '-';
+          const ipNew = i.new_ip_address || '-';
+          details = `
+            <div><b>hostname</b>: ${hOld} → ${hNew}</div>
+            <div><b>ip</b>: ${ipOld} → ${ipNew}</div>
+          `;
         } else {
-          const diff = (i.diff || []);
-          if (!diff.length) {
-            // Backward compatibility: fallback to new values only.
-            details = fields.map(f => `<div><b>${f}</b>: ${p[f] != null && p[f] !== '' ? p[f] : '-'}</div>`).join('');
+          const p = i.system_profile || {};
+          const fields = (i.changed_fields || []);
+          if (fields.includes('initial')) {
+            const summary = `${p.os_full_name || '-'} | ${(p.manufacturer || '-') + ' ' + (p.model || '')} | ${p.cpu_model || '-'} | ${p.total_memory_gb != null ? (p.total_memory_gb + ' GB') : '-'}`;
+            details = `<div><b>initial</b>: ${summary}</div>`;
+          } else if (!fields.length) {
+            details = `<div class="muted">-</div>`;
           } else {
-            details = diff.map(d => {
-              const f = d.field || '';
-              const oldV = d.old != null && d.old !== '' ? d.old : '-';
-              const newV = d.new != null && d.new !== '' ? d.new : '-';
-              return `<div><b>${f}</b>: ${oldV} → ${newV}</div>`;
-            }).join('');
+            const diff = (i.diff || []);
+            if (!diff.length) {
+              details = fields.map(f => `<div><b>${f}</b>: ${p[f] != null && p[f] !== '' ? p[f] : '-'}</div>`).join('');
+            } else {
+              details = diff.map(d => {
+                const f = d.field || '';
+                const oldV = d.old != null && d.old !== '' ? d.old : '-';
+                const newV = d.new != null && d.new !== '' ? d.new : '-';
+                return `<div><b>${f}</b>: ${oldV} → ${newV}</div>`;
+              }).join('');
+            }
           }
         }
         body.innerHTML += `<tr>

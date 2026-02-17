@@ -8,7 +8,7 @@ from sqlalchemy import text
 
 from app.database import SessionLocal
 from app.models import Agent, Setting, SoftwareChangeHistory
-from app.services.system_profile_service import cleanup_old_system_history
+from app.services.system_profile_service import cleanup_old_identity_history, cleanup_old_system_history
 
 scheduler: Optional[AsyncIOScheduler] = None
 
@@ -61,6 +61,7 @@ def cleanup_old_system_history_job() -> None:
     try:
         retention = int(_get_setting(db, "system_history_retention_days", "360"))
         cleanup_old_system_history(db, retention)
+        cleanup_old_identity_history(db, retention)
     finally:
         db.close()
 

@@ -383,6 +383,22 @@ class AgentSystemProfileHistory(Base):
 
 Index("idx_systemhist_agent", AgentSystemProfileHistory.agent_uuid)
 Index("idx_systemhist_detected", AgentSystemProfileHistory.detected_at)
+
+
+class AgentIdentityHistory(Base):
+    __tablename__ = "agent_identity_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    agent_uuid: Mapped[str] = mapped_column(ForeignKey("agents.uuid", ondelete="CASCADE"), nullable=False)
+    detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    old_hostname: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    new_hostname: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    old_ip_address: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    new_ip_address: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+
+Index("idx_identityhist_agent", AgentIdentityHistory.agent_uuid)
+Index("idx_identityhist_detected", AgentIdentityHistory.detected_at)
 Index("idx_norm_pattern", SoftwareNormalizationRule.pattern)
 Index("idx_license_pattern", SoftwareLicense.software_name_pattern)
 Index("idx_license_type", SoftwareLicense.license_type)

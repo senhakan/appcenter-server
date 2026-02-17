@@ -7,8 +7,11 @@ from app.auth import get_current_user
 from app.database import get_db
 from app.services import inventory_service
 from app.services import system_profile_service
+from app.services import timeline_service
 from app.schemas import (
     AgentSystemHistoryListResponse,
+    AgentTimelineListResponse,
+    AgentTimelineItemResponse,
     SystemProfileHistoryItemResponse,
     AgentChangeHistoryListResponse,
     AgentInventoryListResponse,
@@ -77,6 +80,21 @@ def get_agent_system_history(
     items, total = system_profile_service.get_agent_system_history(db, agent_uuid, limit, offset)
     return AgentSystemHistoryListResponse(
         items=[SystemProfileHistoryItemResponse.model_validate(i) for i in items],
+        total=total,
+    )
+
+
+@router.get("/agents/{agent_uuid}/timeline", response_model=AgentTimelineListResponse)
+def get_agent_timeline(
+    agent_uuid: str,
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    items, total = timeline_service.get_agent_timeline(db, agent_uuid, limit, offset)
+    return AgentTimelineListResponse(
+        items=[AgentTimelineItemResponse(**i) for i in items],
         total=total,
     )
 

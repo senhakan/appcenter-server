@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from app.models import Agent, AgentApplication, AgentSystemProfileHistory, Application, Deployment, TaskHistory
+from app.models import Agent, AgentApplication, AgentIdentityHistory, AgentSystemProfileHistory, Application, Deployment, TaskHistory
 from app.schemas import CommandItem, HeartbeatConfig, HeartbeatRequest
 
 
@@ -192,6 +192,25 @@ def _diff_system_profile_pairs(old: dict | None, new: dict) -> list[dict]:
 
 def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> tuple[datetime, HeartbeatConfig, list[CommandItem], bool]:
     now = datetime.now(timezone.utc)
+
+    # Track identity changes (UUID remains stable).
+    old_hostname = agent.hostname
+    old_ip = agent.ip_address
+    new_hostname = payload.hostname
+    new_ip = payload.ip_address
+
+    if (old_hostname and new_hostname and old_hostname != new_hostname) or ((old_ip or "") != (new_ip or "")):
+        db.add(
+            AgentIdentityHistory(
+                agent_uuid=agent.uuid,
+                detected_at=now,
+                old_hostname=old_hostname,
+                new_hostname=new_hostname,
+                old_ip_address=old_ip,
+                new_ip_address=new_ip,
+            )
+        )
+
     agent.hostname = payload.hostname
     agent.ip_address = payload.ip_address
     agent.os_user = payload.os_user

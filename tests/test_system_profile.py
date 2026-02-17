@@ -78,3 +78,38 @@ def test_system_profile_persist_and_history(client):
     assert "cpu_model" in (j2["items"][0]["changed_fields"] or [])
     diff = j2["items"][0].get("diff") or []
     assert any(d.get("field") == "cpu_model" and d.get("old") == p1["cpu_model"] and d.get("new") == p2["cpu_model"] for d in diff)
+
+
+def test_agent_timeline_includes_identity_and_system_events(client):
+    uid, headers = _register_agent(client)
+    admin = _admin_headers(client)
+
+    # First heartbeat - baseline
+    hb1 = client.post("/api/v1/agent/heartbeat", json={
+        "hostname": "pc-a",
+        "ip_address": "10.0.0.10",
+    }, headers=headers)
+    assert hb1.status_code == 200
+
+    # System profile report (creates system_profile history row)
+    hb2 = client.post("/api/v1/agent/heartbeat", json={
+        "hostname": "pc-a",
+        "ip_address": "10.0.0.10",
+        "system_profile": {"os_full_name": "Windows 11"},
+    }, headers=headers)
+    assert hb2.status_code == 200
+
+    # Identity change
+    hb3 = client.post("/api/v1/agent/heartbeat", json={
+        "hostname": "pc-b",
+        "ip_address": "10.0.0.11",
+    }, headers=headers)
+    assert hb3.status_code == 200
+
+    tl = client.get(f"/api/v1/agents/{uid}/timeline?limit=50&offset=0", headers=admin)
+    assert tl.status_code == 200
+    body = tl.json()
+    assert body["total"] >= 2
+    types = [i["event_type"] for i in (body["items"] or [])]
+    assert "identity" in types
+    assert "system_profile" in types

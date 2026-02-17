@@ -90,6 +90,7 @@ def _run_startup_migrations() -> None:
         _migrate_sqlite_agents_session_columns()
         _migrate_sqlite_agents_system_profile_columns()
         _migrate_sqlite_system_profile_history_columns()
+        _migrate_sqlite_agent_identity_history_table()
 
 
 def _migrate_sqlite_applications_table() -> None:
@@ -246,6 +247,29 @@ def _migrate_sqlite_system_profile_history_columns() -> None:
             conn.execute(
                 text(f"ALTER TABLE agent_system_profile_history ADD COLUMN {column_name} {column_type}")
             )
+
+
+def _migrate_sqlite_agent_identity_history_table() -> None:
+    """Create agent_identity_history table for hostname/ip changes."""
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS agent_identity_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    agent_uuid VARCHAR NOT NULL,
+                    detected_at DATETIME,
+                    old_hostname VARCHAR,
+                    new_hostname VARCHAR,
+                    old_ip_address VARCHAR,
+                    new_ip_address VARCHAR,
+                    FOREIGN KEY(agent_uuid) REFERENCES agents(uuid) ON DELETE CASCADE
+                )
+                """
+            )
+        )
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_identityhist_agent ON agent_identity_history(agent_uuid)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_identityhist_detected ON agent_identity_history(detected_at)"))
 
 
 def seed_initial_data() -> None:

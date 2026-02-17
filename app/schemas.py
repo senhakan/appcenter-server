@@ -279,6 +279,27 @@ class AgentSystemHistoryListResponse(BaseModel):
     total: int
 
 
+class AgentTimelineItemResponse(BaseModel):
+    event_type: str
+    detected_at: datetime
+
+    # system_profile event
+    changed_fields: list[str] = Field(default_factory=list)
+    diff: list[dict] = Field(default_factory=list)
+    system_profile: Optional[SystemProfile] = None
+
+    # identity event
+    old_hostname: Optional[str] = None
+    new_hostname: Optional[str] = None
+    old_ip_address: Optional[str] = None
+    new_ip_address: Optional[str] = None
+
+
+class AgentTimelineListResponse(BaseModel):
+    items: list[AgentTimelineItemResponse]
+    total: int
+
+
 class AgentListResponse(BaseModel):
     items: list[AgentResponse]
     total: int
