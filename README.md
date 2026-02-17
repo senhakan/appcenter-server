@@ -122,7 +122,8 @@
 - Agent system profile + history:
   - Agent periyodik `system_profile` snapshot gonderir (OS/donanim/virtualization/disk)
   - Server snapshot'u saklar ve degisimleri `agent_system_profile_history` tablosunda izler
-  - Agent detail ekraninda "Sistem Gecmisi" sekmesi ile goruntulenir
+  - Agent detail ekraninda sistem bilgileri "Ajan Detay" alaninda gorunur
+  - "Sistem Gecmisi" sekmesi yalnizca degisen alanlari listeler
 
 ## Son Dogrulama (2026-02-13)
 

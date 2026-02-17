@@ -39,6 +39,12 @@ Her deploy sonrasi minimum kontrol listesi.
 - `/deployments/{deployment_id}/edit` -> 200
 - `/groups/{group_id}/edit` -> 200
 
+## G. Agent Detay (Opsiyonel)
+
+- `/agents/{agent_uuid}` ekraninda:
+  - "Ajan Detay" alaninda `system_profile` goruntulenir (OS/CPU/RAM/disk/virt)
+  - "Sistem Gecmisi" tabinda yalnizca degisen alanlar listelenir
+
 ## F. Duzenleme Akislari
 
 - Uygulama duzenleme:
