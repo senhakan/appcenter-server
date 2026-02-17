@@ -101,20 +101,9 @@
     return (s || '').toString().replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
   }
 
-  function relTime(dt) {
-    const ms = Date.now() - dt.getTime();
-    const sec = Math.floor(ms / 1000);
-    if (sec < 60) return `${sec}s önce`;
-    const min = Math.floor(sec / 60);
-    if (min < 60) return `${min}dk önce`;
-    const hr = Math.floor(min / 60);
-    if (hr < 24) return `${hr}sa önce`;
-    const day = Math.floor(hr / 24);
-    return `${day}g önce`;
-  }
-
   async function loadTimeline() {
     try {
+      await AppCenterApi.initUi();
       const data = await AppCenterApi.req('/dashboard/timeline');
       const el = document.getElementById('dash-timeline');
       const items = data.items || [];
@@ -123,9 +112,8 @@
         return;
       }
       el.innerHTML = items.map(i => {
-        const dt = new Date(i.detected_at);
-        const when = dt.toLocaleString();
-        const whenRel = relTime(dt);
+        const when = AppCenterApi.formatDate(i.detected_at);
+        const whenRel = AppCenterApi.relTime(i.detected_at);
         const title = `${i.hostname || '-'} (${(i.event_type || '-')})`;
         const sev = (i.severity || '').toLowerCase();
         const badgeClass = sev === 'ok' ? 'badge ok' : (sev === 'warn' ? 'badge warn' : (sev === 'danger' ? 'badge danger' : 'badge info'));
@@ -169,7 +157,10 @@
     await loadTimeline();
   }
 
-  loadDashboard();
-  setInterval(loadDashboard, 10000);
+  (async function () {
+    await AppCenterApi.initUi();
+    loadDashboard();
+    setInterval(loadDashboard, 10000);
+  })();
 </script>
 {% endblock %}

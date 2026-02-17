@@ -24,6 +24,7 @@
 
   async function loadAgents() {
     try {
+      await AppCenterApi.initUi();
       const data = await AppCenterApi.req('/agents');
       const rows = document.getElementById('agent-rows');
       rows.innerHTML = '';
@@ -34,7 +35,7 @@
           <td>${agent.hostname || '-'}</td>
           <td><span class="badge ${agent.status === 'online' ? 'ok' : 'warn'}">${agent.status}</span></td>
           <td>${agent.version || '-'}</td>
-          <td>${agent.last_seen || '-'}</td>
+          <td>${agent.last_seen ? AppCenterApi.formatDate(agent.last_seen) : '-'}</td>
           <td><a class="btn secondary" href="/agents/${agent.uuid}">Detay</a></td>
         `;
         rows.appendChild(tr);
@@ -44,7 +45,10 @@
     }
   }
 
-  loadAgents();
-  setInterval(loadAgents, 10000);
+  (async function () {
+    await AppCenterApi.initUi();
+    loadAgents();
+    setInterval(loadAgents, 10000);
+  })();
 </script>
 {% endblock %}

@@ -51,6 +51,7 @@ DEFAULT_SETTINGS = {
     "agent_download_url": ("", "Agent self-update download URL"),
     "agent_hash": ("", "Agent installer SHA256 hash"),
     "server_timezone": ("UTC", "Server timezone (always UTC)"),
+    "ui_timezone": ("Europe/Istanbul", "UI timezone (IANA, ex: Europe/Istanbul)"),
     "inventory_scan_interval_min": ("10", "Agent envanter tarama araligi (dakika)"),
     "inventory_history_retention_days": ("90", "Yazilim degisim gecmisi saklama suresi (gun)"),
     "system_history_retention_days": ("360", "Sistem profili degisim gecmisi saklama suresi (gun)"),

@@ -67,13 +67,14 @@
 
   async function loadAgentDetail() {
     try {
+      await AppCenterApi.initUi();
       const data = await AppCenterApi.req(`/agents/${agentId}`);
       const el = document.getElementById('agent-detail');
       const sessions = (data.logged_in_sessions || []).map(s => `${s.username} (${s.session_type})`);
       const sessionsText = sessions.length ? sessions.join('<br/>') : '-';
-      const sessionsUpdated = data.logged_in_sessions_updated_at ? new Date(data.logged_in_sessions_updated_at).toLocaleString() : '-';
+      const sessionsUpdated = data.logged_in_sessions_updated_at ? AppCenterApi.formatDate(data.logged_in_sessions_updated_at) : '-';
       const sys = data.system_profile || null;
-      const sysUpdated = data.system_profile_updated_at ? new Date(data.system_profile_updated_at).toLocaleString() : '-';
+      const sysUpdated = data.system_profile_updated_at ? AppCenterApi.formatDate(data.system_profile_updated_at) : '-';
       const sysDisks = sys ? ((sys.disks || []).map(d => `Disk ${d.index}: ${d.size_gb || '?'} GB (${d.bus_type || '?'}) ${d.model || ''}`.trim()).join('<br/>') || '-') : '-';
       const sysVirt = sys && sys.virtualization ? `${sys.virtualization.is_virtual ? 'Evet' : 'Hayir'} ${sys.virtualization.vendor || ''} ${sys.virtualization.model || ''}`.trim() : '-';
       el.innerHTML = `
@@ -82,7 +83,7 @@
         <div><label>IP</label><div>${data.ip_address || '-'}</div></div>
         <div><label>Durum</label><div>${data.status || '-'}</div></div>
         <div><label>Version</label><div>${data.version || '-'}</div></div>
-        <div><label>Son Gorulme</label><div>${data.last_seen || '-'}</div></div>
+        <div><label>Son Gorulme</label><div>${data.last_seen ? AppCenterApi.formatDate(data.last_seen) : '-'}</div></div>
         <div><label>Login Olan Kullanici(lar)</label><div>${sessionsText}</div></div>
         <div><label>Session Guncelleme</label><div>${sessionsUpdated}</div></div>
         <div><label>Sistem Profili Guncelleme</label><div>${sysUpdated}</div></div>
@@ -130,6 +131,7 @@
 
   async function loadChanges() {
     try {
+      await AppCenterApi.initUi();
       const data = await AppCenterApi.req(`/agents/${agentId}/inventory/changes?limit=50&offset=${changesOffset}`);
       const items = data.items || [];
       const body = document.getElementById('changes-body');
@@ -138,7 +140,7 @@
       items.forEach(i => {
         const detail = i.change_type === 'updated' ? `${i.previous_version || '?'} → ${i.software_version || '?'}` : (i.software_version || '-');
         body.innerHTML += `<tr>
-          <td>${new Date(i.detected_at).toLocaleString()}</td>
+          <td>${AppCenterApi.formatDate(i.detected_at)}</td>
           <td>${i.software_name}</td>
           <td><span style="${badges[i.change_type] || ''};font-weight:600">${labels[i.change_type] || i.change_type}</span></td>
           <td>${detail}</td>
@@ -155,6 +157,7 @@
 
   async function loadSystemHistory() {
     try {
+      await AppCenterApi.initUi();
       const data = await AppCenterApi.req(`/agents/${agentId}/timeline?limit=50&offset=${systemOffset}`);
       const items = data.items || [];
       const body = document.getElementById('sys-body');
@@ -204,7 +207,7 @@
           }
         }
         body.innerHTML += `<tr>
-          <td>${new Date(i.detected_at).toLocaleString()}</td>
+          <td>${AppCenterApi.formatDate(i.detected_at)}</td>
           <td>${details}</td>
         </tr>`;
       });
@@ -217,9 +220,12 @@
 
   function loadMoreSystem() { loadSystemHistory(); }
 
-  loadAgentDetail();
-  loadInventory();
-  loadChanges();
-  loadSystemHistory();
+  (async function () {
+    await AppCenterApi.initUi();
+    loadAgentDetail();
+    loadInventory();
+    loadChanges();
+    loadSystemHistory();
+  })();
 </script>
 {% endblock %}

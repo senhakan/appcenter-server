@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from zoneinfo import ZoneInfo
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
@@ -249,6 +250,26 @@ def dashboard_timeline(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ) -> DashboardTimelineListResponse:
+    def _as_utc(dt_value):
+        # sqlite raw queries can return strings and/or naive datetimes.
+        if dt_value is None:
+            return None
+        if isinstance(dt_value, str):
+            s = dt_value.strip()
+            if s.endswith("Z"):
+                s = s[:-1] + "+00:00"
+            if " " in s and "T" not in s:
+                s = s.replace(" ", "T", 1)
+            try:
+                dt_value = datetime.fromisoformat(s)
+            except Exception:
+                return None
+        if isinstance(dt_value, datetime):
+            if dt_value.tzinfo is None:
+                return dt_value.replace(tzinfo=timezone.utc)
+            return dt_value.astimezone(timezone.utc)
+        return None
+
     rows = db.execute(
         text(
             """
@@ -387,7 +408,7 @@ def dashboard_timeline(
         items.append(
             DashboardTimelineItemResponse(
                 event_type=et,
-                detected_at=r["detected_at"],
+                detected_at=_as_utc(r["detected_at"]),
                 agent_uuid=r["agent_uuid"],
                 hostname=r.get("hostname"),
                 summary=summary,
@@ -547,6 +568,11 @@ def settings_update(
 ) -> SettingsListResponse:
     now = datetime.now(timezone.utc)
     for key, value in payload.values.items():
+        if key == "ui_timezone":
+            try:
+                ZoneInfo((value or "").strip())
+            except Exception:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid ui_timezone")
         item = db.query(Setting).filter(Setting.key == key).first()
         if not item:
             item = Setting(key=key, value=value, description="Updated via API", updated_at=now)

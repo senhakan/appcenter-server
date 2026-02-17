@@ -1,10 +1,31 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+
+def _as_utc(dt_value):
+    # sqlite raw queries can return strings and/or naive datetimes.
+    if dt_value is None:
+        return None
+    if isinstance(dt_value, str):
+        s = dt_value.strip()
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        if " " in s and "T" not in s:
+            s = s.replace(" ", "T", 1)
+        try:
+            dt_value = datetime.fromisoformat(s)
+        except Exception:
+            return None
+    if isinstance(dt_value, datetime):
+        if dt_value.tzinfo is None:
+            return dt_value.replace(tzinfo=timezone.utc)
+        return dt_value.astimezone(timezone.utc)
+    return None
 
 
 def get_agent_timeline(
@@ -125,13 +146,7 @@ def get_agent_timeline(
 
     items: list[dict] = []
     for r in rows:
-        detected_at = r["detected_at"]
-        if isinstance(detected_at, str):
-            # sqlite may return ISO string depending on driver.
-            try:
-                detected_at = datetime.fromisoformat(detected_at)
-            except Exception:
-                detected_at = None
+        detected_at = _as_utc(r["detected_at"])
 
         if r["event_type"] == "system_profile":
             changed_fields = []
