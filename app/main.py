@@ -27,6 +27,8 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+# Cache-bust static assets to avoid UI breaking after deploys due to stale browser cache.
+templates.env.globals["ASSET_VERSION"] = settings.app_version
 
 
 @asynccontextmanager
