@@ -3,8 +3,7 @@
 ## 1. Local Test
 
 ```bash
-source venv39/bin/activate
-pytest -q
+./venv/bin/python -m pytest -q
 ```
 
 Mevcut test dosyalari:

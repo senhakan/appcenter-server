@@ -5,8 +5,8 @@ Bu dokuman ekip ici gelistirme akisini standartlastirir.
 ## 1. Hazirlik
 
 ```bash
-python3.9 -m venv venv39
-source venv39/bin/activate
+python3.9 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 ```
 
@@ -16,7 +16,7 @@ pip install -r requirements.txt
 - Faz 6 (UI yonetim iyilestirmeleri) aktif olarak faz 5 uzerine iteratif ilerletilir.
 - Her faz sonunda:
   - API smoke test
-  - `pytest -q`
+  - `./venv/bin/python -m pytest -q`
   - Dokuman guncellemesi (`README.md`, gerekirse `CLAUDE.md`).
 
 ## 2.1 Sonraki Asama Plani
@@ -60,7 +60,7 @@ git commit -m "feat: add deployment task assignment flow"
 ## 5. Merge Oncesi Kontrol
 
 ```bash
-pytest -q
+./venv/bin/python -m pytest -q
 ```
 
 - CI yesil olmadan merge edilmez.

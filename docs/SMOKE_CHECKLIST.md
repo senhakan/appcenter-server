@@ -28,6 +28,7 @@ Her deploy sonrasi minimum kontrol listesi.
 - `GET /api/v1/dashboard/timeline` -> 200
 - `GET /api/v1/settings` -> 200
 - `PUT /api/v1/settings` -> 200
+  - (opsiyonel) `ui_timezone` guncellenir (ornegin `Europe/Istanbul`) -> 200
 - `GET /api/v1/agent/store` -> 200
 - `POST /api/v1/agent-update/upload` -> 200
 - `GET /api/v1/agent/update/download/{filename}` -> 200
@@ -39,6 +40,7 @@ Her deploy sonrasi minimum kontrol listesi.
 - `/applications/{app_id}/edit` -> 200
 - `/deployments/{deployment_id}/edit` -> 200
 - `/groups/{group_id}/edit` -> 200
+  - (opsiyonel) UI tarih/saat gosterimleri `ui_timezone` ayarina gore degisiyor mu kontrol et
 
 ## G. Agent Detay (Opsiyonel)
 

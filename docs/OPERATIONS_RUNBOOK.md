@@ -74,6 +74,7 @@ Web login ve kritik akislar manuel kontrol edilir:
 - agent heartbeat/task flow
 - agent detail: login session listesi (local/RDP) gorunumu
 - settings update
+  - `ui_timezone` (IANA) guncellemesi ve zaman gosterimlerinin dogrulanmasi
 - agent update upload/download
 
 Detayli checklist: `docs/SMOKE_CHECKLIST.md`.
@@ -99,6 +100,13 @@ curl -sS http://127.0.0.1:8000/ | jq .
 ```bash
 sudo journalctl -u appcenter -f
 ```
+
+## 4.1 UI Bos Ekran / JS Cache Sorun Giderme
+
+Deploy sonrasi UI bos gorunuyorsa (dashboard/agent listesi bos, kartlar dolmuyor) genelde tarayicinin eski `/static/js/api.js` dosyasini cache'lemesinden olur.
+
+- Cozum: hard refresh (`Ctrl+F5`) veya cache temizleyip tekrar login olun.
+- Not: Bu repo static asset'lerde `?v={{ app_version }}` cache-bust kullanir. Yine de proxy/tarayici cache'i bazen etkileyebilir.
 
 DB saglik kontrolu:
 

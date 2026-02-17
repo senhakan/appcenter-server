@@ -163,8 +163,8 @@
 ## Kurulum
 
 ```bash
-python3.9 -m venv venv39
-source venv39/bin/activate
+python3.9 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
@@ -172,15 +172,13 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ## Test
 
 ```bash
-source venv39/bin/activate
-pytest -q
+./venv/bin/python -m pytest -q
 ```
 
 - Test dosyalari:
 - `tests/conftest.py`
 - `tests/test_phase5_api.py`
-- Son sonuc: `8 passed`
-- Son sonuc: `19 passed`
+- Son sonuc: `24 passed`
 
 ## Dokumantasyon
 
