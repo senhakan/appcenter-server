@@ -20,6 +20,7 @@ Her deploy sonrasi minimum kontrol listesi.
 - `POST /api/v1/agent/heartbeat` -> command doner
 - ikinci heartbeat -> ayni command tekrar donmez
 - `POST /api/v1/agent/task/{task_id}/status` -> 200
+- (opsiyonel) `GET /api/v1/agents/{agent_uuid}` -> `logged_in_sessions` alani dolu/[] gelir
 
 ## D. Faz 5 Akislari
 

@@ -72,6 +72,7 @@ Web login ve kritik akislar manuel kontrol edilir:
 - application/deployment/group edit ekranlari
 - group create + dual-listbox agent assignment
 - agent heartbeat/task flow
+- agent detail: login session listesi (local/RDP) gorunumu
 - settings update
 - agent update upload/download
 

@@ -116,6 +116,9 @@
 - soldan saga dual-listbox akisi (atanmamis -> gruptaki ajanlar)
 - SQLite startup migration:
 - eski veritabani icin `applications` tablosuna eksik kolonlari idempotent ekleme
+- Agent detail: login session gosterimi:
+  - Agent heartbeat payload'inda `logged_in_sessions` alani (local/RDP) ile gelir
+  - Server agents tablosuna JSON olarak persist eder ve agent detail ekraninda gosterir
 
 ## Son Dogrulama (2026-02-13)
 
@@ -158,6 +161,7 @@ pytest -q
 - `tests/conftest.py`
 - `tests/test_phase5_api.py`
 - Son sonuc: `8 passed`
+- Son sonuc: `18 passed`
 
 ## Dokumantasyon
 
