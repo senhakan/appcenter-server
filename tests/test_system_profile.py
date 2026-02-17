@@ -143,3 +143,32 @@ def test_agent_timeline_includes_status_transition(client):
     assert tl.status_code == 200
     body = tl.json()
     assert any(i.get("event_type") == "status" and i.get("new_status") == "online" for i in (body.get("items") or []))
+
+
+def test_agent_timeline_includes_task_event(client):
+    uid, headers = _register_agent(client)
+    admin = _admin_headers(client)
+
+    from app.database import SessionLocal  # pylint: disable=import-outside-toplevel
+    from app.models import TaskHistory  # pylint: disable=import-outside-toplevel
+
+    db = SessionLocal()
+    try:
+        db.add(
+            TaskHistory(
+                agent_uuid=uid,
+                app_id=None,
+                deployment_id=None,
+                action="install",
+                status="failed",
+                message="unit-test",
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    tl = client.get(f"/api/v1/agents/{uid}/timeline?limit=50&offset=0", headers=admin)
+    assert tl.status_code == 200
+    body = tl.json()
+    assert any(i.get("event_type") == "task" for i in (body.get("items") or []))

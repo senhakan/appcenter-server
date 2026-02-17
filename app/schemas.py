@@ -299,6 +299,13 @@ class AgentTimelineItemResponse(BaseModel):
     new_status: Optional[str] = None
     reason: Optional[str] = None
 
+    # task event
+    task_action: Optional[str] = None
+    task_status: Optional[str] = None
+    app_name: Optional[str] = None
+    message: Optional[str] = None
+    exit_code: Optional[int] = None
+
 
 class AgentTimelineListResponse(BaseModel):
     items: list[AgentTimelineItemResponse]
@@ -311,6 +318,7 @@ class DashboardTimelineItemResponse(BaseModel):
     agent_uuid: str
     hostname: Optional[str] = None
     summary: str
+    severity: Optional[str] = None
 
 
 class DashboardTimelineListResponse(BaseModel):

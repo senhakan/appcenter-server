@@ -36,6 +36,8 @@
   .timeline-title { font-weight: 600; }
   .timeline-meta { font-size: 0.85rem; color: var(--muted); }
   .timeline-summary { font-size: 0.92rem; }
+  .badge.info { color:#3b82f6; border-color: rgba(59,130,246,0.35); }
+  .badge.danger { color: var(--danger); border-color: rgba(214, 40, 40, 0.35); }
   @media (max-width: 900px) {
     .dash-main { grid-template-columns: 1fr; }
   }
@@ -78,13 +80,15 @@
     </div>
   </div>
 
-  <div class="card">
-    <div class="row spread wrap">
-      <h3 style="margin: 0;">Timeline (Son 10)</h3>
+  <div>
+    <div class="row spread wrap" style="margin-bottom:8px;">
+      <h3 style="margin:0;">Timeline (Son 10)</h3>
       <button class="btn secondary" onclick="loadTimeline()">Yenile</button>
     </div>
-    <div class="muted" style="margin-top:4px;">Status / hostname / IP / sistem profili degisimleri.</div>
-    <div id="dash-timeline" style="margin-top: 10px;"></div>
+    <div class="card">
+      <div class="muted">Status / hostname / IP / sistem profili / task hareketleri.</div>
+      <div id="dash-timeline" style="margin-top: 10px;"></div>
+    </div>
   </div>
 </div>
 {% endblock %}
@@ -97,6 +101,18 @@
     return (s || '').toString().replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
   }
 
+  function relTime(dt) {
+    const ms = Date.now() - dt.getTime();
+    const sec = Math.floor(ms / 1000);
+    if (sec < 60) return `${sec}s önce`;
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min}dk önce`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}sa önce`;
+    const day = Math.floor(hr / 24);
+    return `${day}g önce`;
+  }
+
   async function loadTimeline() {
     try {
       const data = await AppCenterApi.req('/dashboard/timeline');
@@ -107,12 +123,17 @@
         return;
       }
       el.innerHTML = items.map(i => {
-        const when = new Date(i.detected_at).toLocaleString();
+        const dt = new Date(i.detected_at);
+        const when = dt.toLocaleString();
+        const whenRel = relTime(dt);
         const title = `${i.hostname || '-'} (${(i.event_type || '-')})`;
+        const sev = (i.severity || '').toLowerCase();
+        const badgeClass = sev === 'ok' ? 'badge ok' : (sev === 'warn' ? 'badge warn' : (sev === 'danger' ? 'badge danger' : 'badge info'));
+        const badgeLabel = sev || 'info';
         return `<div class="timeline-item">
           <div class="timeline-title"><a href="/agents/${esc(i.agent_uuid)}" style="text-decoration:none;color:inherit">${esc(title)}</a></div>
           <div class="timeline-summary">${esc(i.summary)}</div>
-          <div class="timeline-meta">${esc(when)}</div>
+          <div class="timeline-meta"><span class="${badgeClass}">${esc(badgeLabel)}</span> ${esc(whenRel)} · ${esc(when)}</div>
         </div>`;
       }).join('');
     } catch (err) {

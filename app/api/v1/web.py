@@ -255,7 +255,8 @@ def dashboard_timeline(
             SELECT event_type, detected_at, agent_uuid, hostname,
                    old_status, new_status, reason,
                    old_hostname, new_hostname, old_ip_address, new_ip_address,
-                   changed_fields_json
+                   changed_fields_json,
+                   task_action, task_status, app_name, message, exit_code
             FROM (
               SELECT 'status' AS event_type,
                      h.detected_at AS detected_at,
@@ -268,7 +269,12 @@ def dashboard_timeline(
                      NULL AS new_hostname,
                      NULL AS old_ip_address,
                      NULL AS new_ip_address,
-                     NULL AS changed_fields_json
+                     NULL AS changed_fields_json,
+                     NULL AS task_action,
+                     NULL AS task_status,
+                     NULL AS app_name,
+                     NULL AS message,
+                     NULL AS exit_code
               FROM agent_status_history h
               JOIN agents a ON a.uuid = h.agent_uuid
               UNION ALL
@@ -283,7 +289,12 @@ def dashboard_timeline(
                      h.new_hostname AS new_hostname,
                      h.old_ip_address AS old_ip_address,
                      h.new_ip_address AS new_ip_address,
-                     NULL AS changed_fields_json
+                     NULL AS changed_fields_json,
+                     NULL AS task_action,
+                     NULL AS task_status,
+                     NULL AS app_name,
+                     NULL AS message,
+                     NULL AS exit_code
               FROM agent_identity_history h
               JOIN agents a ON a.uuid = h.agent_uuid
               UNION ALL
@@ -298,9 +309,35 @@ def dashboard_timeline(
                      NULL AS new_hostname,
                      NULL AS old_ip_address,
                      NULL AS new_ip_address,
-                     h.changed_fields_json AS changed_fields_json
+                     h.changed_fields_json AS changed_fields_json,
+                     NULL AS task_action,
+                     NULL AS task_status,
+                     NULL AS app_name,
+                     NULL AS message,
+                     NULL AS exit_code
               FROM agent_system_profile_history h
               JOIN agents a ON a.uuid = h.agent_uuid
+              UNION ALL
+              SELECT 'task' AS event_type,
+                     COALESCE(t.completed_at, t.started_at, t.created_at) AS detected_at,
+                     t.agent_uuid AS agent_uuid,
+                     a.hostname AS hostname,
+                     NULL AS old_status,
+                     NULL AS new_status,
+                     NULL AS reason,
+                     NULL AS old_hostname,
+                     NULL AS new_hostname,
+                     NULL AS old_ip_address,
+                     NULL AS new_ip_address,
+                     NULL AS changed_fields_json,
+                     t.action AS task_action,
+                     t.status AS task_status,
+                     app.display_name AS app_name,
+                     t.message AS message,
+                     t.exit_code AS exit_code
+              FROM task_history t
+              JOIN agents a ON a.uuid = t.agent_uuid
+              LEFT JOIN applications app ON app.id = t.app_id
             )
             ORDER BY detected_at DESC
             LIMIT 10
@@ -312,10 +349,15 @@ def dashboard_timeline(
     for r in rows:
         et = r["event_type"]
         summary = ""
+        severity = None
         if et == "status":
             summary = f"Status: {r['old_status'] or '-'} → {r['new_status'] or '-'}"
             if r.get("reason"):
                 summary += f" ({r['reason']})"
+            if (r.get("new_status") or "").lower() == "online":
+                severity = "ok"
+            elif (r.get("new_status") or "").lower() == "offline":
+                severity = "danger"
         elif et == "identity":
             hn = ""
             ip = ""
@@ -324,8 +366,24 @@ def dashboard_timeline(
             if (r.get("old_ip_address") or "") != (r.get("new_ip_address") or ""):
                 ip = f"ip {r.get('old_ip_address') or '-'} → {r.get('new_ip_address') or '-'}"
             summary = "Identity: " + " | ".join([x for x in [hn, ip] if x]) if (hn or ip) else "Identity change"
+            severity = "info"
+        elif et == "task":
+            app_name = r.get("app_name") or "-"
+            summary = f"Task: {r.get('task_action') or '-'} {app_name} -> {r.get('task_status') or '-'}"
+            if r.get("exit_code") is not None:
+                summary += f" (exit={r.get('exit_code')})"
+            if r.get("message"):
+                summary += f" | {r.get('message')}"
+            st = (r.get("task_status") or "").lower()
+            if st == "success":
+                severity = "ok"
+            elif st in {"failed", "timeout"}:
+                severity = "danger"
+            else:
+                severity = "warn"
         else:
             summary = "System profile updated"
+            severity = "info"
         items.append(
             DashboardTimelineItemResponse(
                 event_type=et,
@@ -333,6 +391,7 @@ def dashboard_timeline(
                 agent_uuid=r["agent_uuid"],
                 hostname=r.get("hostname"),
                 summary=summary,
+                severity=severity,
             )
         )
 
