@@ -126,6 +126,16 @@
   - "Sistem Gecmisi" sekmesi yalnizca degisen alanlari listeler (eski → yeni diff)
   - Ayni "Sistem Gecmisi" tabinda hostname/IP degisimleri de gorunur (`agent_identity_history`)
   - Birlesik zaman cizelgesi endpoint'i: `GET /api/v1/agents/{agent_uuid}/timeline`
+  - Status gecmisi: `agent_status_history` (offline/online gecisleri). Timeline'a dahildir.
+
+## Dashboard Timeline
+
+- Dashboard sag tarafinda "Timeline (Son 10)" karti vardir.
+- Bu alan history kaynaklarini birlestirir:
+  - agent status gecisleri
+  - hostname/IP degisimleri
+  - sistem profili degisimleri
+- API: `GET /api/v1/dashboard/timeline`
 
 ## Son Dogrulama (2026-02-13)
 

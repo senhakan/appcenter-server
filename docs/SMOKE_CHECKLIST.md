@@ -25,6 +25,7 @@ Her deploy sonrasi minimum kontrol listesi.
 ## D. Faz 5 Akislari
 
 - `GET /api/v1/dashboard/stats` -> 200
+- `GET /api/v1/dashboard/timeline` -> 200
 - `GET /api/v1/settings` -> 200
 - `PUT /api/v1/settings` -> 200
 - `GET /api/v1/agent/store` -> 200
@@ -46,6 +47,7 @@ Her deploy sonrasi minimum kontrol listesi.
   - "Sistem Gecmisi" tabinda:
     - sistem profili degisimleri eski → yeni olarak listelenir
     - hostname/IP degisimleri eski → yeni olarak listelenir
+    - status degisimleri (online/offline) eski → yeni olarak listelenir
 
 ## F. Duzenleme Akislari
 
