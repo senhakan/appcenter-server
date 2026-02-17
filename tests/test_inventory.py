@@ -34,11 +34,27 @@ def test_inventory_heartbeat_flow(client):
 
     # Heartbeat with hash → sync_required=True (first time, no hash stored)
     hb = client.post("/api/v1/agent/heartbeat", json={
-        "hostname": "test-pc", "inventory_hash": "abc123",
+        "hostname": "test-pc",
+        "inventory_hash": "abc123",
+        "logged_in_sessions": [
+            {"username": "TEST\\alice", "session_type": "rdp", "logon_id": "999"},
+        ],
     }, headers=headers)
     assert hb.status_code == 200
     config = hb.json()["config"]
     assert config["inventory_sync_required"] is True
+
+    # Verify sessions are persisted and exposed on agent detail endpoint
+    # (requires admin auth; use default admin credentials seeded on startup).
+    login = client.post('/api/v1/auth/login', json={'username': 'admin', 'password': 'admin123'})
+    assert login.status_code == 200
+    token = login.json()['access_token']
+    auth_headers = {'Authorization': f'Bearer {token}'}
+    detail = client.get(f"/api/v1/agents/{uid}", headers=auth_headers)
+    assert detail.status_code == 200
+    data = detail.json()
+    assert data["logged_in_sessions"] == [{"username": "TEST\\alice", "session_type": "rdp", "logon_id": "999"}]
+    assert data["logged_in_sessions_updated_at"] is not None
 
     # Submit inventory
     resp = client.post("/api/v1/agent/inventory", json={

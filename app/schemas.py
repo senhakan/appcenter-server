@@ -50,6 +50,14 @@ class InstalledAppItem(BaseModel):
     version: str
 
 
+class LoggedInSession(BaseModel):
+    username: str
+    # Keep this as a string so older/newer agents can extend without breaking,
+    # but we currently expect "local" or "rdp".
+    session_type: str
+    logon_id: Optional[str] = None
+
+
 class HeartbeatRequest(BaseModel):
     hostname: str
     ip_address: Optional[str] = None
@@ -62,6 +70,7 @@ class HeartbeatRequest(BaseModel):
     apps_changed: bool = False
     installed_apps: list[InstalledAppItem] = Field(default_factory=list)
     inventory_hash: Optional[str] = None
+    logged_in_sessions: Optional[list[LoggedInSession]] = None
 
 
 class CommandItem(BaseModel):
@@ -212,6 +221,8 @@ class AgentResponse(BaseModel):
     cpu_model: Optional[str] = None
     ram_gb: Optional[int] = None
     disk_free_gb: Optional[int] = None
+    logged_in_sessions: list[LoggedInSession] = Field(default_factory=list)
+    logged_in_sessions_updated_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

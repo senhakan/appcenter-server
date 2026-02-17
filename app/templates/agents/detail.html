@@ -55,6 +55,9 @@
     try {
       const data = await AppCenterApi.req(`/agents/${agentId}`);
       const el = document.getElementById('agent-detail');
+      const sessions = (data.logged_in_sessions || []).map(s => `${s.username} (${s.session_type})`);
+      const sessionsText = sessions.length ? sessions.join('<br/>') : '-';
+      const sessionsUpdated = data.logged_in_sessions_updated_at ? new Date(data.logged_in_sessions_updated_at).toLocaleString() : '-';
       el.innerHTML = `
         <div><label>UUID</label><div>${data.uuid}</div></div>
         <div><label>Hostname</label><div>${data.hostname || '-'}</div></div>
@@ -62,6 +65,8 @@
         <div><label>Durum</label><div>${data.status || '-'}</div></div>
         <div><label>Version</label><div>${data.version || '-'}</div></div>
         <div><label>Son Gorulme</label><div>${data.last_seen || '-'}</div></div>
+        <div><label>Login Olan Kullanici(lar)</label><div>${sessionsText}</div></div>
+        <div><label>Session Guncelleme</label><div>${sessionsUpdated}</div></div>
       `;
     } catch (err) {
       AppCenterApi.toast(err.message);

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -73,12 +74,29 @@ class Agent(Base):
     inventory_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     software_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
+    # Stored as JSON text to keep SQLite migration lightweight.
+    logged_in_sessions_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    logged_in_sessions_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
     agent_applications: Mapped[list["AgentApplication"]] = relationship(back_populates="agent")
     agent_groups: Mapped[list["AgentGroup"]] = relationship(back_populates="agent", cascade="all, delete-orphan")
 
     @property
     def group_ids(self) -> list[int]:
         return sorted({item.group_id for item in self.agent_groups})
+
+    @property
+    def logged_in_sessions(self) -> list[dict]:
+        """Parsed logged-in session list from logged_in_sessions_json (best-effort)."""
+        if not self.logged_in_sessions_json:
+            return []
+        try:
+            data = json.loads(self.logged_in_sessions_json)
+            if isinstance(data, list):
+                return [x for x in data if isinstance(x, dict)]
+            return []
+        except Exception:
+            return []
 
 
 class AgentGroup(Base):

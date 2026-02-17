@@ -86,6 +86,7 @@ def _run_startup_migrations() -> None:
         _migrate_sqlite_applications_table()
         _migrate_sqlite_agent_groups_table()
         _migrate_sqlite_agents_inventory_columns()
+        _migrate_sqlite_agents_session_columns()
 
 
 def _migrate_sqlite_applications_table() -> None:
@@ -155,6 +156,29 @@ def _migrate_sqlite_agents_inventory_columns() -> None:
         "inventory_hash": "VARCHAR",
         "inventory_updated_at": "DATETIME",
         "software_count": "INTEGER DEFAULT 0",
+    }
+
+    with engine.begin() as conn:
+        table_exists = conn.execute(
+            text("SELECT 1 FROM sqlite_master WHERE type='table' AND name='agents' LIMIT 1")
+        ).first()
+        if not table_exists:
+            return
+
+        rows = conn.execute(text("PRAGMA table_info(agents)")).mappings().all()
+        existing_columns = {row["name"] for row in rows}
+
+        for column_name, column_type in expected_columns.items():
+            if column_name in existing_columns:
+                continue
+            conn.execute(text(f"ALTER TABLE agents ADD COLUMN {column_name} {column_type}"))
+
+
+def _migrate_sqlite_agents_session_columns() -> None:
+    """Add logged_in_sessions_json, logged_in_sessions_updated_at to agents table."""
+    expected_columns = {
+        "logged_in_sessions_json": "TEXT",
+        "logged_in_sessions_updated_at": "DATETIME",
     }
 
     with engine.begin() as conn:

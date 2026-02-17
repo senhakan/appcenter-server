@@ -25,6 +25,7 @@ Bu dokuman iki amac icin tutulur:
 - API hata mesajlarini form alanlarina daha acik yansitma
 - Deployment listesinde `App ID` yerine uygulama adi gosterimi
 - Deployment listesinde `Group/Agent` hedeflerinin isimle zenginlestirilmesi
+- Agent detail: aktif login kullanicilarini (local/RDP session tipi ile) gosterme (heartbeat ile gonderim)
 
 ### Faz 6.2 (Orta Vade)
 - Grup silme/pasife alma stratejisi

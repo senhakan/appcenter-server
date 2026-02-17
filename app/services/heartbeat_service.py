@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -114,6 +115,12 @@ def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> t
         agent.version = payload.agent_version
     if payload.disk_free_gb is not None:
         agent.disk_free_gb = payload.disk_free_gb
+
+    # Logged-in sessions (local/RDP) - optional for backward compatibility.
+    if payload.logged_in_sessions is not None:
+        agent.logged_in_sessions_json = json.dumps([s.model_dump() for s in payload.logged_in_sessions])
+        agent.logged_in_sessions_updated_at = now
+
     agent.last_seen = now
     agent.status = "online"
     agent.updated_at = now
@@ -133,4 +140,3 @@ def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> t
 
     db.commit()
     return now, config, commands, inventory_sync_required
-
