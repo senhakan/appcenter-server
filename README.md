@@ -119,6 +119,10 @@
 - Agent detail: login session gosterimi:
   - Agent heartbeat payload'inda `logged_in_sessions` alani (local/RDP) ile gelir
   - Server agents tablosuna JSON olarak persist eder ve agent detail ekraninda gosterir
+- Agent system profile + history:
+  - Agent periyodik `system_profile` snapshot gonderir (OS/donanim/virtualization/disk)
+  - Server snapshot'u saklar ve degisimleri `agent_system_profile_history` tablosunda izler
+  - Agent detail ekraninda "Sistem Gecmisi" sekmesi ile goruntulenir
 
 ## Son Dogrulama (2026-02-13)
 
@@ -161,7 +165,7 @@ pytest -q
 - `tests/conftest.py`
 - `tests/test_phase5_api.py`
 - Son sonuc: `8 passed`
-- Son sonuc: `18 passed`
+- Son sonuc: `19 passed`
 
 ## Dokumantasyon
 
