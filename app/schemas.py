@@ -270,6 +270,7 @@ class SystemProfileHistoryItemResponse(BaseModel):
     id: int
     detected_at: datetime
     changed_fields: list[str] = Field(default_factory=list)
+    diff: list[dict] = Field(default_factory=list)
     system_profile: SystemProfile
 
 

@@ -76,4 +76,5 @@ def test_system_profile_persist_and_history(client):
     j2 = hist2.json()
     assert j2["total"] == 2
     assert "cpu_model" in (j2["items"][0]["changed_fields"] or [])
-
+    diff = j2["items"][0].get("diff") or []
+    assert any(d.get("field") == "cpu_model" and d.get("old") == p1["cpu_model"] and d.get("new") == p2["cpu_model"] for d in diff)

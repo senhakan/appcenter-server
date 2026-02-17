@@ -160,6 +160,36 @@ def _diff_system_profile(old: dict | None, new: dict) -> list[str]:
     return changed
 
 
+def _diff_system_profile_pairs(old: dict | None, new: dict) -> list[dict]:
+    if not old:
+        return []
+
+    out: list[dict] = []
+
+    def add(field: str, old_v, new_v) -> None:
+        if old_v != new_v:
+            out.append({"field": field, "old": old_v, "new": new_v})
+
+    for k in [
+        "os_full_name",
+        "os_version",
+        "build_number",
+        "architecture",
+        "manufacturer",
+        "model",
+        "cpu_model",
+        "cpu_cores_physical",
+        "cpu_cores_logical",
+        "total_memory_gb",
+    ]:
+        add(k, old.get(k), new.get(k))
+
+    add("disk_count", old.get("disk_count"), new.get("disk_count"))
+    add("disks", old.get("disks"), new.get("disks"))
+    add("virtualization", old.get("virtualization"), new.get("virtualization"))
+    return out
+
+
 def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> tuple[datetime, HeartbeatConfig, list[CommandItem], bool]:
     now = datetime.now(timezone.utc)
     agent.hostname = payload.hostname
@@ -181,6 +211,7 @@ def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> t
         profile_hash = _hash_json_dict(profile_dict)
         if agent.system_profile_hash != profile_hash:
             changed_fields = _diff_system_profile(agent.system_profile, profile_dict)
+            diff = _diff_system_profile_pairs(agent.system_profile, profile_dict)
             db.add(
                 AgentSystemProfileHistory(
                     agent_uuid=agent.uuid,
@@ -188,6 +219,7 @@ def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> t
                     profile_hash=profile_hash,
                     profile_json=json.dumps(profile_dict),
                     changed_fields_json=json.dumps(changed_fields),
+                    diff_json=json.dumps(diff),
                 )
             )
             agent.system_profile_json = json.dumps(profile_dict)

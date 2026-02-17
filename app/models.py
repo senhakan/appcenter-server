@@ -350,6 +350,7 @@ class AgentSystemProfileHistory(Base):
     profile_hash: Mapped[str] = mapped_column(String, nullable=False)
     profile_json: Mapped[str] = mapped_column(Text, nullable=False)
     changed_fields_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    diff_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     @property
     def system_profile(self) -> dict:
@@ -365,6 +366,16 @@ class AgentSystemProfileHistory(Base):
             return []
         try:
             data = json.loads(self.changed_fields_json)
+            return data if isinstance(data, list) else []
+        except Exception:
+            return []
+
+    @property
+    def diff(self) -> list[dict]:
+        if not self.diff_json:
+            return []
+        try:
+            data = json.loads(self.diff_json)
             return data if isinstance(data, list) else []
         except Exception:
             return []

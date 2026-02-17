@@ -89,6 +89,7 @@ def _run_startup_migrations() -> None:
         _migrate_sqlite_agents_inventory_columns()
         _migrate_sqlite_agents_session_columns()
         _migrate_sqlite_agents_system_profile_columns()
+        _migrate_sqlite_system_profile_history_columns()
 
 
 def _migrate_sqlite_applications_table() -> None:
@@ -221,6 +222,30 @@ def _migrate_sqlite_agents_system_profile_columns() -> None:
             if column_name in existing_columns:
                 continue
             conn.execute(text(f"ALTER TABLE agents ADD COLUMN {column_name} {column_type}"))
+
+
+def _migrate_sqlite_system_profile_history_columns() -> None:
+    """Add diff_json to agent_system_profile_history table."""
+    expected_columns = {
+        "diff_json": "TEXT",
+    }
+
+    with engine.begin() as conn:
+        table_exists = conn.execute(
+            text("SELECT 1 FROM sqlite_master WHERE type='table' AND name='agent_system_profile_history' LIMIT 1")
+        ).first()
+        if not table_exists:
+            return
+
+        rows = conn.execute(text("PRAGMA table_info(agent_system_profile_history)")).mappings().all()
+        existing_columns = {row["name"] for row in rows}
+
+        for column_name, column_type in expected_columns.items():
+            if column_name in existing_columns:
+                continue
+            conn.execute(
+                text(f"ALTER TABLE agent_system_profile_history ADD COLUMN {column_name} {column_type}")
+            )
 
 
 def seed_initial_data() -> None:

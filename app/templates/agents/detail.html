@@ -169,18 +169,18 @@
         } else if (!fields.length) {
           details = `<div class="muted">-</div>`;
         } else {
-          details = fields.map(f => {
-            if (f === 'disks') {
-              const disks = (p.disks || []).map(d => `Disk ${d.index}: ${d.size_gb || '?'} GB (${d.bus_type || '?'}) ${d.model || ''}`.trim()).join('; ') || '-';
-              return `<div><b>disks</b>: ${(p.disk_count != null ? (p.disk_count + ' adet') : '-')}; ${disks}</div>`;
-            }
-            if (f === 'virtualization') {
-              const v = p.virtualization || {};
-              const virt = `${v.is_virtual ? 'Evet' : 'Hayir'} ${v.vendor || ''} ${v.model || ''}`.trim() || '-';
-              return `<div><b>virtualization</b>: ${virt}</div>`;
-            }
-            return `<div><b>${f}</b>: ${p[f] != null && p[f] !== '' ? p[f] : '-'}</div>`;
-          }).join('');
+          const diff = (i.diff || []);
+          if (!diff.length) {
+            // Backward compatibility: fallback to new values only.
+            details = fields.map(f => `<div><b>${f}</b>: ${p[f] != null && p[f] !== '' ? p[f] : '-'}</div>`).join('');
+          } else {
+            details = diff.map(d => {
+              const f = d.field || '';
+              const oldV = d.old != null && d.old !== '' ? d.old : '-';
+              const newV = d.new != null && d.new !== '' ? d.new : '-';
+              return `<div><b>${f}</b>: ${oldV} → ${newV}</div>`;
+            }).join('');
+          }
         }
         body.innerHTML += `<tr>
           <td>${new Date(i.detected_at).toLocaleString()}</td>
