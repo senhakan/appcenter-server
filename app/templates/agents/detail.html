@@ -1,10 +1,49 @@
 {% extends 'base.html' %}
 {% block title %}Ajan Detay{% endblock %}
 {% block content %}
+<style>
+  .agent-delete-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(21, 34, 56, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 998;
+    padding: 16px;
+  }
+  .agent-delete-modal-backdrop.hidden {
+    display: none;
+  }
+  .agent-delete-modal {
+    width: 100%;
+    max-width: 520px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 18px;
+  }
+  .agent-note-col textarea {
+    min-height: 82px;
+  }
+  .agent-disk-col {
+    align-self: start;
+  }
+  .agent-note-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    justify-content: flex-end;
+  }
+</style>
 <div class="card">
   <div class="row spread wrap">
     <h3 style="margin: 0;">Ajan Detay</h3>
-    <a class="btn secondary" href="/agents">Listeye Don</a>
+    <div class="row">
+      <button class="btn danger" id="agent-delete-btn" type="button">Ajani Sil</button>
+      <a class="btn secondary" href="/agents">Listeye Don</a>
+    </div>
   </div>
   <div id="agent-detail" class="grid cols-2"></div>
 </div>
@@ -17,7 +56,7 @@
   </div>
 
   <div id="panel-inventory">
-    <div class="row spread wrap" style="margin-bottom: 8px;">
+    <div class="row spread" style="margin-bottom: 8px;">
       <input id="inv-search" type="text" placeholder="Yazilim ara..." oninput="filterInventory()" style="max-width:300px;" />
       <span class="muted" id="inv-updated"></span>
     </div>
@@ -47,14 +86,40 @@
     </div>
   </div>
 </div>
+
+<div id="agent-delete-modal" class="agent-delete-modal-backdrop hidden" aria-live="polite">
+  <div class="agent-delete-modal">
+    <div class="row spread wrap" style="margin-bottom: 10px;">
+      <h3 style="margin: 0;">Ajan Silme Onayi</h3>
+    </div>
+    <div id="agent-delete-message" class="muted" style="margin-bottom: 14px;"></div>
+    <div class="row" style="justify-content:flex-end;">
+      <button class="btn secondary" id="agent-delete-cancel-btn" type="button">Iptal</button>
+      <button class="btn danger" id="agent-delete-confirm-btn" type="button">Sil</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>
   AppCenterApi.protectPage();
   const agentId = "{{ agent_uuid }}";
+  let agentHostname = "";
   let allInventory = [];
   let changesOffset = 0;
   let systemOffset = 0;
+  let savedNote = '';
+  const deleteModal = document.getElementById('agent-delete-modal');
+
+  function getNoteElements() {
+    return {
+      noteInput: document.getElementById('agent-note-input'),
+      noteSaveBtn: document.getElementById('agent-note-save-btn'),
+    };
+  }
+
+  function openDeleteModal() { deleteModal.classList.remove('hidden'); }
+  function closeDeleteModal() { deleteModal.classList.add('hidden'); }
 
   function showTab(tab) {
     document.getElementById('panel-inventory').style.display = tab === 'inventory' ? '' : 'none';
@@ -65,10 +130,39 @@
     document.getElementById('tab-system').className = tab === 'system' ? 'btn' : 'btn secondary';
   }
 
+  function syncNoteSaveButton() {
+    const { noteInput, noteSaveBtn } = getNoteElements();
+    if (!noteInput || !noteSaveBtn) return;
+    const current = (noteInput.value || '').trim();
+    const dirty = current !== savedNote;
+    noteSaveBtn.disabled = !dirty;
+    noteSaveBtn.className = dirty ? 'btn' : 'btn secondary';
+  }
+
+  async function saveNote() {
+    const { noteInput, noteSaveBtn } = getNoteElements();
+    if (!noteInput || !noteSaveBtn || noteSaveBtn.disabled) return;
+    try {
+      const payload = { notes: noteInput.value || '' };
+      const updated = await AppCenterApi.req(`/agents/${agentId}/notes`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      savedNote = (updated.notes || '').trim();
+      noteInput.value = updated.notes || '';
+      syncNoteSaveButton();
+      AppCenterApi.toast('Not kaydedildi');
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
   async function loadAgentDetail() {
     try {
       await AppCenterApi.initUi();
       const data = await AppCenterApi.req(`/agents/${agentId}`);
+      agentHostname = data.hostname || '';
       const el = document.getElementById('agent-detail');
       const sessions = (data.logged_in_sessions || []).map(s => `${s.username} (${s.session_type})`);
       const sessionsText = sessions.length ? sessions.join('<br/>') : '-';
@@ -93,8 +187,22 @@
         <div><label>CPU</label><div>${sys ? ((sys.cpu_model || '-') + ' (P:' + (sys.cpu_cores_physical ?? '-') + ' L:' + (sys.cpu_cores_logical ?? '-') + ')') : '-'}</div></div>
         <div><label>RAM</label><div>${sys && sys.total_memory_gb != null ? (sys.total_memory_gb + ' GB') : '-'}</div></div>
         <div><label>Virtual</label><div>${sysVirt || '-'}</div></div>
-        <div style="grid-column: span 2;"><label>Diskler</label><div>${sysDisks}</div></div>
+        <div></div>
+        <div class="agent-disk-col"><label>Diskler</label><div>${sysDisks}</div></div>
+        <div class="agent-note-col" style="grid-column: span 2;">
+          <label for="agent-note-input">Not</label>
+          <textarea id="agent-note-input" rows="3" maxlength="2000" placeholder="Ajan ile ilgili not..."></textarea>
+          <div class="agent-note-actions">
+            <button class="btn secondary" id="agent-note-save-btn" type="button" disabled>Kaydet</button>
+          </div>
+        </div>
       `;
+      savedNote = (data.notes || '').trim();
+      const { noteInput, noteSaveBtn } = getNoteElements();
+      if (noteInput) noteInput.value = data.notes || '';
+      if (noteInput) noteInput.addEventListener('input', syncNoteSaveButton);
+      if (noteSaveBtn) noteSaveBtn.addEventListener('click', saveNote);
+      syncNoteSaveButton();
     } catch (err) {
       AppCenterApi.toast(err.message);
     }
@@ -104,8 +212,7 @@
     try {
       const data = await AppCenterApi.req(`/agents/${agentId}/inventory`);
       allInventory = data.items || [];
-      document.getElementById('inv-updated').textContent = `${allInventory.length} yazilim`;
-      renderInventory(allInventory);
+      filterInventory();
     } catch (err) {
       AppCenterApi.toast(err.message);
     }
@@ -124,8 +231,13 @@
   }
 
   function filterInventory() {
-    const q = document.getElementById('inv-search').value.toLowerCase();
-    const filtered = allInventory.filter(i => i.software_name.toLowerCase().includes(q));
+    const q = (document.getElementById('inv-search').value || '').toLowerCase();
+    const filtered = allInventory.filter((i) => {
+      const name = (i.software_name || '').toLowerCase();
+      if (!name.includes(q)) return false;
+      return true;
+    });
+    document.getElementById('inv-updated').textContent = `${filtered.length}/${allInventory.length} yazilim`;
     renderInventory(filtered);
   }
 
@@ -220,6 +332,23 @@
 
   function loadMoreSystem() { loadSystemHistory(); }
 
+  document.getElementById('agent-delete-btn').addEventListener('click', () => {
+    const shown = agentHostname || agentId;
+    document.getElementById('agent-delete-message').textContent =
+      `'${shown}' ajanini silmek istiyor musunuz? Bu islem geri alinamaz.`;
+    openDeleteModal();
+  });
+  document.getElementById('agent-delete-cancel-btn').addEventListener('click', closeDeleteModal);
+  deleteModal.addEventListener('click', (e) => { if (e.target === deleteModal) closeDeleteModal(); });
+  document.getElementById('agent-delete-confirm-btn').addEventListener('click', async () => {
+    try {
+      await AppCenterApi.req(`/agents/${agentId}`, { method: 'DELETE' });
+      AppCenterApi.toast('Ajan silindi');
+      setTimeout(() => { location.href = '/agents'; }, 400);
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
   (async function () {
     await AppCenterApi.initUi();
     loadAgentDetail();

@@ -30,7 +30,8 @@ Her deploy sonrasi minimum kontrol listesi.
 - `PUT /api/v1/settings` -> 200
   - (opsiyonel) `ui_timezone` guncellenir (ornegin `Europe/Istanbul`) -> 200
 - `GET /api/v1/agent/store` -> 200
-- `POST /api/v1/agent-update/upload` -> 200
+- Agent update publish script calisir:
+  - `APPCENTER_ADMIN_USERNAME='admin' APPCENTER_ADMIN_PASSWORD='admin123' ./scripts/publish-agent-update.sh --version <x.y.z>` -> basarili response
 - `GET /api/v1/agent/update/download/{filename}` -> 200
 
 ## E. UI Sayfalari
@@ -46,10 +47,19 @@ Her deploy sonrasi minimum kontrol listesi.
 
 - `/agents/{agent_uuid}` ekraninda:
   - "Ajan Detay" alaninda `system_profile` goruntulenir (OS/CPU/RAM/disk/virt)
+  - Not alani gorunur, not degisince `Kaydet` aktif/mavi olur, kayit sonrasi pasif/gri olur
+  - "Diskler" bilgisi "Virtual" alanina yakin konumda gorunur (asagiya kopuk dusmez)
   - "Sistem Gecmisi" tabinda:
     - sistem profili degisimleri eski → yeni olarak listelenir
     - hostname/IP degisimleri eski → yeni olarak listelenir
     - status degisimleri (online/offline) eski → yeni olarak listelenir
+  - "Yuklu Yazilimlar" alaninda sadece arama kutusu bulunur (Store Dahil filtresi yok)
+
+## H. Agent Liste Not Ikonu (Opsiyonel)
+
+- `/agents` ekraninda:
+  - Notu olan ajanlarda hostname yaninda not ikonu gorunur
+  - Ikon hover tooltip ile not metnini gosterir
 
 ## F. Duzenleme Akislari
 

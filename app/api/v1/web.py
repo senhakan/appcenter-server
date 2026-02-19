@@ -12,9 +12,25 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.config import get_settings
 from app.database import get_db
-from app.models import Agent, AgentApplication, AgentGroup, Application, Deployment, Group, Setting, TaskHistory, User
+from app.models import (
+    Agent,
+    AgentApplication,
+    AgentGroup,
+    AgentIdentityHistory,
+    AgentSoftwareInventory,
+    AgentStatusHistory,
+    AgentSystemProfileHistory,
+    Application,
+    Deployment,
+    Group,
+    Setting,
+    SoftwareChangeHistory,
+    TaskHistory,
+    User,
+)
 from app.schemas import (
     AgentListResponse,
+    AgentNotesUpdateRequest,
     AgentResponse,
     AgentUpdateUploadResponse,
     ApplicationListResponse,
@@ -55,6 +71,8 @@ from app.utils.file_handler import move_temp_to_final, save_upload_to_temp
 
 router = APIRouter(tags=["web"])
 settings = get_settings()
+MIN_SESSION_TIMEOUT_MINUTES = 1
+MAX_SESSION_TIMEOUT_MINUTES = 1440
 
 
 @router.get("/agents", response_model=AgentListResponse)
@@ -98,6 +116,70 @@ def agents_update_group(
     db.commit()
     db.refresh(agent)
     return AgentResponse.model_validate(agent)
+
+
+@router.put("/agents/{agent_uuid}/notes", response_model=AgentResponse)
+def agents_update_notes(
+    agent_uuid: str,
+    payload: AgentNotesUpdateRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> AgentResponse:
+    agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
+    if not agent:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
+
+    raw_notes = (payload.notes or "").strip()
+    if len(raw_notes) > 2000:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Note is too long (max 2000 chars)")
+
+    agent.notes = raw_notes or None
+    db.add(agent)
+    db.commit()
+    db.refresh(agent)
+    return AgentResponse.model_validate(agent)
+
+
+@router.delete("/agents/{agent_uuid}", response_model=MessageResponse)
+def agents_delete(
+    agent_uuid: str,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> MessageResponse:
+    agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
+    if not agent:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
+
+    # Explicit cleanup keeps delete stable across SQLite/ORM cascade differences.
+    db.query(AgentApplication).filter(AgentApplication.agent_uuid == agent_uuid).delete(synchronize_session=False)
+    db.query(AgentGroup).filter(AgentGroup.agent_uuid == agent_uuid).delete(synchronize_session=False)
+    db.query(AgentSoftwareInventory).filter(AgentSoftwareInventory.agent_uuid == agent_uuid).delete(
+        synchronize_session=False
+    )
+    db.query(SoftwareChangeHistory).filter(SoftwareChangeHistory.agent_uuid == agent_uuid).delete(
+        synchronize_session=False
+    )
+    db.query(AgentSystemProfileHistory).filter(AgentSystemProfileHistory.agent_uuid == agent_uuid).delete(
+        synchronize_session=False
+    )
+    db.query(AgentIdentityHistory).filter(AgentIdentityHistory.agent_uuid == agent_uuid).delete(
+        synchronize_session=False
+    )
+    db.query(AgentStatusHistory).filter(AgentStatusHistory.agent_uuid == agent_uuid).delete(
+        synchronize_session=False
+    )
+    db.query(TaskHistory).filter(TaskHistory.agent_uuid == agent_uuid).update(
+        {TaskHistory.agent_uuid: None},
+        synchronize_session=False,
+    )
+    db.query(Deployment).filter(
+        Deployment.target_type == "Agent",
+        Deployment.target_id == agent_uuid,
+    ).delete(synchronize_session=False)
+
+    db.delete(agent)
+    db.commit()
+    return MessageResponse(status="success", message="Agent deleted")
 
 
 @router.get("/groups", response_model=GroupListResponse)
@@ -221,6 +303,25 @@ def groups_assign_agents(
 
     db.commit()
     return MessageResponse(status="success", message="Group agents updated")
+
+
+@router.delete("/groups/{group_id}", response_model=MessageResponse)
+def groups_delete(
+    group_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> MessageResponse:
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+
+    # Remove memberships first; keep legacy single-group column consistent.
+    db.query(AgentGroup).filter(AgentGroup.group_id == group_id).delete(synchronize_session=False)
+    db.query(Agent).filter(Agent.group_id == group_id).update({Agent.group_id: None}, synchronize_session=False)
+
+    db.delete(group)
+    db.commit()
+    return MessageResponse(status="success", message="Group deleted")
 
 
 @router.get("/dashboard/stats", response_model=DashboardStatsResponse)
@@ -573,6 +674,22 @@ def settings_update(
                 ZoneInfo((value or "").strip())
             except Exception:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid ui_timezone")
+        if key == "session_timeout_minutes":
+            try:
+                minutes = int((value or "").strip())
+            except Exception:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid session_timeout_minutes",
+                )
+            if minutes < MIN_SESSION_TIMEOUT_MINUTES or minutes > MAX_SESSION_TIMEOUT_MINUTES:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"session_timeout_minutes must be between "
+                        f"{MIN_SESSION_TIMEOUT_MINUTES} and {MAX_SESSION_TIMEOUT_MINUTES}"
+                    ),
+                )
         item = db.query(Setting).filter(Setting.key == key).first()
         if not item:
             item = Setting(key=key, value=value, description="Updated via API", updated_at=now)

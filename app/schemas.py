@@ -9,6 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    expires_at: Optional[datetime] = None
+    expires_in_sec: Optional[int] = None
 
 
 class LoginRequest(BaseModel):
@@ -256,12 +258,17 @@ class AgentResponse(BaseModel):
     cpu_model: Optional[str] = None
     ram_gb: Optional[int] = None
     disk_free_gb: Optional[int] = None
+    notes: Optional[str] = None
     logged_in_sessions: list[LoggedInSession] = Field(default_factory=list)
     logged_in_sessions_updated_at: Optional[datetime] = None
     system_profile: Optional[SystemProfile] = None
     system_profile_updated_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+
+
+class AgentNotesUpdateRequest(BaseModel):
+    notes: Optional[str] = None
 
 
 class SystemProfileHistoryItemResponse(BaseModel):
@@ -393,6 +400,11 @@ class StoreAppItem(BaseModel):
     file_size_mb: int
     category: Optional[str] = None
     installed: bool
+    install_state: Optional[str] = None
+    error_message: Optional[str] = None
+    conflict_detected: bool = False
+    conflict_confidence: Optional[str] = None
+    conflict_message: Optional[str] = None
     installed_version: Optional[str] = None
     can_uninstall: bool
 

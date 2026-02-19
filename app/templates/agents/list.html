@@ -1,45 +1,207 @@
 {% extends 'base.html' %}
 {% block title %}Ajanlar{% endblock %}
 {% block content %}
+<style>
+  #agent-rows tr:hover {
+    background: rgba(15, 98, 254, 0.08);
+  }
+  .agent-host-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .note-chip {
+    position: relative;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    border: 1px solid #e8d67a;
+    background: #fff9c4;
+    color: #6b5600;
+    font-size: 11px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: help;
+  }
+  .note-chip::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: calc(100% + 8px);
+    transform: none;
+    bottom: calc(100% - 6px);
+    min-width: 220px;
+    max-width: 420px;
+    white-space: normal;
+    text-align: left;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #fff9c4;
+    color: #4a3b00;
+    border: 1px solid #e8d67a;
+    font-size: 12px;
+    line-height: 1.35;
+    box-shadow: 0 10px 22px rgba(74, 59, 0, 0.2);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 5;
+  }
+  .note-chip:hover::after {
+    opacity: 1;
+  }
+</style>
 <div class="card">
   <div class="row spread wrap">
     <h3 style="margin: 0;">Ajan Listesi</h3>
     <button class="btn secondary" onclick="loadAgents()">Yenile</button>
   </div>
+  <div class="row wrap" style="margin:10px 0;">
+    <input
+      id="agent-search"
+      style="max-width:420px;"
+      placeholder="Ara: hostname / login kullanici / IP"
+      autocomplete="off"
+    />
+  </div>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th>UUID</th><th>Hostname</th><th>Durum</th><th>Version</th><th>Son Gorulme</th><th></th>
+          <th>Hostname</th><th>Login Kullanici</th><th>IP</th><th>Durum</th><th>Version</th><th></th>
         </tr>
       </thead>
       <tbody id="agent-rows"></tbody>
     </table>
+  </div>
+  <div class="row spread wrap" style="margin-top:10px;">
+    <div class="muted" id="agent-page-info">-</div>
+    <div class="row">
+      <button id="agent-prev" class="btn secondary" type="button">Onceki</button>
+      <button id="agent-next" class="btn secondary" type="button">Sonraki</button>
+    </div>
   </div>
 </div>
 {% endblock %}
 {% block scripts %}
 <script>
   AppCenterApi.protectPage();
+  const AGENT_PAGE_SIZE = 20;
+  let allAgents = [];
+  let filteredAgents = [];
+  let currentPage = 1;
+
+  function esc(s) {
+    return (s || '')
+      .toString()
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  function getSessionEntries(agent) {
+    const out = [];
+    if (!Array.isArray(agent.logged_in_sessions)) return out;
+    agent.logged_in_sessions.forEach((s) => {
+      const u = (s && s.username ? String(s.username).trim() : '');
+      if (!u) return;
+      const t = (s && s.session_type ? String(s.session_type).trim() : '');
+      out.push(t ? `${u} (${t})` : u);
+    });
+    return [...new Set(out)];
+  }
+
+  function getLoginUsers(agent) {
+    const sessions = getSessionEntries(agent);
+    return sessions.length ? sessions.join(', ') : '-';
+  }
+
+  function applyFilter() {
+    const q = (document.getElementById('agent-search').value || '').toLowerCase().trim();
+    if (!q) {
+      filteredAgents = [...allAgents];
+      return;
+    }
+    filteredAgents = allAgents.filter((agent) => {
+      const hostname = (agent.hostname || '').toLowerCase();
+      const ip = (agent.ip_address || '').toLowerCase();
+      const loginUsers = getSessionEntries(agent).join(' ').toLowerCase();
+      return hostname.includes(q) || ip.includes(q) || loginUsers.includes(q);
+    });
+  }
+
+  function renderPage() {
+    const rows = document.getElementById('agent-rows');
+    const pageInfo = document.getElementById('agent-page-info');
+    const prevBtn = document.getElementById('agent-prev');
+    const nextBtn = document.getElementById('agent-next');
+
+    const total = filteredAgents.length;
+    const totalPages = Math.max(1, Math.ceil(total / AGENT_PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+
+    const start = (currentPage - 1) * AGENT_PAGE_SIZE;
+    const pageItems = filteredAgents.slice(start, start + AGENT_PAGE_SIZE);
+
+    rows.innerHTML = '';
+    pageItems.forEach((agent) => {
+      const seenRel = relLastSeen(agent.last_seen);
+      const noteText = (agent.notes || '').trim();
+      const noteBadge = noteText
+        ? `<span class="note-chip" data-tooltip="${esc(noteText)}" aria-label="Not var" title="Not">N</span>`
+        : '';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>
+          <span class="agent-host-wrap">
+            <span>${esc(agent.hostname || '-')}</span>
+            ${noteBadge}
+          </span>
+        </td>
+        <td>${esc(getLoginUsers(agent))}</td>
+        <td>${esc(agent.ip_address || '-')}</td>
+        <td><span class="badge ${agent.status === 'online' ? 'ok' : 'warn'}" title="${esc(seenRel)}" style="cursor: help;">${esc(agent.status || '-')}</span></td>
+        <td>${esc(agent.version || '-')}</td>
+        <td><a class="btn secondary" href="/agents/${encodeURIComponent(agent.uuid)}">Detay</a></td>
+      `;
+      rows.appendChild(tr);
+    });
+
+    if (!pageItems.length) {
+      rows.innerHTML = '<tr><td colspan="6" class="muted">Kayit yok</td></tr>';
+    }
+
+    const from = total ? (start + 1) : 0;
+    const to = Math.min(start + AGENT_PAGE_SIZE, total);
+    pageInfo.textContent = `${from}-${to} / ${total} (Sayfa ${currentPage}/${totalPages})`;
+    prevBtn.disabled = currentPage <= 1;
+    nextBtn.disabled = currentPage >= totalPages;
+  }
+
+  function relLastSeen(value) {
+    const dt = AppCenterApi.parseDate(value);
+    if (!dt) return '-';
+    const ms = Date.now() - dt.getTime();
+    const sec = Math.floor(ms / 1000);
+    if (sec < 60) return `${sec}sn önce`;
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min}dk önce`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}s önce`;
+    const day = Math.floor(hr / 24);
+    return `${day}gün önce`;
+  }
 
   async function loadAgents() {
     try {
       await AppCenterApi.initUi();
       const data = await AppCenterApi.req('/agents');
-      const rows = document.getElementById('agent-rows');
-      rows.innerHTML = '';
-      (data.items || []).forEach((agent) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${agent.uuid}</td>
-          <td>${agent.hostname || '-'}</td>
-          <td><span class="badge ${agent.status === 'online' ? 'ok' : 'warn'}">${agent.status}</span></td>
-          <td>${agent.version || '-'}</td>
-          <td>${agent.last_seen ? AppCenterApi.formatDate(agent.last_seen) : '-'}</td>
-          <td><a class="btn secondary" href="/agents/${agent.uuid}">Detay</a></td>
-        `;
-        rows.appendChild(tr);
-      });
+      allAgents = data.items || [];
+      applyFilter();
+      renderPage();
     } catch (err) {
       AppCenterApi.toast(err.message);
     }
@@ -47,6 +209,19 @@
 
   (async function () {
     await AppCenterApi.initUi();
+    document.getElementById('agent-search').addEventListener('input', () => {
+      currentPage = 1;
+      applyFilter();
+      renderPage();
+    });
+    document.getElementById('agent-prev').addEventListener('click', () => {
+      currentPage -= 1;
+      renderPage();
+    });
+    document.getElementById('agent-next').addEventListener('click', () => {
+      currentPage += 1;
+      renderPage();
+    });
     loadAgents();
     setInterval(loadAgents, 10000);
   })();
