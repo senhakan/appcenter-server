@@ -276,7 +276,7 @@
     rfb.addEventListener('connect', () => {
       liveConnState = 'connected';
       setConnBadge('Bagli', 'ok');
-      setViewerStatus('noVNC baglantisi aktif.');
+      setViewerStatus('Canli ekran baglantisi aktif.');
       syncToolbar();
       try {
         rfb.focus();
@@ -305,7 +305,7 @@
 
     liveConnState = 'connecting';
     setConnBadge('Baglaniyor', 'warn');
-    setViewerStatus(`noVNC (embedded) baglantisi aciliyor (${wsUrl})...`);
+    setViewerStatus(`Canli ekran baglantisi aciliyor (${wsUrl})...`);
     syncViewerGeometry();
     syncToolbar();
   }
@@ -324,7 +324,7 @@
     host.appendChild(iframe);
     liveConnState = 'connecting';
     setConnBadge('Baglaniyor', 'warn');
-    setViewerStatus(`noVNC (iframe) baglantisi aciliyor (${scheme}://${window.location.host}/${basePath})...`);
+    setViewerStatus(`Canli ekran baglantisi aciliyor (${scheme}://${window.location.host}/${basePath})...`);
     syncToolbar();
   }
 
@@ -420,7 +420,7 @@
       autoConnectAttempted = true;
       liveConnState = 'ticketing';
       setConnBadge('Bilet Aliniyor', 'warn');
-      setViewerStatus('noVNC baglanti bileti aliniyor...');
+      setViewerStatus('Canli ekran baglanti bileti aliniyor...');
       const data = await AppCenterApi.req(`/remote-support/sessions/${SESSION_ID}/novnc-ticket`);
       const ticket = data && data.viewer ? data.viewer : null;
       if (!ticket || !ticket.enabled) {
@@ -443,7 +443,7 @@
     } catch (err) {
       liveConnState = 'error';
       setConnBadge('Baglanti Hatasi', 'error');
-      setViewerStatus(err.message || 'noVNC baslatilamadi');
+      setViewerStatus(err.message || 'Canli ekran baslatilamadi');
       syncToolbar();
     }
   }

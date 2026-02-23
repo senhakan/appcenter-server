@@ -27,6 +27,11 @@ Bu dokuman production ortami icin deploy, smoke ve rollback adimlarini tanimlar.
 - Harici noVNC/websockify servisleri varsayilan olarak kapali tutulur:
   - `appcenter-novnc-ws` -> disabled/inactive
   - `novnc-ws-172` docker container -> stopped
+- Session UI davranisi:
+  - Baglanti butonu toolbar uzerindedir (`tool-connect`).
+  - Session state `approved/connecting/active` ise sayfa acilisinda auto-connect dener.
+  - Session state `pending_approval` icin bekleme/aciklama metni gosterilir; onaylaninca otomatik baglanir.
+  - Kullanici metinlerinde `noVNC` yerine `Canli ekran` terimi kullanilir.
 
 ### 1.1 Bu Sunucuda Aktif Deployment Profili
 

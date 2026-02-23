@@ -216,6 +216,11 @@ Notlar:
 - Harici servisler kapatildi:
   - `appcenter-novnc-ws` (systemd) -> disabled/inactive
   - `novnc-ws-172` (docker) -> stopped
+- Session ekrani guncellemeleri:
+  - Baglanti kontrolleri ust toolbar icine tasindi.
+  - Uygun durumda oturum acilisinda baglanti otomatik baslatilir.
+  - `pending_approval` icin ozel durum/aciklama metni eklendi; onay sonrasi auto-connect tetiklenir.
+  - Kullaniciya donen metinlerde `noVNC` ifadesi yerine `Canli ekran` terminolojisi kullanilir.
 - Guacamole'yi hizli geri almak icin tek referans:
   - `config/guacamole/REENABLE.md`
   - `config/guacamole/docker-compose.guacamole.yml`
