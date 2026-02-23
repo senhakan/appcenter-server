@@ -19,6 +19,15 @@ Bu dokuman production ortami icin deploy, smoke ve rollback adimlarini tanimlar.
   - `config/guacamole/docker-compose.guacamole.yml`
   - `config/guacamole/nginx.guacamole.conf.snippet`
 
+### 1.3 noVNC Calisma Durumu (2026-02-23)
+
+- Viewer modu: `REMOTE_SUPPORT_NOVNC_MODE=embedded`
+- WS bridge modu: `REMOTE_SUPPORT_WS_MODE=internal`
+- `/novnc-ws` endpoint'i FastAPI uygulamasi icinde calisir (`:8000`).
+- Harici noVNC/websockify servisleri varsayilan olarak kapali tutulur:
+  - `appcenter-novnc-ws` -> disabled/inactive
+  - `novnc-ws-172` docker container -> stopped
+
 ### 1.1 Bu Sunucuda Aktif Deployment Profili
 
 - Kaynak repo dizini: `/root/appcenter/server`
@@ -67,6 +76,12 @@ sudo systemctl is-active appcenter
   - dogru: `CORS_ORIGINS=["*"]`
   - yanlis: `CORS_ORIGINS=*`
 - `rsync --delete` `.env` dosyasini silebilir; mutlaka exclude edin.
+- noVNC calisma modu:
+  - `REMOTE_SUPPORT_NOVNC_MODE=embedded` -> noVNC iframe yerine session sayfasinda dogrudan RFB (embed)
+  - `REMOTE_SUPPORT_NOVNC_MODE=iframe` -> onceki stabil iframe akisi (hizli fallback)
+- WS bridge modu:
+  - `REMOTE_SUPPORT_WS_MODE=internal` -> `/novnc-ws` FastAPI icinde calisir (ayri websockify servisi gerekmez)
+  - `REMOTE_SUPPORT_WS_MODE=external` -> harici websockify (6082) akisi
 
 ### 2.4 Agent Update Publish (Zorunlu Standart)
 

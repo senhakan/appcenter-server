@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     guac_reverse_vnc_port: int = 5500
     novnc_token_file: str = "/opt/appcenter/novnc/tokens.txt"
     novnc_ws_path: str = "/novnc-ws"
+    remote_support_novnc_mode: str = "iframe"
+    remote_support_ws_mode: str = "external"
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -59,6 +61,22 @@ class Settings(BaseSettings):
             parts = [item.strip() for item in value.split(",") if item.strip()]
             return parts or ["*"]
         return ["*"]
+
+    @field_validator("remote_support_novnc_mode", mode="before")
+    @classmethod
+    def validate_remote_support_novnc_mode(cls, value: str) -> str:
+        mode = (value or "iframe").strip().lower()
+        if mode not in {"iframe", "embedded"}:
+            return "iframe"
+        return mode
+
+    @field_validator("remote_support_ws_mode", mode="before")
+    @classmethod
+    def validate_remote_support_ws_mode(cls, value: str) -> str:
+        mode = (value or "external").strip().lower()
+        if mode not in {"external", "internal"}:
+            return "external"
+        return mode
 
 
 @lru_cache(maxsize=1)

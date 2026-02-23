@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 import logging
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.responses import RedirectResponse
+from starlette.websockets import WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -20,6 +22,7 @@ from app.config import get_settings
 from app.database import init_db, seed_initial_data
 from app.tasks.scheduler import start_scheduler, stop_scheduler
 from app.utils.file_handler import ensure_upload_dir
+from app.services import novnc_service
 
 settings = get_settings()
 logger = logging.getLogger("appcenter")
@@ -101,6 +104,80 @@ def root() -> dict[str, str]:
     }
 
 
+@app.websocket("/novnc-ws")
+async def novnc_ws_bridge(websocket: WebSocket):
+    """
+    Internal noVNC bridge mode:
+    Browser WS <-> raw TCP VNC (agent_ip:5900), validated by one-time ticket.
+    """
+    if settings.remote_support_ws_mode != "internal":
+        await websocket.close(code=1008, reason="internal_ws_mode_disabled")
+        return
+
+    token = (websocket.query_params.get("token") or "").strip()
+    target = novnc_service.consume_internal_ticket(token)
+    if not target:
+        await websocket.close(code=1008, reason="invalid_or_expired_token")
+        return
+    agent_ip, vnc_port = target
+
+    try:
+        reader, writer = await asyncio.wait_for(asyncio.open_connection(agent_ip, vnc_port), timeout=8)
+    except Exception:
+        await websocket.close(code=1011, reason="vnc_target_unreachable")
+        return
+
+    await websocket.accept()
+
+    async def ws_to_tcp():
+        try:
+            while True:
+                message = await websocket.receive()
+                if "bytes" in message and message["bytes"] is not None:
+                    writer.write(message["bytes"])
+                    await writer.drain()
+                    continue
+                if message.get("type") == "websocket.disconnect":
+                    break
+                if "text" in message and message["text"] is not None:
+                    writer.write(message["text"].encode("utf-8", errors="ignore"))
+                    await writer.drain()
+        except WebSocketDisconnect:
+            return
+        except Exception:
+            return
+
+    async def tcp_to_ws():
+        try:
+            while True:
+                chunk = await reader.read(65536)
+                if not chunk:
+                    break
+                await websocket.send_bytes(chunk)
+        except WebSocketDisconnect:
+            return
+        except Exception:
+            return
+
+    task_a = asyncio.create_task(ws_to_tcp())
+    task_b = asyncio.create_task(tcp_to_ws())
+    done, pending = await asyncio.wait({task_a, task_b}, return_when=asyncio.FIRST_COMPLETED)
+    for t in pending:
+        t.cancel()
+    await asyncio.gather(*pending, return_exceptions=True)
+    await asyncio.gather(*done, return_exceptions=True)
+
+    try:
+        writer.close()
+        await writer.wait_closed()
+    except Exception:
+        pass
+    try:
+        await websocket.close()
+    except Exception:
+        pass
+
+
 @app.get("/ui")
 def ui_root() -> RedirectResponse:
     return RedirectResponse(url="/dashboard", status_code=302)
@@ -137,7 +214,12 @@ def agent_detail_page(request: Request, agent_uuid: str):
 def remote_support_session_page(request: Request, session_id: int):
     return templates.TemplateResponse(
         "remote_support/session.html",
-        {"request": request, "active_page": "agents", "session_id": session_id},
+        {
+            "request": request,
+            "active_page": "agents",
+            "session_id": session_id,
+            "novnc_mode": settings.remote_support_novnc_mode,
+        },
     )
 
 

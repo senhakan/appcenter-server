@@ -211,6 +211,11 @@ Notlar:
 - Guacamole tabanli viewer akisi aktif kod yolundan cikarildi.
 - Guacamole container'lari devre disi birakildi (stop).
 - noVNC tumlesik (server icinde) akisa gecis planlanmaktadir.
+- noVNC embedded viewer + internal WS bridge aktif durumdadir.
+- `/novnc-ws` artik dogrudan app (FastAPI) icinde calisir.
+- Harici servisler kapatildi:
+  - `appcenter-novnc-ws` (systemd) -> disabled/inactive
+  - `novnc-ws-172` (docker) -> stopped
 - Guacamole'yi hizli geri almak icin tek referans:
   - `config/guacamole/REENABLE.md`
   - `config/guacamole/docker-compose.guacamole.yml`

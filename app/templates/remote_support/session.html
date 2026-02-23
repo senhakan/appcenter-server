@@ -26,7 +26,10 @@
   AppCenterApi.protectPage();
 
   const SESSION_ID = {{ session_id }};
+  const NOVNC_MODE = '{{ novnc_mode or "iframe" }}';
+  const NOVNC_ASSET_VERSION = '{{ ASSET_VERSION }}';
   let currentSession = null;
+  let currentRfb = null;
   let liveConnState = 'idle'; // idle|ticketing|connecting|connected|reconnecting|disconnected|error
 
   function esc(s) {
@@ -101,8 +104,96 @@
   }
 
   function disconnectViewer() {
+    if (currentRfb) {
+      try {
+        currentRfb.disconnect();
+      } catch (_) {}
+      currentRfb = null;
+    }
     const host = document.getElementById('viewer-display');
     if (host) host.innerHTML = '';
+  }
+
+  async function startViewerEmbedded(ticket, basePath, scheme) {
+    const host = document.getElementById('viewer-display');
+    host.innerHTML = '';
+    host.style.height = '560px';
+    host.style.minHeight = '560px';
+    const stage = document.createElement('div');
+    stage.style.width = '100%';
+    stage.style.height = '560px';
+    stage.style.minHeight = '520px';
+    stage.style.display = 'block';
+    stage.style.position = 'relative';
+    stage.style.background = '#0b1020';
+    stage.style.overflow = 'hidden';
+    stage.tabIndex = 0;
+    host.appendChild(stage);
+
+    const mod = await import(`/static/novnc-v1/core/rfb.js?v=${encodeURIComponent(NOVNC_ASSET_VERSION)}`);
+    const RFB = mod.default;
+    const wsUrl = `${scheme}://${window.location.host}/${basePath}?token=${encodeURIComponent(ticket.token || '')}`;
+    const rfb = new RFB(stage, wsUrl, {
+      shared: true,
+      repeaterID: '',
+      credentials: { password: ticket.password || '' },
+    });
+    currentRfb = rfb;
+    rfb.scaleViewport = true;
+    rfb.resizeSession = false;
+    rfb.clipViewport = false;
+    rfb.viewOnly = false;
+    rfb.showDotCursor = true;
+    rfb.qualityLevel = 6;
+    rfb.compressionLevel = 2;
+
+    rfb.addEventListener('connect', () => {
+      liveConnState = 'connected';
+      setConnBadge('Bagli', 'ok');
+      setViewerStatus('noVNC baglantisi aktif.');
+      try {
+        rfb.focus();
+      } catch (_) {}
+    });
+    rfb.addEventListener('disconnect', (e) => {
+      const clean = !!(e && e.detail && e.detail.clean);
+      liveConnState = clean ? 'disconnected' : 'error';
+      setConnBadge(clean ? 'Ayrildi' : 'Baglanti Hatasi', clean ? 'warn' : 'error');
+      setViewerStatus(clean ? 'Baglanti kapandi.' : 'Baglanti beklenmedik sekilde koptu.');
+      currentRfb = null;
+    });
+    rfb.addEventListener('credentialsrequired', () => {
+      try {
+        rfb.sendCredentials({ password: ticket.password || '' });
+      } catch (_) {}
+    });
+    rfb.addEventListener('securityfailure', (e) => {
+      liveConnState = 'error';
+      setConnBadge('Kimlik Hatasi', 'error');
+      const reason = e && e.detail && e.detail.status ? String(e.detail.status) : 'security_failure';
+      setViewerStatus(`Guvenlik dogrulamasi basarisiz (${reason}).`);
+    });
+
+    liveConnState = 'connecting';
+    setConnBadge('Baglaniyor', 'warn');
+    setViewerStatus(`noVNC (embedded) baglantisi aciliyor (${wsUrl})...`);
+  }
+
+  async function startViewerIframe(ticket, basePath, scheme) {
+    const host = document.getElementById('viewer-display');
+    const iframe = document.createElement('iframe');
+    iframe.style.width = '100%';
+    iframe.style.height = '100%';
+    iframe.style.minHeight = '520px';
+    iframe.style.border = '0';
+    iframe.allow = 'clipboard-read; clipboard-write';
+    iframe.referrerPolicy = 'no-referrer';
+    iframe.src = `/static/novnc-v1/vnc.html?v=${encodeURIComponent(NOVNC_ASSET_VERSION)}&autoconnect=1&resize=scale&show_dot=true&host=${encodeURIComponent(window.location.hostname)}&port=${encodeURIComponent(window.location.port || (window.location.protocol === 'https:' ? '443' : '80'))}&encrypt=${window.location.protocol === 'https:' ? '1' : '0'}&path=${encodeURIComponent(basePath)}&password=${encodeURIComponent(ticket.password || '')}&token=${encodeURIComponent(ticket.token)}`;
+    host.innerHTML = '';
+    host.appendChild(iframe);
+    liveConnState = 'connecting';
+    setConnBadge('Baglaniyor', 'warn');
+    setViewerStatus(`noVNC (iframe) baglantisi aciliyor (${scheme}://${window.location.host}/${basePath})...`);
   }
 
   async function loadSession() {
@@ -195,21 +286,11 @@
       disconnectViewer();
       const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
       const basePath = (ticket.ws_path || '/novnc-ws').replace(/^\//, '');
-      const host = document.getElementById('viewer-display');
-      const iframe = document.createElement('iframe');
-      iframe.style.width = '100%';
-      iframe.style.height = '100%';
-      iframe.style.minHeight = '520px';
-      iframe.style.border = '0';
-      iframe.allow = 'clipboard-read; clipboard-write';
-      iframe.referrerPolicy = 'no-referrer';
-      iframe.src = `/static/novnc-v1/vnc.html?v=ac20260223c&autoconnect=1&resize=scale&show_dot=true&host=${encodeURIComponent(window.location.hostname)}&port=${encodeURIComponent(window.location.port || (window.location.protocol === 'https:' ? '443' : '80'))}&encrypt=${window.location.protocol === 'https:' ? '1' : '0'}&path=${encodeURIComponent(basePath)}&password=${encodeURIComponent(ticket.password || '')}&token=${encodeURIComponent(ticket.token)}`;
-      host.innerHTML = '';
-      host.appendChild(iframe);
-
-      liveConnState = 'connecting';
-      setConnBadge('Baglaniyor', 'warn');
-      setViewerStatus(`noVNC baglantisi aciliyor (${scheme}://${window.location.host}/${basePath})...`);
+      if (NOVNC_MODE === 'embedded') {
+        await startViewerEmbedded(ticket, basePath, scheme);
+      } else {
+        await startViewerIframe(ticket, basePath, scheme);
+      }
     } catch (err) {
       liveConnState = 'error';
       setConnBadge('Baglanti Hatasi', 'error');
@@ -235,9 +316,11 @@
     document.getElementById('btn-end').addEventListener('click', endSession);
     await loadSession();
     setInterval(loadSession, 3000);
-    window.addEventListener('message', handleNoVncMessage);
+    if (NOVNC_MODE !== 'embedded') {
+      window.addEventListener('message', handleNoVncMessage);
+    }
     setConnBadge('Hazir', 'warn');
-    setViewerStatus('Onayli oturumda Baglan ile noVNC baslat.');
+    setViewerStatus(`Onayli oturumda Baglan ile noVNC baslat. (mod: ${NOVNC_MODE})`);
     window.addEventListener('beforeunload', disconnectViewer);
   })();
 </script>
