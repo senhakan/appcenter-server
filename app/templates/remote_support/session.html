@@ -42,6 +42,7 @@
   let currentStage = null;
   let autoConnectAttempted = false;
   let lastSessionStatus = '';
+  let closeEndSent = false;
   let liveConnState = 'idle'; // idle|ticketing|connecting|connected|reconnecting|disconnected|error
 
   function esc(s) {
@@ -453,10 +454,26 @@
     try {
       await AppCenterApi.req(`/remote-support/sessions/${SESSION_ID}/end`, { method: 'POST' });
       AppCenterApi.toast('Oturum bitirme istegi gonderildi');
+      closeEndSent = true;
       loadSession();
     } catch (err) {
       AppCenterApi.toast(err.message || 'Oturum bitirilemedi');
     }
+  }
+
+  function endSessionOnClose() {
+    if (closeEndSent) return;
+    const state = ((currentSession && currentSession.status) || '').toLowerCase();
+    if (!['approved', 'connecting', 'active'].includes(state)) return;
+    closeEndSent = true;
+    try {
+      const token = localStorage.getItem('appcenter_token') || '';
+      fetch(`/api/v1/remote-support/sessions/${SESSION_ID}/end`, {
+        method: 'POST',
+        keepalive: true,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+    } catch (_) {}
   }
 
   (async function init() {
@@ -523,7 +540,13 @@
       setViewerStatus(`Onayli oturumda baglanti otomatik baslatilir. (mod: ${NOVNC_MODE})`);
     }
     syncToolbar();
-    window.addEventListener('beforeunload', disconnectViewer);
+    window.addEventListener('beforeunload', () => {
+      endSessionOnClose();
+      disconnectViewer();
+    });
+    window.addEventListener('pagehide', () => {
+      endSessionOnClose();
+    });
     window.addEventListener('resize', () => {
       syncViewerGeometry();
     });

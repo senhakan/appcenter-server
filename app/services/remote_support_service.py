@@ -39,6 +39,26 @@ def _as_utc(value: Optional[datetime]) -> Optional[datetime]:
     return value.astimezone(timezone.utc)
 
 
+def _set_agent_remote_state(
+    db: Session,
+    agent_uuid: str,
+    state: Optional[str],
+    session_id: Optional[int],
+    helper_running: Optional[bool] = None,
+) -> None:
+    agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
+    if not agent:
+        return
+    agent.remote_support_state = state
+    agent.remote_support_session_id = session_id
+    if helper_running is not None:
+        agent.remote_support_helper_running = bool(helper_running)
+        if not helper_running:
+            agent.remote_support_helper_pid = None
+    agent.remote_support_updated_at = _utcnow()
+    db.add(agent)
+
+
 def _ensure_agent_online(db: Session, agent_uuid: str) -> Agent:
     agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
     if not agent:
@@ -81,6 +101,8 @@ def create_session(db: Session, agent_uuid: str, admin_user_id: int, reason: str
         max_duration_min=requested,
     )
     db.add(session)
+    db.flush()
+    _set_agent_remote_state(db, agent_uuid, "pending_approval", session.id, helper_running=False)
     db.commit()
     db.refresh(session)
     return session
@@ -165,14 +187,17 @@ def approve_from_agent(db: Session, session_id: int, agent_uuid: str, approved: 
         session.ended_at = now
         session.ended_by = "timeout"
         session.vnc_password = None
+        _set_agent_remote_state(db, agent_uuid, "idle", None, helper_running=False)
     elif approved:
         session.status = "approved"
         session.approved_at = now
+        _set_agent_remote_state(db, agent_uuid, "approved", session.id, helper_running=False)
     else:
         session.status = "rejected"
         session.ended_at = now
         session.ended_by = "user"
         session.vnc_password = None
+        _set_agent_remote_state(db, agent_uuid, "idle", None, helper_running=False)
 
     db.add(session)
     db.commit()
@@ -192,6 +217,7 @@ def mark_ready_from_agent(db: Session, session_id: int, agent_uuid: str) -> Remo
     if not session.connected_at:
         session.connected_at = now
     session.status = "active"
+    _set_agent_remote_state(db, agent_uuid, "active", session.id, helper_running=True)
     db.add(session)
     db.commit()
     db.refresh(session)
@@ -210,6 +236,7 @@ def end_session(db: Session, session_id: int, ended_by: str) -> RemoteSupportSes
     session.vnc_password = None
     # If admin ends the session, agent must be signaled via heartbeat.
     session.end_signal_pending = ended_by == "admin"
+    _set_agent_remote_state(db, session.agent_uuid, "idle", None, helper_running=False)
     db.add(session)
     db.commit()
     db.refresh(session)
@@ -229,6 +256,7 @@ def end_session_from_agent(db: Session, session_id: int, agent_uuid: str, ended_
     session.ended_by = ended_by or "agent"
     session.vnc_password = None
     session.end_signal_pending = False
+    _set_agent_remote_state(db, agent_uuid, "idle", None, helper_running=False)
     db.add(session)
     db.commit()
     db.refresh(session)
@@ -247,6 +275,7 @@ def check_approval_timeouts(db: Session) -> int:
         s.ended_at = now
         s.ended_by = "timeout"
         s.vnc_password = None
+        _set_agent_remote_state(db, s.agent_uuid, "idle", None, helper_running=False)
         db.add(s)
     if sessions:
         db.commit()
@@ -270,6 +299,7 @@ def check_max_durations(db: Session) -> int:
             s.ended_by = "timeout"
             s.vnc_password = None
             s.end_signal_pending = True
+            _set_agent_remote_state(db, s.agent_uuid, "idle", None, helper_running=False)
             db.add(s)
             hit += 1
     if hit:
@@ -292,6 +322,7 @@ def end_sessions_for_offline_agents(db: Session, agent_uuids: list[str]) -> int:
         s.ended_by = "agent_offline"
         s.vnc_password = None
         s.end_signal_pending = False
+        _set_agent_remote_state(db, s.agent_uuid, "idle", None, helper_running=False)
         db.add(s)
     if sessions:
         db.commit()
