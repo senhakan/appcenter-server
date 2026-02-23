@@ -16,6 +16,15 @@
     <span id="conn-badge" class="badge warn">Hazir</span>
     <div id="viewer-status" class="muted">Canli ekran baglantisi hazirlaniyor...</div>
   </div>
+  <div id="viewer-toolbar" style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:10px; border:1px solid #2f3640; border-radius:10px; background:linear-gradient(135deg,#151b2f 0%,#1e2947 100%);">
+    <button id="tool-fullscreen" class="btn secondary" type="button">Tam Ekran</button>
+    <button id="tool-scale" class="btn secondary" type="button">Olcekleme: Acik</button>
+    <button id="tool-viewonly" class="btn secondary" type="button">Kontrol: Acik</button>
+    <button id="tool-cad" class="btn secondary" type="button">Ctrl+Alt+Del</button>
+    <button id="tool-clipboard" class="btn secondary" type="button">Clipboard Gonder</button>
+    <button id="tool-disconnect" class="btn secondary" type="button">Baglantiyi Kes</button>
+    <span id="toolbar-mode-pill" class="badge warn" style="margin-left:auto;">Mod: -</span>
+  </div>
   <div id="viewer-wrap" style="margin-top:8px; min-height:560px; border:1px solid #2f3640; border-radius:10px; background:#0b1020; overflow:hidden;">
     <div id="viewer-display" style="width:100%; height:100%; min-height:560px;"></div>
   </div>
@@ -66,6 +75,44 @@
     return ['connecting', 'connected', 'reconnecting'].includes(liveConnState);
   }
 
+  function setToolBtn(id, enabled, active) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = !enabled;
+    el.style.opacity = enabled ? '1' : '0.6';
+    el.style.filter = enabled ? 'none' : 'grayscale(0.25)';
+    if (active) {
+      el.classList.remove('secondary');
+    } else {
+      el.classList.add('secondary');
+    }
+  }
+
+  function syncToolbar() {
+    const pill = document.getElementById('toolbar-mode-pill');
+    if (pill) {
+      pill.textContent = `Mod: ${NOVNC_MODE}`;
+      pill.className = NOVNC_MODE === 'embedded' ? 'badge ok' : 'badge warn';
+    }
+    const connected = !!currentRfb && liveConnState === 'connected';
+    const embedded = NOVNC_MODE === 'embedded';
+    const enabled = connected && embedded;
+    const scaleOn = !!(currentRfb && currentRfb.scaleViewport);
+    const viewOnly = !!(currentRfb && currentRfb.viewOnly);
+
+    const scaleBtn = document.getElementById('tool-scale');
+    if (scaleBtn) scaleBtn.textContent = `Olcekleme: ${scaleOn ? 'Acik' : 'Kapali'}`;
+    const viewBtn = document.getElementById('tool-viewonly');
+    if (viewBtn) viewBtn.textContent = `Kontrol: ${viewOnly ? 'Kapali' : 'Acik'}`;
+
+    setToolBtn('tool-fullscreen', embedded, false);
+    setToolBtn('tool-scale', enabled, scaleOn);
+    setToolBtn('tool-viewonly', enabled, !viewOnly);
+    setToolBtn('tool-cad', enabled && !viewOnly, false);
+    setToolBtn('tool-clipboard', enabled && !viewOnly, false);
+    setToolBtn('tool-disconnect', isLiveConnected(), false);
+  }
+
   function handleNoVncMessage(ev) {
     const d = ev && ev.data ? ev.data : null;
     if (!d || d.source !== 'appcenter-novnc') return;
@@ -112,6 +159,7 @@
     }
     const host = document.getElementById('viewer-display');
     if (host) host.innerHTML = '';
+    syncToolbar();
   }
 
   async function startViewerEmbedded(ticket, basePath, scheme) {
@@ -152,6 +200,7 @@
       liveConnState = 'connected';
       setConnBadge('Bagli', 'ok');
       setViewerStatus('noVNC baglantisi aktif.');
+      syncToolbar();
       try {
         rfb.focus();
       } catch (_) {}
@@ -162,6 +211,7 @@
       setConnBadge(clean ? 'Ayrildi' : 'Baglanti Hatasi', clean ? 'warn' : 'error');
       setViewerStatus(clean ? 'Baglanti kapandi.' : 'Baglanti beklenmedik sekilde koptu.');
       currentRfb = null;
+      syncToolbar();
     });
     rfb.addEventListener('credentialsrequired', () => {
       try {
@@ -178,6 +228,7 @@
     liveConnState = 'connecting';
     setConnBadge('Baglaniyor', 'warn');
     setViewerStatus(`noVNC (embedded) baglantisi aciliyor (${wsUrl})...`);
+    syncToolbar();
   }
 
   async function startViewerIframe(ticket, basePath, scheme) {
@@ -195,6 +246,7 @@
     liveConnState = 'connecting';
     setConnBadge('Baglaniyor', 'warn');
     setViewerStatus(`noVNC (iframe) baglantisi aciliyor (${scheme}://${window.location.host}/${basePath})...`);
+    syncToolbar();
   }
 
   async function loadSession() {
@@ -256,6 +308,7 @@
           setConnBadge('Hazir', 'warn');
         }
         setViewerStatus('Baglan butonu ile noVNC oturumu baslatilabilir.');
+        syncToolbar();
       }
     } catch (err) {
       document.getElementById('session-box').textContent = err.message || 'Oturum verisi alinamadi';
@@ -268,6 +321,7 @@
       liveConnState = 'error';
       setConnBadge('Durum Uygun Degil', 'error');
       setViewerStatus('Baglanmadan once oturum onaylanmis olmalidir.');
+      syncToolbar();
       return;
     }
     try {
@@ -281,6 +335,7 @@
         liveConnState = 'error';
         setConnBadge('Bilet Hatasi', 'error');
         setViewerStatus(`Goruntu acilamadi (${reason}).`);
+        syncToolbar();
         return;
       }
 
@@ -296,6 +351,7 @@
       liveConnState = 'error';
       setConnBadge('Baglanti Hatasi', 'error');
       setViewerStatus(err.message || 'noVNC baslatilamadi');
+      syncToolbar();
     }
   }
 
@@ -315,6 +371,49 @@
     document.getElementById('btn-connect').addEventListener('click', startViewer);
     document.getElementById('btn-refresh').addEventListener('click', loadSession);
     document.getElementById('btn-end').addEventListener('click', endSession);
+    document.getElementById('tool-fullscreen').addEventListener('click', async () => {
+      const wrap = document.getElementById('viewer-wrap');
+      if (!wrap) return;
+      try {
+        if (document.fullscreenElement) {
+          await document.exitFullscreen();
+        } else {
+          await wrap.requestFullscreen();
+        }
+      } catch (_) {}
+    });
+    document.getElementById('tool-scale').addEventListener('click', () => {
+      if (!currentRfb) return;
+      currentRfb.scaleViewport = !currentRfb.scaleViewport;
+      syncToolbar();
+    });
+    document.getElementById('tool-viewonly').addEventListener('click', () => {
+      if (!currentRfb) return;
+      currentRfb.viewOnly = !currentRfb.viewOnly;
+      syncToolbar();
+    });
+    document.getElementById('tool-cad').addEventListener('click', () => {
+      if (!currentRfb) return;
+      try { currentRfb.sendCtrlAltDel(); } catch (_) {}
+    });
+    document.getElementById('tool-clipboard').addEventListener('click', async () => {
+      if (!currentRfb) return;
+      let text = '';
+      try {
+        text = await navigator.clipboard.readText();
+      } catch (_) {
+        text = window.prompt('Gonderilecek metni girin:', '') || '';
+      }
+      if (!text) return;
+      try { currentRfb.clipboardPasteFrom(text); } catch (_) {}
+    });
+    document.getElementById('tool-disconnect').addEventListener('click', () => {
+      disconnectViewer();
+      liveConnState = 'disconnected';
+      setConnBadge('Ayrildi', 'warn');
+      setViewerStatus('Baglanti kullanici tarafindan sonlandirildi.');
+      syncToolbar();
+    });
     await loadSession();
     setInterval(loadSession, 3000);
     if (NOVNC_MODE !== 'embedded') {
@@ -322,6 +421,7 @@
     }
     setConnBadge('Hazir', 'warn');
     setViewerStatus(`Onayli oturumda Baglan ile noVNC baslat. (mod: ${NOVNC_MODE})`);
+    syncToolbar();
     window.addEventListener('beforeunload', disconnectViewer);
   })();
 </script>
