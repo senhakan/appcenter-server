@@ -50,6 +50,12 @@
   .note-chip:hover::after {
     opacity: 1;
   }
+  .agents-table .col-remote,
+  #agent-rows .js-col-remote {
+    min-width: 240px;
+    width: 240px;
+    white-space: nowrap;
+  }
 </style>
 <div class="card">
   <div class="row spread wrap">
@@ -65,10 +71,10 @@
     />
   </div>
   <div class="table-wrap">
-    <table>
+    <table class="agents-table">
       <thead>
         <tr>
-          <th>Hostname</th><th>Login Kullanici</th><th>IP</th><th>Durum</th><th>Remote</th><th>Helper</th><th>Version</th><th></th>
+          <th>Hostname</th><th>Login Kullanici</th><th>IP</th><th>Durum</th><th class="col-remote">Remote</th><th>Helper</th><th>Version</th><th></th>
         </tr>
       </thead>
       <tbody id="agent-rows"></tbody>
@@ -154,6 +160,8 @@
         ? `<span class="note-chip" data-tooltip="${esc(noteText)}" aria-label="Not var" title="Not">N</span>`
         : '';
       const tr = document.createElement('tr');
+      tr.id = `agent-row-${esc(agent.uuid || '')}`;
+      tr.setAttribute('data-agent-uuid', esc(agent.uuid || ''));
       const rsState = agent.remote_support_state || '-';
       const rsSession = (agent.remote_support_session_id || 0) > 0 ? `#${agent.remote_support_session_id}` : '-';
       const rsUpdated = agent.remote_support_updated_at ? AppCenterApi.formatDate(agent.remote_support_updated_at) : '-';
@@ -161,18 +169,18 @@
         ? `Calisiyor${agent.remote_support_helper_pid ? (' (PID ' + agent.remote_support_helper_pid + ')') : ''}`
         : 'Calismiyor';
       tr.innerHTML = `
-        <td>
+        <td class="js-col-host">
           <span class="agent-host-wrap">
             <span>${esc(agent.hostname || '-')}</span>
             ${noteBadge}
           </span>
         </td>
-        <td>${esc(getLoginUsers(agent))}</td>
-        <td>${esc(agent.ip_address || '-')}</td>
-        <td><span class="badge ${agent.status === 'online' ? 'ok' : 'warn'}" title="${esc(seenRel)}" style="cursor: help;">${esc(agent.status || '-')}</span></td>
-        <td title="${esc(rsUpdated)}" style="cursor: help;">${esc(rsState)} / ${esc(rsSession)}</td>
-        <td>${esc(helperText)}</td>
-        <td>${esc(agent.version || '-')}</td>
+        <td class="js-col-login">${esc(getLoginUsers(agent))}</td>
+        <td class="js-col-ip">${esc(agent.ip_address || '-')}</td>
+        <td class="js-col-status"><span class="badge ${agent.status === 'online' ? 'ok' : 'warn'}" title="${esc(seenRel)}" style="cursor: help;">${esc(agent.status || '-')}</span></td>
+        <td class="js-col-remote" title="${esc(rsUpdated)}" style="cursor: help;">${esc(rsState)} / ${esc(rsSession)}</td>
+        <td class="js-col-helper">${esc(helperText)}</td>
+        <td class="js-col-version">${esc(agent.version || '-')}</td>
         <td>
           <div class="row wrap" style="gap:6px;">
             <a class="btn secondary" href="/agents/${encodeURIComponent(agent.uuid)}">Detay</a>
@@ -215,6 +223,43 @@
     return `${day}gün önce`;
   }
 
+  function pageSlice(items) {
+    const start = (currentPage - 1) * AGENT_PAGE_SIZE;
+    return items.slice(start, start + AGENT_PAGE_SIZE);
+  }
+
+  function patchVisibleRows(pageItems) {
+    pageItems.forEach((agent) => {
+      const row = document.getElementById(`agent-row-${agent.uuid}`);
+      if (!row) return;
+      const seenRel = relLastSeen(agent.last_seen);
+      const rsState = agent.remote_support_state || '-';
+      const rsSession = (agent.remote_support_session_id || 0) > 0 ? `#${agent.remote_support_session_id}` : '-';
+      const rsUpdated = agent.remote_support_updated_at ? AppCenterApi.formatDate(agent.remote_support_updated_at) : '-';
+      const helperText = agent.remote_support_helper_running
+        ? `Calisiyor${agent.remote_support_helper_pid ? (' (PID ' + agent.remote_support_helper_pid + ')') : ''}`
+        : 'Calismiyor';
+
+      const statusCol = row.querySelector('.js-col-status');
+      if (statusCol) {
+        statusCol.innerHTML = `<span class="badge ${agent.status === 'online' ? 'ok' : 'warn'}" title="${esc(seenRel)}" style="cursor: help;">${esc(agent.status || '-')}</span>`;
+      }
+      const remoteCol = row.querySelector('.js-col-remote');
+      if (remoteCol) {
+        remoteCol.textContent = `${rsState} / ${rsSession}`;
+        remoteCol.title = rsUpdated;
+      }
+      const helperCol = row.querySelector('.js-col-helper');
+      if (helperCol) helperCol.textContent = helperText;
+      const loginCol = row.querySelector('.js-col-login');
+      if (loginCol) loginCol.textContent = getLoginUsers(agent);
+      const ipCol = row.querySelector('.js-col-ip');
+      if (ipCol) ipCol.textContent = agent.ip_address || '-';
+      const verCol = row.querySelector('.js-col-version');
+      if (verCol) verCol.textContent = agent.version || '-';
+    });
+  }
+
   async function requestRemoteSupport(agentUUID, agentHostname, agentStatus) {
     const status = (agentStatus || '').toLowerCase();
     if (status !== 'online') {
@@ -249,13 +294,28 @@
     }
   }
 
-  async function loadAgents() {
+  async function loadAgents(opts) {
+    const soft = !!(opts && opts.soft);
     try {
       await AppCenterApi.initUi();
+      const prevFiltered = [...filteredAgents];
+      const prevPage = pageSlice(prevFiltered);
       const data = await AppCenterApi.req('/agents');
       allAgents = data.items || [];
       applyFilter();
-      renderPage();
+      if (!soft) {
+        renderPage();
+        return;
+      }
+      const nextPage = pageSlice(filteredAgents);
+      const samePageShape =
+        prevPage.length === nextPage.length &&
+        prevPage.every((x, i) => (x && x.uuid) === (nextPage[i] && nextPage[i].uuid));
+      if (!samePageShape) {
+        renderPage();
+        return;
+      }
+      patchVisibleRows(nextPage);
     } catch (err) {
       AppCenterApi.toast(err.message);
     }
@@ -286,7 +346,7 @@
       renderPage();
     });
     loadAgents();
-    setInterval(loadAgents, 10000);
+    setInterval(() => loadAgents({ soft: true }), 2000);
   })();
 </script>
 {% endblock %}

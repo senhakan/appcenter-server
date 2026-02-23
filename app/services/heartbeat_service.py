@@ -6,7 +6,17 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from app.models import Agent, AgentApplication, AgentIdentityHistory, AgentStatusHistory, AgentSystemProfileHistory, Application, Deployment, TaskHistory
+from app.models import (
+    Agent,
+    AgentApplication,
+    AgentIdentityHistory,
+    AgentStatusHistory,
+    AgentSystemProfileHistory,
+    Application,
+    Deployment,
+    RemoteSupportSession,
+    TaskHistory,
+)
 from app.schemas import CommandItem, HeartbeatConfig, HeartbeatRequest
 
 
@@ -107,6 +117,19 @@ def _pending_commands(db: Session, agent: Agent, now: datetime) -> list[CommandI
             )
         )
     return commands
+
+
+def _resolve_active_remote_session_id(db: Session, agent_uuid: str) -> int | None:
+    s = (
+        db.query(RemoteSupportSession)
+        .filter(
+            RemoteSupportSession.agent_uuid == agent_uuid,
+            RemoteSupportSession.status.in_(["pending_approval", "approved", "connecting", "active"]),
+        )
+        .order_by(RemoteSupportSession.id.desc())
+        .first()
+    )
+    return int(s.id) if s else None
 
 
 def _hash_json_dict(data: dict) -> str:
@@ -251,12 +274,27 @@ def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> t
             agent.system_profile_updated_at = now
 
     # Remote support runtime status (live session/helper visibility).
+    # Guard against stale heartbeats reviving an already-ended session in UI.
     if payload.remote_support is not None:
-        agent.remote_support_state = payload.remote_support.state
-        agent.remote_support_session_id = payload.remote_support.session_id
-        agent.remote_support_helper_running = bool(payload.remote_support.helper_running)
-        agent.remote_support_helper_pid = payload.remote_support.helper_pid
-        agent.remote_support_updated_at = now
+        incoming_state = (payload.remote_support.state or "").strip().lower()
+        incoming_sid = int(payload.remote_support.session_id or 0)
+        active_sid = _resolve_active_remote_session_id(db, agent.uuid)
+
+        accept = False
+        if active_sid is None:
+            # No active server-side session: only accept terminal/idle snapshots.
+            accept = incoming_state in {"idle", "ended", "none", ""}
+        else:
+            # Active session exists: accept if heartbeat matches active session id
+            # or if agent doesn't provide id but state is active-ish.
+            accept = (incoming_sid == active_sid) or (incoming_sid == 0 and incoming_state in {"approved", "connecting", "active"})
+
+        if accept:
+            agent.remote_support_state = payload.remote_support.state
+            agent.remote_support_session_id = payload.remote_support.session_id
+            agent.remote_support_helper_running = bool(payload.remote_support.helper_running)
+            agent.remote_support_helper_pid = payload.remote_support.helper_pid
+            agent.remote_support_updated_at = now
 
     agent.last_seen = now
     agent.status = "online"
