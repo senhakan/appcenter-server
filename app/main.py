@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 from contextlib import asynccontextmanager
 import logging
 from pathlib import Path
@@ -127,21 +128,36 @@ async def novnc_ws_bridge(websocket: WebSocket):
         await websocket.close(code=1011, reason="vnc_target_unreachable")
         return
 
-    await websocket.accept()
+    offered = (websocket.headers.get("sec-websocket-protocol") or "").lower()
+    offered_list = [p.strip() for p in offered.split(",") if p.strip()]
+    selected_subprotocol = None
+    if "binary" in offered_list:
+        selected_subprotocol = "binary"
+    elif "base64" in offered_list:
+        selected_subprotocol = "base64"
+
+    await websocket.accept(subprotocol=selected_subprotocol)
 
     async def ws_to_tcp():
         try:
-            while True:
-                message = await websocket.receive()
-                if "bytes" in message and message["bytes"] is not None:
-                    writer.write(message["bytes"])
-                    await writer.drain()
-                    continue
-                if message.get("type") == "websocket.disconnect":
-                    break
-                if "text" in message and message["text"] is not None:
-                    writer.write(message["text"].encode("utf-8", errors="ignore"))
-                    await writer.drain()
+            if selected_subprotocol == "base64":
+                while True:
+                    text_payload = await websocket.receive_text()
+                    try:
+                        payload = base64.b64decode(text_payload, validate=True)
+                    except Exception:
+                        payload = b""
+                    if payload:
+                        writer.write(payload)
+                        await writer.drain()
+                # unreachable
+            else:
+                while True:
+                    payload = await websocket.receive_bytes()
+                    if payload:
+                        writer.write(payload)
+                        await writer.drain()
+                # unreachable
         except WebSocketDisconnect:
             return
         except Exception:
@@ -153,7 +169,10 @@ async def novnc_ws_bridge(websocket: WebSocket):
                 chunk = await reader.read(65536)
                 if not chunk:
                     break
-                await websocket.send_bytes(chunk)
+                if selected_subprotocol == "base64":
+                    await websocket.send_text(base64.b64encode(chunk).decode("ascii"))
+                else:
+                    await websocket.send_bytes(chunk)
         except WebSocketDisconnect:
             return
         except Exception:

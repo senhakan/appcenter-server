@@ -136,6 +136,7 @@
     const rfb = new RFB(stage, wsUrl, {
       shared: true,
       repeaterID: '',
+      wsProtocols: ['binary', 'base64'],
       credentials: { password: ticket.password || '' },
     });
     currentRfb = rfb;
