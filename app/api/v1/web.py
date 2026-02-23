@@ -23,6 +23,7 @@ from app.models import (
     Application,
     Deployment,
     Group,
+    RemoteSupportSession,
     Setting,
     SoftwareChangeHistory,
     TaskHistory,
@@ -335,6 +336,12 @@ def dashboard_stats(
     pending_tasks = db.query(func.count(TaskHistory.id)).filter(TaskHistory.status == "pending").scalar() or 0
     failed_tasks = db.query(func.count(TaskHistory.id)).filter(TaskHistory.status == "failed").scalar() or 0
     active_deployments = db.query(func.count(Deployment.id)).filter(Deployment.is_active.is_(True)).scalar() or 0
+    active_remote_sessions = (
+        db.query(func.count(RemoteSupportSession.id))
+        .filter(RemoteSupportSession.status.in_(("pending_approval", "approved", "connecting", "active")))
+        .scalar()
+        or 0
+    )
     return DashboardStatsResponse(
         total_agents=total_agents,
         online_agents=online_agents,
@@ -343,6 +350,7 @@ def dashboard_stats(
         pending_tasks=pending_tasks,
         failed_tasks=failed_tasks,
         active_deployments=active_deployments,
+        active_remote_sessions=active_remote_sessions,
     )
 
 

@@ -8,6 +8,7 @@ from sqlalchemy import text
 
 from app.database import SessionLocal
 from app.models import Agent, AgentStatusHistory, Setting, SoftwareChangeHistory
+from app.services import remote_support_service
 from app.services.system_profile_service import cleanup_old_identity_history, cleanup_old_status_history, cleanup_old_system_history
 
 scheduler: Optional[AsyncIOScheduler] = None
@@ -24,6 +25,7 @@ def check_offline_agents() -> None:
         timeout_sec = int(_get_setting(db, "agent_timeout_sec", "300"))
         threshold = datetime.now(timezone.utc) - timedelta(seconds=timeout_sec)
         agents = db.query(Agent).filter(Agent.last_seen < threshold, Agent.status == "online").all()
+        offline_ids: list[str] = []
         for agent in agents:
             db.add(
                 AgentStatusHistory(
@@ -36,7 +38,21 @@ def check_offline_agents() -> None:
             )
             agent.status = "offline"
             db.add(agent)
+            offline_ids.append(agent.uuid)
         db.commit()
+        if offline_ids:
+            remote_support_service.end_sessions_for_offline_agents(db, offline_ids)
+    finally:
+        db.close()
+
+
+def check_remote_support_timeouts() -> None:
+    db = SessionLocal()
+    try:
+        if not remote_support_service.settings.remote_support_enabled:
+            return
+        remote_support_service.check_approval_timeouts(db)
+        remote_support_service.check_max_durations(db)
     finally:
         db.close()
 
@@ -88,6 +104,7 @@ def start_scheduler() -> None:
     scheduler.add_job(cleanup_old_logs, "cron", hour=3, minute=0, id="log_cleanup", replace_existing=True)
     scheduler.add_job(cleanup_old_inventory_history, "cron", hour=3, minute=10, id="inventory_history_cleanup", replace_existing=True)
     scheduler.add_job(cleanup_old_system_history_job, "cron", hour=3, minute=20, id="system_history_cleanup", replace_existing=True)
+    scheduler.add_job(check_remote_support_timeouts, "interval", seconds=30, id="rs_timeouts", replace_existing=True)
     try:
         scheduler.start()
     except RuntimeError:
@@ -97,6 +114,7 @@ def start_scheduler() -> None:
         scheduler.add_job(cleanup_old_logs, "cron", hour=3, minute=0, id="log_cleanup", replace_existing=True)
         scheduler.add_job(cleanup_old_inventory_history, "cron", hour=3, minute=10, id="inventory_history_cleanup", replace_existing=True)
         scheduler.add_job(cleanup_old_system_history_job, "cron", hour=3, minute=20, id="system_history_cleanup", replace_existing=True)
+        scheduler.add_job(check_remote_support_timeouts, "interval", seconds=30, id="rs_timeouts", replace_existing=True)
         scheduler.start()
 
 

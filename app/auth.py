@@ -31,12 +31,20 @@ def get_password_hash(password: str) -> str:
 
 
 def create_access_token(data: dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+    token, _ = create_access_token_with_exp(data, expires_delta=expires_delta)
+    return token
+
+
+def create_access_token_with_exp(
+    data: dict[str, Any], expires_delta: Optional[timedelta] = None
+) -> tuple[str, datetime]:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (
         expires_delta if expires_delta else timedelta(minutes=settings.jwt_expire_minutes)
     )
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, settings.secret_key, algorithm=settings.jwt_algorithm)
+    token = jwt.encode(to_encode, settings.secret_key, algorithm=settings.jwt_algorithm)
+    return token, expire
 
 
 def decode_access_token(token: str) -> str:

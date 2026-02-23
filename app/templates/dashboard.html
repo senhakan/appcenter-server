@@ -53,6 +53,9 @@
       <div class="card metric-card"><div class="muted metric-label">Uygulamalar</div><div class="metric metric-value" id="m-apps">-</div></div>
       <div class="card metric-card"><div class="muted metric-label">Dagitimlar</div><div class="metric metric-value" id="m-deployments">-</div></div>
     </div>
+    <div class="grid cols-4 metrics-grid" style="margin-top: 0;">
+      <div class="card metric-card"><div class="muted metric-label">Aktif Remote Oturum</div><div class="metric metric-value" id="m-active-remote">-</div></div>
+    </div>
     <div class="row spread wrap" style="margin:12px 0 8px 0;">
       <h3 style="margin:0;">Envanter</h3>
     </div>
@@ -98,7 +101,14 @@
   let totalAgents = 0;
 
   function esc(s) {
-    return (s || '').toString().replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+    // Minimal HTML escape for both text nodes and quoted attributes.
+    return (s || '')
+      .toString()
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
   }
 
   async function loadTimeline() {
@@ -121,7 +131,7 @@
         return `<div class="timeline-item">
           <div class="timeline-title"><a href="/agents/${esc(i.agent_uuid)}" style="text-decoration:none;color:inherit">${esc(title)}</a></div>
           <div class="timeline-summary">${esc(i.summary)}</div>
-          <div class="timeline-meta"><span class="${badgeClass}">${esc(badgeLabel)}</span> ${esc(whenRel)} · ${esc(when)}</div>
+          <div class="timeline-meta"><span class="${badgeClass}">${esc(badgeLabel)}</span> <span title="${esc(when)}" style="cursor: help;">${esc(whenRel)}</span></div>
         </div>`;
       }).join('');
     } catch (err) {
@@ -137,6 +147,7 @@
       document.getElementById('m-online').textContent = stats.online_agents;
       document.getElementById('m-apps').textContent = stats.total_applications;
       document.getElementById('m-deployments').textContent = stats.active_deployments;
+      document.getElementById('m-active-remote').textContent = stats.active_remote_sessions ?? 0;
     } catch (err) {
       AppCenterApi.toast(err.message);
     }

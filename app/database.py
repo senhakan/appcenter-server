@@ -52,6 +52,7 @@ DEFAULT_SETTINGS = {
     "agent_hash": ("", "Agent installer SHA256 hash"),
     "server_timezone": ("UTC", "Server timezone (always UTC)"),
     "ui_timezone": ("Europe/Istanbul", "UI timezone (IANA, ex: Europe/Istanbul)"),
+    "session_timeout_minutes": ("60", "Web session timeout (minutes)"),
     "inventory_scan_interval_min": ("10", "Agent envanter tarama araligi (dakika)"),
     "inventory_history_retention_days": ("90", "Yazilim degisim gecmisi saklama suresi (gun)"),
     "system_history_retention_days": ("360", "Sistem profili degisim gecmisi saklama suresi (gun)"),
@@ -90,9 +91,11 @@ def _run_startup_migrations() -> None:
         _migrate_sqlite_agents_inventory_columns()
         _migrate_sqlite_agents_session_columns()
         _migrate_sqlite_agents_system_profile_columns()
+        _migrate_sqlite_agents_remote_support_columns()
         _migrate_sqlite_system_profile_history_columns()
         _migrate_sqlite_agent_identity_history_table()
         _migrate_sqlite_agent_status_history_table()
+        _migrate_sqlite_remote_support_table()
 
 
 def _migrate_sqlite_applications_table() -> None:
@@ -227,6 +230,32 @@ def _migrate_sqlite_agents_system_profile_columns() -> None:
             conn.execute(text(f"ALTER TABLE agents ADD COLUMN {column_name} {column_type}"))
 
 
+def _migrate_sqlite_agents_remote_support_columns() -> None:
+    """Add remote support runtime status columns to agents table."""
+    expected_columns = {
+        "remote_support_state": "VARCHAR",
+        "remote_support_session_id": "INTEGER",
+        "remote_support_helper_running": "INTEGER DEFAULT 0",
+        "remote_support_helper_pid": "INTEGER",
+        "remote_support_updated_at": "DATETIME",
+    }
+
+    with engine.begin() as conn:
+        table_exists = conn.execute(
+            text("SELECT 1 FROM sqlite_master WHERE type='table' AND name='agents' LIMIT 1")
+        ).first()
+        if not table_exists:
+            return
+
+        rows = conn.execute(text("PRAGMA table_info(agents)")).mappings().all()
+        existing_columns = {row["name"] for row in rows}
+
+        for column_name, column_type in expected_columns.items():
+            if column_name in existing_columns:
+                continue
+            conn.execute(text(f"ALTER TABLE agents ADD COLUMN {column_name} {column_type}"))
+
+
 def _migrate_sqlite_system_profile_history_columns() -> None:
     """Add diff_json to agent_system_profile_history table."""
     expected_columns = {
@@ -294,6 +323,46 @@ def _migrate_sqlite_agent_status_history_table() -> None:
         )
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_statushist_agent ON agent_status_history(agent_uuid)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_statushist_detected ON agent_status_history(detected_at)"))
+
+
+def _migrate_sqlite_remote_support_table() -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS remote_support_sessions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    agent_uuid TEXT NOT NULL REFERENCES agents(uuid) ON DELETE CASCADE,
+                    admin_user_id INTEGER NOT NULL REFERENCES users(id),
+                    status TEXT NOT NULL DEFAULT 'pending_approval',
+                    reason TEXT,
+                    vnc_password TEXT,
+                    requested_at TEXT NOT NULL,
+                    approval_timeout_at TEXT NOT NULL,
+                    approved_at TEXT,
+                    connected_at TEXT,
+                    ended_at TEXT,
+                    ended_by TEXT,
+                    max_duration_min INTEGER NOT NULL DEFAULT 60,
+                    end_signal_pending INTEGER NOT NULL DEFAULT 0,
+                    admin_notes TEXT,
+                    CONSTRAINT ck_rs_status CHECK (
+                        status IN ('pending_approval','approved','rejected','connecting','active','ended','timeout','error')
+                    )
+                )
+                """
+            )
+        )
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_rs_agent ON remote_support_sessions(agent_uuid)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_rs_status ON remote_support_sessions(status)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_rs_requested ON remote_support_sessions(requested_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_rs_admin ON remote_support_sessions(admin_user_id)"))
+
+        # Older installs may have table without end_signal_pending.
+        rows = conn.execute(text("PRAGMA table_info(remote_support_sessions)")).mappings().all()
+        existing_columns = {row["name"] for row in rows}
+        if "end_signal_pending" not in existing_columns:
+            conn.execute(text("ALTER TABLE remote_support_sessions ADD COLUMN end_signal_pending INTEGER NOT NULL DEFAULT 0"))
 
 
 def seed_initial_data() -> None:

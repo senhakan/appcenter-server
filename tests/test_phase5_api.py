@@ -91,6 +91,29 @@ def test_agent_store_and_update_flow(client: TestClient, auth_headers: dict[str,
     assert len(update_download.content) > 0
 
 
+def test_agent_store_install_request_enqueues_command(client: TestClient, auth_headers: dict[str, str]) -> None:
+    app_id = _upload_application(client, auth_headers, name='Store Install App')
+    agent_headers = _register_agent(client, uuid='agent-store-install-1')
+
+    install_req = client.post(f'/api/v1/agent/store/{app_id}/install', headers=agent_headers)
+    assert install_req.status_code == 200
+    assert install_req.json()['status'] == 'queued'
+
+    hb = client.post(
+        '/api/v1/agent/heartbeat',
+        headers=agent_headers,
+        json={'hostname': 'PC-STORE-INSTALL', 'apps_changed': False, 'installed_apps': []},
+    )
+    assert hb.status_code == 200
+    commands = hb.json()['commands']
+    assert any(c['app_id'] == app_id and c['action'] == 'install' for c in commands)
+
+    # Idempotency: repeated click while task in-progress should not duplicate queue.
+    install_req_2 = client.post(f'/api/v1/agent/store/{app_id}/install', headers=agent_headers)
+    assert install_req_2.status_code == 200
+    assert install_req_2.json()['status'] in {'already_queued', 'already_installed', 'queued'}
+
+
 def test_deployment_task_assignment_and_status(client: TestClient, auth_headers: dict[str, str]) -> None:
     payload = {
         'display_name': 'Task App',
@@ -148,6 +171,39 @@ def test_deployment_task_assignment_and_status(client: TestClient, auth_headers:
     )
     assert status_update.status_code == 200
     assert status_update.json()['status'] == 'ok'
+
+
+def test_store_does_not_mark_downloading_as_installed(client: TestClient, auth_headers: dict[str, str]) -> None:
+    app_id = _upload_application(client, auth_headers, name='Store Downloading Visibility App')
+    agent_headers = _register_agent(client, uuid='agent-store-downloading-1')
+
+    deployment = client.post(
+        '/api/v1/deployments',
+        headers=auth_headers,
+        json={
+            'app_id': app_id,
+            'target_type': 'Agent',
+            'target_id': 'agent-store-downloading-1',
+            'is_active': True,
+            'priority': 5,
+        },
+    )
+    assert deployment.status_code == 200
+
+    hb = client.post(
+        '/api/v1/agent/heartbeat',
+        headers=agent_headers,
+        json={'hostname': 'PC-STORE-DOWNLOAD', 'apps_changed': False, 'installed_apps': []},
+    )
+    assert hb.status_code == 200
+    assert len(hb.json()['commands']) == 1
+
+    store = client.get('/api/v1/agent/store', headers=agent_headers)
+    assert store.status_code == 200
+    rows = [a for a in store.json()['apps'] if a['id'] == app_id]
+    assert len(rows) == 1
+    assert rows[0]['installed'] is False
+    assert rows[0]['install_state'] == 'downloading'
 
 
 def test_api_error_shape_for_unauthorized(client: TestClient) -> None:

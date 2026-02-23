@@ -37,6 +37,34 @@ Bu dokuman iki amac icin tutulur:
 - Kritik operasyonlarda onay adimi
 - Rol bazli erisim detaylandirma (admin/operator/viewer)
 
+### Faz 6.4 (Final UI Modernizasyonu - En Son Asama)
+- Tabler tabanli UI gecisi bu fazda yapilacak.
+- Kural: Faz 6.1, 6.2 ve 6.3 tamamlanmadan Tabler gecisine baslanmaz.
+- Kapsam:
+  - `base.html`, topbar, kart, tablo, form yapilarinin Tabler uyumlu hale getirilmesi
+  - dashboard + agents ekranlariyla pilot gecis
+  - onay sonrasi tum ekranlara kademeli tasima
+
+### Faz 7 (Planlandi - Beklemede): Kullanici Yonetimi ve Yetkilendirme
+- Durum: Sadece planlandi, henuz implement edilmedi.
+- Yaklasim: RBAC (role-based access control) + backend enforcement + UI gorunurluk kontrolu.
+- Roller:
+  - `admin`: tam yetki
+  - `operator`: operasyonel yazma yetkileri (deploy/app/group/agent vb.), kritik sistem ayarlari ve kullanici yonetimi yok
+  - `viewer`: salt-okunur
+- Kapsam:
+  - User management API (`/api/v1/users` CRUD + active/passive + password reset)
+  - Role guard dependency (endpoint bazli `403` kontrolu)
+  - UI menu/sayfa/aksiyon gorunurluk kurallari (role'a gore)
+  - `/api/v1/auth/me` veya login response ile role bilgisi
+  - Kendini kilitlemeyi onleyen korumalar (son admin silme/pasifleme engeli)
+  - Audit log altyapisina baglanti
+- Yetki matrisi (ozet):
+  - Dashboard/Agents/Inventory/Licenses list: `admin`, `operator`, `viewer`
+  - Uygulama/Deployment/Group yazma islemleri: `admin`, `operator`
+  - Settings update + User management: sadece `admin`
+  - Agent API: mevcut `X-Agent-UUID` + `X-Agent-Secret` modeli ile devam
+
 ## 3. UI Tema
 
 Aktif tema:

@@ -175,6 +175,23 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ./venv/bin/python -m pytest -q
 ```
 
+## Agent Update Publish (Standart Komut)
+
+Agent update paketi yayinlamak gerektiginde manuel `POST /api/v1/agent-update/upload`
+yerine asagidaki script kullanilir:
+
+```bash
+cd /root/appcenter/server
+APPCENTER_ADMIN_USERNAME='admin' APPCENTER_ADMIN_PASSWORD='admin123' \
+./scripts/publish-agent-update.sh --version 0.1.19
+```
+
+Notlar:
+- Script agent reposunda test + windows build yapar ve paketi API ile upload eder.
+- Canli ortamdaki kopya: `/opt/appcenter/server/scripts/publish-agent-update.sh`
+- Hazir artifact ile build atlamak icin:
+  - `./scripts/publish-agent-update.sh --version 0.1.19 --no-build --file /tmp/appcenter-service.exe --username admin --password '***'`
+
 - Test dosyalari:
 - `tests/conftest.py`
 - `tests/test_phase5_api.py`
@@ -188,3 +205,19 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - `docs/SMOKE_CHECKLIST.md`
 - `docs/TESTING_AND_CI.md`
 - `docs/ROADMAP_AND_THEME.md`
+
+## Remote Support Notu (2026-02-23)
+
+- Guacamole tabanli viewer akisi aktif kod yolundan cikarildi.
+- Guacamole container'lari devre disi birakildi (stop).
+- noVNC tumlesik (server icinde) akisa gecis planlanmaktadir.
+- Guacamole'yi hizli geri almak icin tek referans:
+  - `config/guacamole/REENABLE.md`
+  - `config/guacamole/docker-compose.guacamole.yml`
+  - `config/guacamole/nginx.guacamole.conf.snippet`
+
+Not:
+- Tabler tabanli UI gecisi planlanmistir ve en son asama (Faz 6.4) olarak konumlandirilmistir.
+- Bu asama icin geri donus referansi (git tag):
+  - `remote-support-novnc-iframe-baseline-20260223`
+  - Bu baseline, noVNC iframe akisinin calistigi ve Guacamole'nin devre disi kaldigi noktadir.

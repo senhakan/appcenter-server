@@ -1,0 +1,56 @@
+version: "3.8"
+
+services:
+  guacd:
+    image: guacamole/guacd:1.5.5
+    container_name: guacd
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:4822:5500"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 5500 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - guac-net
+
+  guacamole:
+    image: guacamole/guacamole:1.5.5
+    container_name: guacamole
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      GUACD_HOSTNAME: guacd
+      GUACD_PORT: "5500"
+      POSTGRESQL_HOSTNAME: guac-db
+      POSTGRESQL_PORT: "5432"
+      POSTGRESQL_DATABASE: guacamole_db
+      POSTGRESQL_USER: guac_user
+      POSTGRESQL_PASSWORD: CHANGE_ME
+    depends_on:
+      - guacd
+      - guac-db
+    networks:
+      - guac-net
+
+  guac-db:
+    image: postgres:15
+    container_name: guac-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: guacamole_db
+      POSTGRES_USER: guac_user
+      POSTGRES_PASSWORD: CHANGE_ME
+    volumes:
+      - guac_pgdata:/var/lib/postgresql/data
+    networks:
+      - guac-net
+
+networks:
+  guac-net:
+    name: guac-net
+
+volumes:
+  guac_pgdata:

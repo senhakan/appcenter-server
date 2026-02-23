@@ -30,6 +30,14 @@ pip install -r requirements.txt
 3. Faz 6.3:
 - Audit log (kim, neyi, ne zaman degistirdi)
 - kritik degisikliklerde onay/ikinci adim
+4. Faz 6.4 (en son):
+- Tabler tabanli UI modernizasyonu
+- Not: Bu faza, 6.1-6.3 tamamlanmadan girilmez.
+5. Faz 7 (planli, beklemede):
+- Kullanici yonetimi + RBAC yetkilendirme modulu
+- Roller: `admin`, `operator`, `viewer`
+- Kural: UI gizleme + backend `403` enforcement birlikte uygulanir
+- Not: Bu faz su an sadece backlog/plandir, aktif gelistirme baslamadi.
 
 Detayli yol haritasi ve tema notlari:
 - `docs/ROADMAP_AND_THEME.md`

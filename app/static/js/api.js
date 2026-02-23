@@ -1,6 +1,14 @@
 (function () {
   const API_PREFIX = "/api/v1";
   const UI_SETTINGS_CACHE_TTL_MS = 5 * 60 * 1000; // refresh occasionally so settings changes apply without reload
+  const SESSION_WARNING_SECONDS = 30;
+
+  let _sessionWarnTimer = null;
+  let _sessionExpireTimer = null;
+  let _sessionCountdownTimer = null;
+  let _sessionCountdownValue = SESSION_WARNING_SECONDS;
+  let _sessionModalBound = false;
+  let _sessionExtending = false;
 
   function getToken() {
     return localStorage.getItem("appcenter_token") || "";
@@ -8,10 +16,13 @@
 
   function setToken(token) {
     localStorage.setItem("appcenter_token", token);
+    scheduleSessionTimers();
   }
 
   function clearToken() {
     localStorage.removeItem("appcenter_token");
+    clearSessionTimers();
+    hideSessionModal();
   }
 
   function authHeaders(extra) {
@@ -28,6 +39,7 @@
     opts.headers = authHeaders(opts.headers || {});
     const res = await fetch(`${API_PREFIX}${path}`, opts);
     if (res.status === 401) {
+      forceLogout();
       throw new Error("Unauthorized");
     }
     const ct = res.headers.get("content-type") || "";
@@ -118,13 +130,13 @@
     if (!dt) return "-";
     const ms = Date.now() - dt.getTime();
     const sec = Math.floor(ms / 1000);
-    if (sec < 60) return `${sec}s önce`;
+    if (sec < 60) return `${sec} sn önce`;
     const min = Math.floor(sec / 60);
-    if (min < 60) return `${min}dk önce`;
+    if (min < 60) return `${min} dk önce`;
     const hr = Math.floor(min / 60);
-    if (hr < 24) return `${hr}sa önce`;
+    if (hr < 24) return `${hr} saat önce`;
     const day = Math.floor(hr / 24);
-    return `${day}g önce`;
+    return `${day} gün önce`;
   }
 
   function toast(message) {
@@ -135,10 +147,175 @@
     setTimeout(() => el.classList.remove("show"), 1700);
   }
 
+  function clearSessionTimers() {
+    if (_sessionWarnTimer) {
+      clearTimeout(_sessionWarnTimer);
+      _sessionWarnTimer = null;
+    }
+    if (_sessionExpireTimer) {
+      clearTimeout(_sessionExpireTimer);
+      _sessionExpireTimer = null;
+    }
+    if (_sessionCountdownTimer) {
+      clearInterval(_sessionCountdownTimer);
+      _sessionCountdownTimer = null;
+    }
+  }
+
+  function decodeJwtPayload(token) {
+    const parts = (token || "").split(".");
+    if (parts.length < 2) return null;
+    try {
+      const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      const padded = b64.padEnd(Math.ceil(b64.length / 4) * 4, "=");
+      return JSON.parse(atob(padded));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function getTokenExpiryMs(token) {
+    const payload = decodeJwtPayload(token);
+    if (!payload || !payload.exp) return null;
+    const exp = Number(payload.exp);
+    if (!Number.isFinite(exp) || exp <= 0) return null;
+    return exp * 1000;
+  }
+
+  function getSessionModalElements() {
+    return {
+      modal: document.getElementById("session-timeout-modal"),
+      card: document.querySelector("#session-timeout-modal .session-modal-card"),
+      countdown: document.getElementById("session-timeout-countdown"),
+      continueBtn: document.getElementById("session-continue-btn"),
+      logoutBtn: document.getElementById("session-logout-btn"),
+    };
+  }
+
+  function renderSessionCountdown() {
+    const { card, countdown } = getSessionModalElements();
+    const isCritical = _sessionCountdownValue <= 10;
+    if (card) card.classList.toggle("critical", isCritical);
+    if (countdown) countdown.textContent = String(Math.max(0, _sessionCountdownValue));
+    if (countdown) countdown.classList.toggle("critical", isCritical);
+  }
+
+  function hideSessionModal() {
+    const { modal, card, countdown } = getSessionModalElements();
+    if (!modal) return;
+    modal.classList.add("hidden");
+    if (card) card.classList.remove("critical");
+    if (countdown) countdown.classList.remove("critical");
+  }
+
+  function showSessionModal() {
+    const { modal, continueBtn } = getSessionModalElements();
+    if (!modal) return;
+    _sessionCountdownValue = SESSION_WARNING_SECONDS;
+    renderSessionCountdown();
+    modal.classList.remove("hidden");
+    if (continueBtn) continueBtn.focus();
+    if (_sessionCountdownTimer) clearInterval(_sessionCountdownTimer);
+    _sessionCountdownTimer = setInterval(() => {
+      _sessionCountdownValue -= 1;
+      renderSessionCountdown();
+      if (_sessionCountdownValue <= 0) {
+        clearInterval(_sessionCountdownTimer);
+        _sessionCountdownTimer = null;
+      }
+    }, 1000);
+  }
+
+  function forceLogout() {
+    clearSessionTimers();
+    hideSessionModal();
+    localStorage.removeItem("appcenter_token");
+    if (window.location.pathname !== "/login") {
+      window.location.href = "/login";
+    }
+  }
+
+  async function extendSession() {
+    if (_sessionExtending) return;
+    _sessionExtending = true;
+    const { continueBtn } = getSessionModalElements();
+    if (continueBtn) continueBtn.disabled = true;
+    try {
+      const res = await fetch(`${API_PREFIX}/auth/extend`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+      });
+      if (!res.ok) throw new Error("Session extend failed");
+      const data = await res.json();
+      if (!data.access_token) throw new Error("Session extend failed");
+      setToken(data.access_token);
+      hideSessionModal();
+      toast("Oturum suresi uzatildi");
+    } catch (_) {
+      forceLogout();
+    } finally {
+      _sessionExtending = false;
+      if (continueBtn) continueBtn.disabled = false;
+    }
+  }
+
+  function bindSessionModalOnce() {
+    if (_sessionModalBound) return;
+    const { continueBtn, logoutBtn } = getSessionModalElements();
+    if (!continueBtn || !logoutBtn) return;
+    continueBtn.addEventListener("click", () => {
+      extendSession();
+    });
+    logoutBtn.addEventListener("click", () => {
+      forceLogout();
+    });
+    document.addEventListener("keydown", (evt) => {
+      if (evt.key !== "Enter") return;
+      const { modal } = getSessionModalElements();
+      if (!modal || modal.classList.contains("hidden")) return;
+      evt.preventDefault();
+      extendSession();
+    });
+    _sessionModalBound = true;
+  }
+
+  function scheduleSessionTimers() {
+    clearSessionTimers();
+    bindSessionModalOnce();
+    const token = getToken();
+    if (!token) return;
+
+    const expiryMs = getTokenExpiryMs(token);
+    if (!expiryMs) return;
+
+    const now = Date.now();
+    const remainingMs = expiryMs - now;
+    if (remainingMs <= 0) {
+      forceLogout();
+      return;
+    }
+
+    const warningMs = SESSION_WARNING_SECONDS * 1000;
+    const warnInMs = remainingMs - warningMs;
+    if (warnInMs <= 0) {
+      showSessionModal();
+    } else {
+      _sessionWarnTimer = setTimeout(() => {
+        showSessionModal();
+      }, warnInMs);
+    }
+
+    _sessionExpireTimer = setTimeout(() => {
+      forceLogout();
+    }, remainingMs);
+  }
+
   function protectPage() {
     if (!getToken()) {
       window.location.href = "/login";
+      return;
     }
+    scheduleSessionTimers();
   }
 
   window.AppCenterApi = {

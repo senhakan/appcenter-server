@@ -1,23 +1,175 @@
 {% extends 'base.html' %}
 {% block title %}Dagitimlar{% endblock %}
 {% block content %}
+<style>
+  .ellipsis-cell {
+    max-width: 260px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block;
+    vertical-align: middle;
+  }
+  .app-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 300px;
+  }
+  .app-cell img {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    object-fit: cover;
+    border: 1px solid #dbe3ef;
+    flex: 0 0 auto;
+  }
+  .dep-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(21, 34, 56, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 998;
+    padding: 16px;
+  }
+  .dep-modal-backdrop.hidden {
+    display: none;
+  }
+  .dep-modal {
+    width: 100%;
+    max-width: 900px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 18px;
+    max-height: 92vh;
+    overflow: auto;
+  }
+  .dep-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .dep-modal-head h3 {
+    margin: 0;
+  }
+</style>
 <div class="card">
   <div class="row spread wrap">
     <h3 style="margin: 0;">Dagitimlar</h3>
     <div class="row">
-      <a class="btn" href="/deployments/create">Yeni Dagitim</a>
-      <button class="btn secondary" onclick="loadDeployments()">Yenile</button>
+      <button class="btn" id="dep-new-btn" type="button">Yeni Dagitim</button>
+      <button class="btn secondary" id="dep-refresh-btn" type="button">Yenile</button>
     </div>
   </div>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th>ID</th><th>App ID</th><th>Hedef</th><th>Oncelik</th><th>Aktif</th><th></th>
+          <th>ID</th><th>Hedef</th><th>Uygulama</th><th>Oncelik</th><th>Aktif</th><th></th>
         </tr>
       </thead>
       <tbody id="dep-rows"></tbody>
     </table>
+  </div>
+</div>
+
+<div id="dep-create-modal" class="dep-modal-backdrop hidden" aria-live="polite">
+  <div class="dep-modal">
+    <div class="dep-modal-head">
+      <h3>Yeni Dagitim</h3>
+    </div>
+    <form id="dep-create-form" class="grid">
+      <div class="grid cols-2">
+        <div>
+          <label>Uygulama</label>
+          <select name="app_id" required></select>
+        </div>
+        <div>
+          <label>Oncelik</label>
+          <input name="priority" type="number" min="1" value="5" required />
+        </div>
+      </div>
+      <div class="grid cols-2">
+        <div>
+          <label>Hedef Tipi</label>
+          <select name="target_type" data-role="target-type">
+            <option value="All">All</option>
+            <option value="Group">Group</option>
+            <option value="Agent">Agent</option>
+          </select>
+        </div>
+        <div data-role="target-group-wrap" style="display:none;">
+          <label>Grup</label>
+          <select name="target_group_id"></select>
+        </div>
+        <div data-role="target-agent-wrap" style="display:none;">
+          <label>Agent</label>
+          <select name="target_agent_uuid"></select>
+        </div>
+      </div>
+      <div class="row wrap">
+        <label><input type="checkbox" name="is_mandatory" /> Zorunlu</label>
+        <label><input type="checkbox" name="force_update" /> Force Update</label>
+        <label><input type="checkbox" name="is_active" checked /> Aktif</label>
+      </div>
+      <div class="row" style="justify-content:flex-end;">
+        <button class="btn secondary" id="dep-create-cancel-btn" type="button">Iptal</button>
+        <button class="btn" type="submit">Olustur</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="dep-edit-modal" class="dep-modal-backdrop hidden" aria-live="polite">
+  <div class="dep-modal">
+    <div class="dep-modal-head">
+      <h3>Dagitim Duzenle</h3>
+    </div>
+    <form id="dep-edit-form" class="grid">
+      <input type="hidden" name="id" />
+      <div class="grid cols-2">
+        <div>
+          <label>Uygulama</label>
+          <select name="app_id" required></select>
+        </div>
+        <div>
+          <label>Oncelik</label>
+          <input name="priority" type="number" min="1" value="5" required />
+        </div>
+      </div>
+      <div class="grid cols-2">
+        <div>
+          <label>Hedef Tipi</label>
+          <select name="target_type" data-role="target-type">
+            <option value="All">All</option>
+            <option value="Group">Group</option>
+            <option value="Agent">Agent</option>
+          </select>
+        </div>
+        <div data-role="target-group-wrap" style="display:none;">
+          <label>Grup</label>
+          <select name="target_group_id"></select>
+        </div>
+        <div data-role="target-agent-wrap" style="display:none;">
+          <label>Agent</label>
+          <select name="target_agent_uuid"></select>
+        </div>
+      </div>
+      <div class="row wrap">
+        <label><input type="checkbox" name="is_mandatory" /> Zorunlu</label>
+        <label><input type="checkbox" name="force_update" /> Force Update</label>
+        <label><input type="checkbox" name="is_active" /> Aktif</label>
+      </div>
+      <div class="row" style="justify-content:flex-end;">
+        <button class="btn secondary" id="dep-edit-cancel-btn" type="button">Iptal</button>
+        <button class="btn" type="submit">Kaydet</button>
+      </div>
+    </form>
   </div>
 </div>
 {% endblock %}
@@ -25,12 +177,129 @@
 <script>
   AppCenterApi.protectPage();
 
+  let depItems = [];
+  let appItems = [];
+  let agentItems = [];
+  let groupItems = [];
+
+  const createModal = document.getElementById('dep-create-modal');
+  const editModal = document.getElementById('dep-edit-modal');
+
+  function esc(v) {
+    return (v ?? '').toString()
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  function openModal(modal) { modal.classList.remove('hidden'); }
+  function closeModal(modal) { modal.classList.add('hidden'); }
+
+  function syncTargetInputs(formEl) {
+    const targetType = formEl.querySelector('[data-role="target-type"]').value;
+    const groupWrap = formEl.querySelector('[data-role="target-group-wrap"]');
+    const agentWrap = formEl.querySelector('[data-role="target-agent-wrap"]');
+    if (groupWrap) groupWrap.style.display = targetType === 'Group' ? '' : 'none';
+    if (agentWrap) agentWrap.style.display = targetType === 'Agent' ? '' : 'none';
+  }
+
+  function fillFormOptions(formEl) {
+    const appSelect = formEl.querySelector('select[name="app_id"]');
+    appSelect.innerHTML = '';
+    appItems.forEach((app) => {
+      const option = document.createElement('option');
+      option.value = String(app.id);
+      option.textContent = `${app.display_name} (${app.version})`;
+      appSelect.appendChild(option);
+    });
+
+    const agentSelect = formEl.querySelector('select[name="target_agent_uuid"]');
+    agentSelect.innerHTML = '';
+    agentItems.forEach((agent) => {
+      const option = document.createElement('option');
+      option.value = agent.uuid;
+      option.textContent = `${agent.hostname || agent.uuid} (${agent.uuid})`;
+      agentSelect.appendChild(option);
+    });
+
+    const groupSelect = formEl.querySelector('select[name="target_group_id"]');
+    groupSelect.innerHTML = '';
+    groupItems.forEach((group) => {
+      const option = document.createElement('option');
+      option.value = String(group.id);
+      option.textContent = `${group.name} (#${group.id})`;
+      groupSelect.appendChild(option);
+    });
+  }
+
+  function getTargetText(d) {
+    let targetText = d.target_type || '-';
+    if (d.target_type === 'Agent' && d.target_id) {
+      const agent = agentItems.find((a) => String(a.uuid) === String(d.target_id));
+      const host = agent?.hostname || d.target_id;
+      targetText = `Agent / ${host}`;
+    } else if (d.target_type === 'Group' && d.target_id) {
+      const group = groupItems.find((g) => String(g.id) === String(d.target_id));
+      const groupName = group?.name || d.target_id;
+      targetText = `Group / ${groupName}`;
+    } else if (d.target_id) {
+      targetText = `${d.target_type} / ${d.target_id}`;
+    }
+    return targetText;
+  }
+
+  function renderTable() {
+    const rows = document.getElementById('dep-rows');
+    rows.innerHTML = '';
+    depItems.forEach((d) => {
+      const app = appItems.find((a) => Number(a.id) === Number(d.app_id));
+      const appName = app?.display_name || `App #${d.app_id}`;
+      const appTitle = `${appName} (ID: ${d.app_id})`;
+      const appIcon = app?.icon_url ? `<img src="${esc(app.icon_url)}" alt="icon" />` : '';
+      const targetText = getTargetText(d);
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${d.id}</td>
+        <td><span class="ellipsis-cell" title="${esc(targetText)}">${esc(targetText)}</span></td>
+        <td>
+          <span class="app-cell" title="${esc(appTitle)}">
+            ${appIcon}
+            <span class="ellipsis-cell">${esc(appName)}</span>
+          </span>
+        </td>
+        <td>${d.priority}</td>
+        <td>${d.is_active ? '<span class="badge ok">aktif</span>' : '<span class="badge warn">pasif</span>'}</td>
+        <td class="row">
+          <button class="btn secondary" type="button" data-action="edit" data-id="${d.id}">Duzenle</button>
+          <button class="btn danger" type="button" data-action="delete" data-id="${d.id}">Sil</button>
+        </td>
+      `;
+      rows.appendChild(tr);
+    });
+
+    rows.querySelectorAll('button[data-action="edit"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = Number(btn.getAttribute('data-id') || '0');
+        openEditModal(id);
+      });
+    });
+    rows.querySelectorAll('button[data-action="delete"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = Number(btn.getAttribute('data-id') || '0');
+        removeDeployment(id);
+      });
+    });
+  }
+
   async function removeDeployment(id) {
     if (!confirm(`Dagitim silinsin mi? (${id})`)) return;
     try {
       await AppCenterApi.req(`/deployments/${id}`, { method: 'DELETE' });
       AppCenterApi.toast('Silindi');
-      loadDeployments();
+      await loadDeployments();
     } catch (err) {
       AppCenterApi.toast(err.message);
     }
@@ -38,29 +307,120 @@
 
   async function loadDeployments() {
     try {
-      const data = await AppCenterApi.req('/deployments');
-      const rows = document.getElementById('dep-rows');
-      rows.innerHTML = '';
-      (data.items || []).forEach((d) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${d.id}</td>
-          <td>${d.app_id}</td>
-          <td>${d.target_type}${d.target_id ? ' / ' + d.target_id : ''}</td>
-          <td>${d.priority}</td>
-          <td>${d.is_active ? '<span class="badge ok">aktif</span>' : '<span class="badge warn">pasif</span>'}</td>
-          <td class="row">
-            <a class="btn secondary" href="/deployments/${d.id}/edit">Duzenle</a>
-            <button class="btn danger" onclick="removeDeployment(${d.id})">Sil</button>
-          </td>
-        `;
-        rows.appendChild(tr);
-      });
+      const [depData, appsData, agentsData, groupsData] = await Promise.all([
+        AppCenterApi.req('/deployments'),
+        AppCenterApi.req('/applications?only_active=true'),
+        AppCenterApi.req('/agents'),
+        AppCenterApi.req('/groups'),
+      ]);
+      depItems = depData.items || [];
+      appItems = appsData.items || [];
+      agentItems = agentsData.items || [];
+      groupItems = groupsData.items || [];
+
+      fillFormOptions(document.getElementById('dep-create-form'));
+      fillFormOptions(document.getElementById('dep-edit-form'));
+      renderTable();
     } catch (err) {
       AppCenterApi.toast(err.message);
     }
   }
 
+  function openCreateModal() {
+    const form = document.getElementById('dep-create-form');
+    form.reset();
+    form.priority.value = '5';
+    form.target_type.value = 'All';
+    form.is_active.checked = true;
+    syncTargetInputs(form);
+    openModal(createModal);
+  }
+
+  function openEditModal(id) {
+    const dep = depItems.find((x) => Number(x.id) === Number(id));
+    if (!dep) return;
+    const form = document.getElementById('dep-edit-form');
+    form.id.value = String(dep.id);
+    form.app_id.value = String(dep.app_id);
+    form.priority.value = String(dep.priority || 5);
+    form.target_type.value = dep.target_type || 'All';
+    form.target_group_id.value = dep.target_type === 'Group' ? (dep.target_id || '') : '';
+    form.target_agent_uuid.value = dep.target_type === 'Agent' ? (dep.target_id || '') : '';
+    form.is_mandatory.checked = !!dep.is_mandatory;
+    form.force_update.checked = !!dep.force_update;
+    form.is_active.checked = !!dep.is_active;
+    syncTargetInputs(form);
+    openModal(editModal);
+  }
+
+  function bindTargetChange(formId) {
+    const form = document.getElementById(formId);
+    const targetType = form.querySelector('[data-role="target-type"]');
+    targetType.addEventListener('change', () => syncTargetInputs(form));
+  }
+
+  function formToPayload(form) {
+    const fd = new FormData(form);
+    const targetType = (fd.get('target_type') || '').toString();
+    let targetId = null;
+    if (targetType === 'Group') targetId = (fd.get('target_group_id') || '').toString() || null;
+    if (targetType === 'Agent') targetId = (fd.get('target_agent_uuid') || '').toString() || null;
+    return {
+      app_id: Number(fd.get('app_id')),
+      target_type: targetType,
+      target_id: targetType === 'All' ? null : targetId,
+      priority: Number(fd.get('priority')),
+      is_mandatory: fd.get('is_mandatory') === 'on',
+      force_update: fd.get('force_update') === 'on',
+      is_active: fd.get('is_active') === 'on',
+    };
+  }
+
+  document.getElementById('dep-new-btn').addEventListener('click', openCreateModal);
+  document.getElementById('dep-refresh-btn').addEventListener('click', () => loadDeployments());
+  document.getElementById('dep-create-cancel-btn').addEventListener('click', () => closeModal(createModal));
+  document.getElementById('dep-edit-cancel-btn').addEventListener('click', () => closeModal(editModal));
+  createModal.addEventListener('click', (e) => { if (e.target === createModal) closeModal(createModal); });
+  editModal.addEventListener('click', (e) => { if (e.target === editModal) closeModal(editModal); });
+
+  document.getElementById('dep-create-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      const payload = formToPayload(e.target);
+      await AppCenterApi.req('/deployments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      closeModal(createModal);
+      AppCenterApi.toast('Dagitim olusturuldu');
+      await loadDeployments();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+
+  document.getElementById('dep-edit-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = Number((new FormData(e.target).get('id') || '0').toString());
+    if (!id) return;
+    try {
+      const payload = formToPayload(e.target);
+      await AppCenterApi.req(`/deployments/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      closeModal(editModal);
+      AppCenterApi.toast('Dagitim guncellendi');
+      await loadDeployments();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+
+  bindTargetChange('dep-create-form');
+  bindTargetChange('dep-edit-form');
   loadDeployments();
 </script>
 {% endblock %}

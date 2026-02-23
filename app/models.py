@@ -83,6 +83,13 @@ class Agent(Base):
     system_profile_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     system_profile_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Remote support runtime status snapshot from heartbeat.
+    remote_support_state: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    remote_support_session_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    remote_support_helper_running: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    remote_support_helper_pid: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    remote_support_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
     agent_applications: Mapped[list["AgentApplication"]] = relationship(back_populates="agent")
     agent_groups: Mapped[list["AgentGroup"]] = relationship(back_populates="agent", cascade="all, delete-orphan")
 
@@ -246,6 +253,32 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class RemoteSupportSession(Base):
+    __tablename__ = "remote_support_sessions"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending_approval','approved','rejected','connecting','active','ended','timeout','error')",
+            name="ck_rs_status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    agent_uuid: Mapped[str] = mapped_column(ForeignKey("agents.uuid", ondelete="CASCADE"), nullable=False)
+    admin_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String, default="pending_approval", nullable=False)
+    reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    vnc_password: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    approval_timeout_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    connected_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    ended_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    max_duration_min: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
+    end_signal_pending: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    admin_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
 Index("idx_settings_key", Setting.key)
 Index("idx_group_name", Group.name)
 Index("idx_agent_status", Agent.status)
@@ -267,6 +300,10 @@ Index("idx_task_app", TaskHistory.app_id)
 Index("idx_task_status", TaskHistory.status)
 Index("idx_task_created", TaskHistory.created_at)
 Index("idx_user_username", User.username)
+Index("idx_rs_agent", RemoteSupportSession.agent_uuid)
+Index("idx_rs_status", RemoteSupportSession.status)
+Index("idx_rs_requested", RemoteSupportSession.requested_at)
+Index("idx_rs_admin", RemoteSupportSession.admin_user_id)
 
 
 class AgentSoftwareInventory(Base):

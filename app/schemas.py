@@ -94,6 +94,13 @@ class SystemProfile(BaseModel):
     virtualization: Optional[VirtualizationInfo] = None
 
 
+class RemoteSupportHeartbeat(BaseModel):
+    state: Optional[str] = None
+    session_id: Optional[int] = None
+    helper_running: bool = False
+    helper_pid: Optional[int] = None
+
+
 class HeartbeatRequest(BaseModel):
     hostname: str
     ip_address: Optional[str] = None
@@ -108,6 +115,7 @@ class HeartbeatRequest(BaseModel):
     inventory_hash: Optional[str] = None
     logged_in_sessions: Optional[list[LoggedInSession]] = None
     system_profile: Optional[SystemProfile] = None
+    remote_support: Optional[RemoteSupportHeartbeat] = None
 
 
 class CommandItem(BaseModel):
@@ -135,11 +143,45 @@ class HeartbeatConfig(BaseModel):
     inventory_scan_interval_min: int = 10
 
 
+class RemoteSupportRequest(BaseModel):
+    session_id: int
+    admin_name: str
+    reason: str = ""
+    requested_at: datetime
+    timeout_at: datetime
+
+
+class RemoteSupportEnd(BaseModel):
+    session_id: int
+
+
 class HeartbeatResponse(BaseModel):
     status: str = "ok"
     server_time: datetime
     config: HeartbeatConfig
     commands: list[CommandItem] = Field(default_factory=list)
+    remote_support_request: Optional[RemoteSupportRequest] = None
+    remote_support_end: Optional[RemoteSupportEnd] = None
+
+
+class RemoteSessionCreateRequest(BaseModel):
+    agent_uuid: str
+    reason: str = ""
+    max_duration_min: int = Field(default=60, ge=1, le=480)
+
+
+class RemoteSessionAgentApproveRequest(BaseModel):
+    approved: bool
+
+
+class RemoteSessionReadyRequest(BaseModel):
+    vnc_ready: bool = True
+    local_vnc_port: int = 5900
+
+
+class RemoteSessionEndedRequest(BaseModel):
+    ended_by: str = "agent"
+    reason: str = ""
 
 
 class UserPublic(BaseModel):
@@ -263,6 +305,11 @@ class AgentResponse(BaseModel):
     logged_in_sessions_updated_at: Optional[datetime] = None
     system_profile: Optional[SystemProfile] = None
     system_profile_updated_at: Optional[datetime] = None
+    remote_support_state: Optional[str] = None
+    remote_support_session_id: Optional[int] = None
+    remote_support_helper_running: bool = False
+    remote_support_helper_pid: Optional[int] = None
+    remote_support_updated_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 
@@ -373,6 +420,7 @@ class DashboardStatsResponse(BaseModel):
     pending_tasks: int
     failed_tasks: int
     active_deployments: int
+    active_remote_sessions: int
 
 
 class SettingItem(BaseModel):

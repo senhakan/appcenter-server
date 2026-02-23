@@ -167,6 +167,8 @@
       const sessions = (data.logged_in_sessions || []).map(s => `${s.username} (${s.session_type})`);
       const sessionsText = sessions.length ? sessions.join('<br/>') : '-';
       const sessionsUpdated = data.logged_in_sessions_updated_at ? AppCenterApi.formatDate(data.logged_in_sessions_updated_at) : '-';
+      const rsUpdated = data.remote_support_updated_at ? AppCenterApi.formatDate(data.remote_support_updated_at) : '-';
+      const rsHelper = data.remote_support_helper_running ? `Calisiyor${data.remote_support_helper_pid ? (' (PID ' + data.remote_support_helper_pid + ')') : ''}` : 'Calismiyor';
       const sys = data.system_profile || null;
       const sysUpdated = data.system_profile_updated_at ? AppCenterApi.formatDate(data.system_profile_updated_at) : '-';
       const sysDisks = sys ? ((sys.disks || []).map(d => `Disk ${d.index}: ${d.size_gb || '?'} GB (${d.bus_type || '?'}) ${d.model || ''}`.trim()).join('<br/>') || '-') : '-';
@@ -180,6 +182,10 @@
         <div><label>Son Gorulme</label><div>${data.last_seen ? AppCenterApi.formatDate(data.last_seen) : '-'}</div></div>
         <div><label>Login Olan Kullanici(lar)</label><div>${sessionsText}</div></div>
         <div><label>Session Guncelleme</label><div>${sessionsUpdated}</div></div>
+        <div><label>Remote State</label><div>${data.remote_support_state || '-'}</div></div>
+        <div><label>Remote Session ID</label><div>${data.remote_support_session_id || '-'}</div></div>
+        <div><label>Remote Helper</label><div>${rsHelper}</div></div>
+        <div><label>Remote Guncelleme</label><div>${rsUpdated}</div></div>
         <div><label>Sistem Profili Guncelleme</label><div>${sysUpdated}</div></div>
         <div><label>OS</label><div>${sys ? ((sys.os_full_name || '-') + ' ' + (sys.os_version || '') + (sys.build_number ? (' (Build ' + sys.build_number + ')') : '')) : '-'}</div></div>
         <div><label>Mimari</label><div>${sys ? (sys.architecture || '-') : '-'}</div></div>

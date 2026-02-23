@@ -68,7 +68,7 @@
     <table>
       <thead>
         <tr>
-          <th>Hostname</th><th>Login Kullanici</th><th>IP</th><th>Durum</th><th>Version</th><th></th>
+          <th>Hostname</th><th>Login Kullanici</th><th>IP</th><th>Durum</th><th>Remote</th><th>Helper</th><th>Version</th><th></th>
         </tr>
       </thead>
       <tbody id="agent-rows"></tbody>
@@ -154,6 +154,12 @@
         ? `<span class="note-chip" data-tooltip="${esc(noteText)}" aria-label="Not var" title="Not">N</span>`
         : '';
       const tr = document.createElement('tr');
+      const rsState = agent.remote_support_state || '-';
+      const rsSession = (agent.remote_support_session_id || 0) > 0 ? `#${agent.remote_support_session_id}` : '-';
+      const rsUpdated = agent.remote_support_updated_at ? AppCenterApi.formatDate(agent.remote_support_updated_at) : '-';
+      const helperText = agent.remote_support_helper_running
+        ? `Calisiyor${agent.remote_support_helper_pid ? (' (PID ' + agent.remote_support_helper_pid + ')') : ''}`
+        : 'Calismiyor';
       tr.innerHTML = `
         <td>
           <span class="agent-host-wrap">
@@ -164,14 +170,28 @@
         <td>${esc(getLoginUsers(agent))}</td>
         <td>${esc(agent.ip_address || '-')}</td>
         <td><span class="badge ${agent.status === 'online' ? 'ok' : 'warn'}" title="${esc(seenRel)}" style="cursor: help;">${esc(agent.status || '-')}</span></td>
+        <td title="${esc(rsUpdated)}" style="cursor: help;">${esc(rsState)} / ${esc(rsSession)}</td>
+        <td>${esc(helperText)}</td>
         <td>${esc(agent.version || '-')}</td>
-        <td><a class="btn secondary" href="/agents/${encodeURIComponent(agent.uuid)}">Detay</a></td>
+        <td>
+          <div class="row wrap" style="gap:6px;">
+            <a class="btn secondary" href="/agents/${encodeURIComponent(agent.uuid)}">Detay</a>
+            <button
+              class="btn js-connect-remote"
+              type="button"
+              data-agent-uuid="${esc(agent.uuid || '')}"
+              data-agent-hostname="${esc(agent.hostname || '')}"
+              data-agent-status="${esc(agent.status || '')}"
+              ${agent.status === 'online' ? '' : 'disabled'}
+            >Baglan</button>
+          </div>
+        </td>
       `;
       rows.appendChild(tr);
     });
 
     if (!pageItems.length) {
-      rows.innerHTML = '<tr><td colspan="6" class="muted">Kayit yok</td></tr>';
+      rows.innerHTML = '<tr><td colspan="8" class="muted">Kayit yok</td></tr>';
     }
 
     const from = total ? (start + 1) : 0;
@@ -195,6 +215,40 @@
     return `${day}gün önce`;
   }
 
+  async function requestRemoteSupport(agentUUID, agentHostname, agentStatus) {
+    const status = (agentStatus || '').toLowerCase();
+    if (status !== 'online') {
+      AppCenterApi.toast('Baglanti istegi icin ajan cevrimici olmali');
+      return;
+    }
+
+    const targetLabel = agentHostname || agentUUID;
+    if (!window.confirm(`${targetLabel} icin baglanti istegi gonderilsin mi?`)) {
+      return;
+    }
+
+    try {
+      await AppCenterApi.initUi();
+      const payload = {
+        agent_uuid: agentUUID,
+        reason: 'Ajanlar listesinden baslatildi',
+        max_duration_min: 60,
+      };
+      const data = await AppCenterApi.req('/remote-support/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const sid = data && data.session && data.session.id ? data.session.id : '-';
+      AppCenterApi.toast(`Baglanti istegi gonderildi (oturum #${sid})`);
+      if (sid !== '-') {
+        window.open(`/remote-support/sessions/${encodeURIComponent(sid)}`, '_blank', 'noopener,noreferrer');
+      }
+    } catch (err) {
+      AppCenterApi.toast(err.message || 'Baglanti istegi gonderilemedi');
+    }
+  }
+
   async function loadAgents() {
     try {
       await AppCenterApi.initUi();
@@ -209,6 +263,15 @@
 
   (async function () {
     await AppCenterApi.initUi();
+    document.getElementById('agent-rows').addEventListener('click', (evt) => {
+      const btn = evt.target.closest('.js-connect-remote');
+      if (!btn) return;
+      requestRemoteSupport(
+        btn.getAttribute('data-agent-uuid') || '',
+        btn.getAttribute('data-agent-hostname') || '',
+        btn.getAttribute('data-agent-status') || ''
+      );
+    });
     document.getElementById('agent-search').addEventListener('input', () => {
       currentPage = 1;
       applyFilter();

@@ -1,0 +1,244 @@
+{% extends 'base.html' %}
+{% block title %}Uzak Destek Oturumu{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row spread wrap">
+    <h3 style="margin:0;">Uzak Destek Oturumu #{{ session_id }}</h3>
+    <div class="row wrap" style="gap:8px;">
+      <button id="btn-connect" class="btn" type="button">Baglan</button>
+      <button id="btn-refresh" class="btn secondary" type="button">Yenile</button>
+      <button id="btn-end" class="btn" type="button">Oturumu Bitir</button>
+    </div>
+  </div>
+
+  <div style="margin-top:8px;" id="session-box" class="muted">Yukleniyor...</div>
+  <div style="margin-top:8px; display:flex; align-items:center; gap:8px;">
+    <span id="conn-badge" class="badge warn">Hazir</span>
+    <div id="viewer-status" class="muted">Canli ekran baglantisi hazirlaniyor...</div>
+  </div>
+  <div id="viewer-wrap" style="margin-top:8px; min-height:560px; border:1px solid #2f3640; border-radius:10px; background:#0b1020; overflow:hidden;">
+    <div id="viewer-display" style="width:100%; height:100%; min-height:560px;"></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+
+  const SESSION_ID = {{ session_id }};
+  let currentSession = null;
+  let liveConnState = 'idle'; // idle|ticketing|connecting|connected|reconnecting|disconnected|error
+
+  function esc(s) {
+    return (s || '')
+      .toString()
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  function setViewerStatus(text) {
+    const el = document.getElementById('viewer-status');
+    if (el) el.textContent = text || '';
+  }
+
+  function setConnBadge(label, tone) {
+    const el = document.getElementById('conn-badge');
+    if (!el) return;
+    el.textContent = label || '-';
+    if (tone === 'ok') {
+      el.className = 'badge ok';
+      return;
+    }
+    if (tone === 'error') {
+      el.className = 'badge warn';
+      return;
+    }
+    el.className = 'badge warn';
+  }
+
+  function isLiveConnected() {
+    return ['connecting', 'connected', 'reconnecting'].includes(liveConnState);
+  }
+
+  function handleNoVncMessage(ev) {
+    const d = ev && ev.data ? ev.data : null;
+    if (!d || d.source !== 'appcenter-novnc') return;
+    if (d.kind === 'state') {
+      const st = (d.payload && d.payload.state ? d.payload.state : '').toLowerCase();
+      if (st === 'connecting') {
+        liveConnState = 'connecting';
+        setConnBadge('Baglaniyor', 'warn');
+      } else if (st === 'connected') {
+        liveConnState = 'connected';
+        setConnBadge('Bagli', 'ok');
+      } else if (st === 'reconnecting') {
+        liveConnState = 'reconnecting';
+        setConnBadge('Yeniden Baglaniyor', 'warn');
+      } else if (st === 'disconnecting') {
+        liveConnState = 'disconnected';
+        setConnBadge('Ayriliyor', 'warn');
+      } else if (st === 'disconnected') {
+        liveConnState = 'disconnected';
+        setConnBadge('Ayrildi', 'warn');
+      }
+      return;
+    }
+    if (d.kind === 'status') {
+      const text = String((d.payload && d.payload.text) || '');
+      const low = text.toLowerCase();
+      if (low.includes('authentication rejected') || low.includes('credentials are required') || low.includes('security')) {
+        liveConnState = 'error';
+        setConnBadge('Kimlik Hatasi', 'error');
+      } else if (low.includes('failed to connect to server') || low.includes('something went wrong')) {
+        liveConnState = 'error';
+        setConnBadge('Sunucuya Erisim Yok', 'error');
+      }
+      if (text) setViewerStatus(text);
+    }
+  }
+
+  function disconnectViewer() {
+    const host = document.getElementById('viewer-display');
+    if (host) host.innerHTML = '';
+  }
+
+  async function loadSession() {
+    try {
+      await AppCenterApi.initUi();
+      const data = await AppCenterApi.req(`/remote-support/sessions/${SESSION_ID}`);
+      const s = (data && data.session) ? data.session : null;
+      if (!s) {
+        document.getElementById('session-box').textContent = 'Oturum verisi alinamadi';
+        return;
+      }
+      currentSession = s;
+
+      const html = `
+        <div style="overflow-x:auto; border:1px solid #2f3640; border-radius:8px;">
+          <table style="min-width:1100px; width:100%; border-collapse:collapse;">
+            <thead>
+              <tr>
+                <th style="text-align:left; padding:8px 10px;">Durum</th>
+                <th style="text-align:left; padding:8px 10px;">Ajan</th>
+                <th style="text-align:left; padding:8px 10px;">Sebep</th>
+                <th style="text-align:left; padding:8px 10px;">Talep</th>
+                <th style="text-align:left; padding:8px 10px;">Onay</th>
+                <th style="text-align:left; padding:8px 10px;">Baglandi</th>
+                <th style="text-align:left; padding:8px 10px;">Bitis</th>
+                <th style="text-align:left; padding:8px 10px;">Bitiren</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="padding:8px 10px;"><span class="badge ${s.status === 'active' ? 'ok' : 'warn'}">${esc(s.status || '-')}</span></td>
+                <td style="padding:8px 10px; font-family:monospace; font-size:12px;" title="${esc(s.agent_uuid || '-')}">${esc(s.agent_uuid || '-')}</td>
+                <td style="padding:8px 10px;" title="${esc(s.reason || '-')}">${esc(s.reason || '-')}</td>
+                <td style="padding:8px 10px; white-space:nowrap;">${esc(AppCenterApi.formatDate(s.requested_at))}</td>
+                <td style="padding:8px 10px; white-space:nowrap;">${esc(AppCenterApi.formatDate(s.approved_at))}</td>
+                <td style="padding:8px 10px; white-space:nowrap;">${esc(AppCenterApi.formatDate(s.connected_at))}</td>
+                <td style="padding:8px 10px; white-space:nowrap;">${esc(AppCenterApi.formatDate(s.ended_at))}</td>
+                <td style="padding:8px 10px;">${esc(s.ended_by || '-')}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      `;
+      document.getElementById('session-box').innerHTML = html;
+
+      const low = (s.status || '').toLowerCase();
+      const endedStates = ['ended', 'timeout', 'rejected', 'error'];
+      document.getElementById('btn-end').disabled = endedStates.includes(low);
+      const canConnect = ['approved', 'connecting', 'active'].includes(low);
+      document.getElementById('btn-connect').disabled = !canConnect;
+
+      if (endedStates.includes(low)) {
+        liveConnState = 'disconnected';
+        setConnBadge('Sonlandi', 'warn');
+        setViewerStatus('Oturum sonlandi.');
+        disconnectViewer();
+      } else {
+        if (!isLiveConnected()) {
+          setConnBadge('Hazir', 'warn');
+        }
+        setViewerStatus('Baglan butonu ile noVNC oturumu baslatilabilir.');
+      }
+    } catch (err) {
+      document.getElementById('session-box').textContent = err.message || 'Oturum verisi alinamadi';
+    }
+  }
+
+  async function startViewer() {
+    const state = ((currentSession && currentSession.status) || '').toLowerCase();
+    if (!['approved', 'connecting', 'active'].includes(state)) {
+      liveConnState = 'error';
+      setConnBadge('Durum Uygun Degil', 'error');
+      setViewerStatus('Baglanmadan once oturum onaylanmis olmalidir.');
+      return;
+    }
+    try {
+      liveConnState = 'ticketing';
+      setConnBadge('Bilet Aliniyor', 'warn');
+      setViewerStatus('noVNC baglanti bileti aliniyor...');
+      const data = await AppCenterApi.req(`/remote-support/sessions/${SESSION_ID}/novnc-ticket`);
+      const ticket = data && data.viewer ? data.viewer : null;
+      if (!ticket || !ticket.enabled) {
+        const reason = ticket && ticket.reason ? ticket.reason : 'viewer_disabled';
+        liveConnState = 'error';
+        setConnBadge('Bilet Hatasi', 'error');
+        setViewerStatus(`Goruntu acilamadi (${reason}).`);
+        return;
+      }
+
+      disconnectViewer();
+      const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      const basePath = (ticket.ws_path || '/novnc-ws').replace(/^\//, '');
+      const host = document.getElementById('viewer-display');
+      const iframe = document.createElement('iframe');
+      iframe.style.width = '100%';
+      iframe.style.height = '100%';
+      iframe.style.minHeight = '520px';
+      iframe.style.border = '0';
+      iframe.allow = 'clipboard-read; clipboard-write';
+      iframe.referrerPolicy = 'no-referrer';
+      iframe.src = `/static/novnc-v1/vnc.html?v=ac20260223c&autoconnect=1&resize=scale&show_dot=true&host=${encodeURIComponent(window.location.hostname)}&port=${encodeURIComponent(window.location.port || (window.location.protocol === 'https:' ? '443' : '80'))}&encrypt=${window.location.protocol === 'https:' ? '1' : '0'}&path=${encodeURIComponent(basePath)}&password=${encodeURIComponent(ticket.password || '')}&token=${encodeURIComponent(ticket.token)}`;
+      host.innerHTML = '';
+      host.appendChild(iframe);
+
+      liveConnState = 'connecting';
+      setConnBadge('Baglaniyor', 'warn');
+      setViewerStatus(`noVNC baglantisi aciliyor (${scheme}://${window.location.host}/${basePath})...`);
+    } catch (err) {
+      liveConnState = 'error';
+      setConnBadge('Baglanti Hatasi', 'error');
+      setViewerStatus(err.message || 'noVNC baslatilamadi');
+    }
+  }
+
+  async function endSession() {
+    if (!window.confirm('Bu oturum bitirilsin mi?')) return;
+    try {
+      await AppCenterApi.req(`/remote-support/sessions/${SESSION_ID}/end`, { method: 'POST' });
+      AppCenterApi.toast('Oturum bitirme istegi gonderildi');
+      loadSession();
+    } catch (err) {
+      AppCenterApi.toast(err.message || 'Oturum bitirilemedi');
+    }
+  }
+
+  (async function init() {
+    await AppCenterApi.initUi();
+    document.getElementById('btn-connect').addEventListener('click', startViewer);
+    document.getElementById('btn-refresh').addEventListener('click', loadSession);
+    document.getElementById('btn-end').addEventListener('click', endSession);
+    await loadSession();
+    setInterval(loadSession, 3000);
+    window.addEventListener('message', handleNoVncMessage);
+    setConnBadge('Hazir', 'warn');
+    setViewerStatus('Onayli oturumda Baglan ile noVNC baslat.');
+    window.addEventListener('beforeunload', disconnectViewer);
+  })();
+</script>
+{% endblock %}

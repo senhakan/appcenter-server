@@ -10,6 +10,11 @@
       <div><label>Agent Timeout (sn)</label><input id="s-agent-timeout" /></div>
       <div><label>Log Retention (gun)</label><input id="s-log-retention" /></div>
       <div>
+        <label>Web Session Timeout (dk)</label>
+        <input id="s-session-timeout" type="number" min="1" max="1440" />
+        <div class="muted" style="margin-top:6px;">Session bitimine 30 sn kala kullaniciya "Devam et" uyarisi gosterilir.</div>
+      </div>
+      <div>
         <label>UI Timezone (IANA)</label>
         <input id="s-ui-tz" placeholder="Europe/Istanbul" />
         <div class="muted" style="margin-top:6px;">UI'daki tum tarih/saat gosterimleri bu timezone'a gore donusturulur.</div>
@@ -44,6 +49,7 @@
       document.getElementById('s-heartbeat').value = map.heartbeat_interval_sec || '60';
       document.getElementById('s-agent-timeout').value = map.agent_timeout_sec || '300';
       document.getElementById('s-log-retention').value = map.log_retention_days || '30';
+      document.getElementById('s-session-timeout').value = map.session_timeout_minutes || '60';
       document.getElementById('s-ui-tz').value = map.ui_timezone || 'Europe/Istanbul';
       document.getElementById('s-inv-interval').value = map.inventory_scan_interval_min || '10';
       document.getElementById('s-inv-retention').value = map.inventory_history_retention_days || '90';
@@ -65,6 +71,7 @@
             heartbeat_interval_sec: document.getElementById('s-heartbeat').value,
             agent_timeout_sec: document.getElementById('s-agent-timeout').value,
             log_retention_days: document.getElementById('s-log-retention').value,
+            session_timeout_minutes: document.getElementById('s-session-timeout').value,
             ui_timezone: document.getElementById('s-ui-tz').value,
             inventory_scan_interval_min: document.getElementById('s-inv-interval').value,
             inventory_history_retention_days: document.getElementById('s-inv-retention').value,

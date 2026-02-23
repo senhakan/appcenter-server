@@ -2,34 +2,19 @@
 {% block title %}Gruplar{% endblock %}
 {% block content %}
 <style>
-  .groups-grid {
-    align-items: stretch;
-  }
-  .groups-grid > .card {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    margin: 0 !important;
-  }
   .groups-card-head {
-    min-height: 36px;
+    min-height: 38px;
     display: flex;
     align-items: center;
+    justify-content: space-between;
     margin-bottom: 12px;
   }
   .groups-card-head h3 {
     margin: 0;
   }
-  .groups-grid form {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    flex: 1;
-  }
   .groups-actions {
     display: flex;
     justify-content: flex-end;
-    margin-top: auto;
   }
   .groups-hint {
     font-size: 0.85rem;
@@ -48,64 +33,56 @@
   .transfer select {
     min-height: 260px;
   }
+  .group-list-actions {
+    display: flex;
+    gap: 8px;
+  }
+  .group-list-toolbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin: 10px 0 12px;
+  }
+  .group-list-search {
+    max-width: 340px;
+  }
+  .group-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(21, 34, 56, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 998;
+    padding: 16px;
+  }
+  .group-modal-backdrop.hidden {
+    display: none;
+  }
+  .group-modal {
+    width: 100%;
+    max-width: 520px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 18px;
+  }
+  .group-modal-title {
+    margin: 0 0 12px;
+  }
 </style>
 
-<div class="grid cols-2 groups-grid">
-  <div class="card">
-    <div class="groups-card-head">
-      <h3>Grup Olustur</h3>
+<div class="card">
+  <div class="groups-card-head">
+    <h3>Grup Listesi</h3>
+    <div class="group-list-actions">
+      <button class="btn secondary" id="groups-refresh-btn" type="button">Yenile</button>
+      <button class="btn" id="groups-new-btn" type="button">Yeni Grup</button>
     </div>
-    <form id="group-create-form" class="grid">
-      <div>
-        <label>Grup Adi</label>
-        <input name="name" required />
-      </div>
-      <div>
-        <label>Aciklama</label>
-        <input name="description" />
-      </div>
-      <div class="groups-actions">
-        <button class="btn" type="submit">Olustur</button>
-      </div>
-    </form>
   </div>
-  <div class="card">
-    <div class="groups-card-head">
-      <h3>Gruba Ajan Ata</h3>
-    </div>
-    <form id="group-assign-form" class="grid">
-      <div>
-        <label>Grup</label>
-        <select id="assign-group-id" required></select>
-      </div>
-      <div class="transfer">
-        <div>
-          <label>Atanmamis Ajanlar</label>
-          <select id="available-agent-uuids" multiple></select>
-        </div>
-        <div class="transfer-actions">
-          <button class="btn secondary" type="button" id="move-right-all">>></button>
-          <button class="btn secondary" type="button" id="move-right">></button>
-          <button class="btn secondary" type="button" id="move-left"><</button>
-          <button class="btn secondary" type="button" id="move-left-all"><<</button>
-        </div>
-        <div>
-          <label>Gruptaki Ajanlar</label>
-          <select id="assigned-agent-uuids" multiple></select>
-        </div>
-      </div>
-      <div class="groups-hint" id="assign-summary"></div>
-      <div class="groups-actions">
-        <button class="btn" type="submit">Atamalari Kaydet</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<div class="card" style="margin-top: 16px;">
-  <div class="row spread wrap">
-    <h3 style="margin: 0;">Grup Listesi</h3>
-    <button class="btn secondary" onclick="loadData()">Yenile</button>
+  <div class="group-list-toolbar">
+    <input id="group-search-input" class="group-list-search" type="text" placeholder="Grup ara: ad veya aciklama" />
   </div>
   <div class="table-wrap">
     <table>
@@ -117,6 +94,88 @@
       <tbody id="group-rows"></tbody>
     </table>
   </div>
+  <div id="groups-empty-state" class="card hidden" style="margin-top: 12px;">
+    <div class="muted">Henuz grup yok, Yeni Grup ile baslayin.</div>
+  </div>
+</div>
+
+<div class="card" style="margin-top: 16px;">
+  <div class="groups-card-head">
+    <h3>Gruba Ajan Ata</h3>
+  </div>
+  <form id="group-assign-form" class="grid">
+    <div>
+      <label>Grup</label>
+      <select id="assign-group-id" required></select>
+    </div>
+    <div class="transfer">
+      <div>
+        <label>Atanmamis Ajanlar</label>
+        <select id="available-agent-uuids" multiple></select>
+      </div>
+      <div class="transfer-actions">
+        <button class="btn secondary" type="button" id="move-right-all">>></button>
+        <button class="btn secondary" type="button" id="move-right">></button>
+        <button class="btn secondary" type="button" id="move-left"><</button>
+        <button class="btn secondary" type="button" id="move-left-all"><<</button>
+      </div>
+      <div>
+        <label>Gruptaki Ajanlar</label>
+        <select id="assigned-agent-uuids" multiple></select>
+      </div>
+    </div>
+    <div class="groups-hint" id="assign-summary"></div>
+    <div class="groups-actions">
+      <button class="btn" type="submit">Atamalari Kaydet</button>
+    </div>
+  </form>
+  </div>
+
+<div id="group-create-modal" class="group-modal-backdrop hidden" aria-live="polite">
+  <div class="group-modal">
+    <div class="groups-card-head">
+      <h3 class="group-modal-title">Yeni Grup</h3>
+      <button class="btn secondary" id="group-modal-close-btn" type="button">Kapat</button>
+    </div>
+    <form id="group-create-form" class="grid">
+      <div>
+        <label>Grup Adi</label>
+        <input name="name" required />
+      </div>
+      <div>
+        <label>Aciklama</label>
+        <input name="description" />
+      </div>
+      <div class="groups-actions">
+        <button class="btn secondary" id="group-modal-cancel-btn" type="button">Iptal</button>
+        <button class="btn" type="submit">Olustur</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="group-edit-modal" class="group-modal-backdrop hidden" aria-live="polite">
+  <div class="group-modal">
+    <div class="groups-card-head">
+      <h3 class="group-modal-title">Grup Duzenle</h3>
+      <button class="btn secondary" id="group-edit-modal-close-btn" type="button">Kapat</button>
+    </div>
+    <form id="group-edit-form" class="grid">
+      <input type="hidden" name="group_id" />
+      <div>
+        <label>Grup Adi</label>
+        <input name="name" required />
+      </div>
+      <div>
+        <label>Aciklama</label>
+        <input name="description" />
+      </div>
+      <div class="groups-actions">
+        <button class="btn secondary" id="group-edit-modal-cancel-btn" type="button">Iptal</button>
+        <button class="btn" type="submit">Kaydet</button>
+      </div>
+    </form>
+  </div>
 </div>
 {% endblock %}
 {% block scripts %}
@@ -125,11 +184,15 @@
 
   let groups = [];
   let agents = [];
+  const groupCreateModal = document.getElementById('group-create-modal');
+  const groupEditModal = document.getElementById('group-edit-modal');
+  let groupSearchQuery = '';
 
   function toOption(agent, selected = false) {
     const o = document.createElement('option');
     o.value = agent.uuid;
-    o.textContent = `${agent.hostname || agent.uuid} (${agent.uuid})`;
+    const suffix = (agent.ip_address || '-').toString();
+    o.textContent = `${agent.hostname || agent.uuid} (${suffix})`;
     o.selected = selected;
     return o;
   }
@@ -156,8 +219,26 @@
 
   function renderGroupsTable() {
     const rows = document.getElementById('group-rows');
+    const tableWrap = document.querySelector('.table-wrap');
+    const emptyState = document.getElementById('groups-empty-state');
     rows.innerHTML = '';
-    groups.forEach((g) => {
+    if (!Array.isArray(groups) || groups.length === 0) {
+      if (tableWrap) tableWrap.classList.add('hidden');
+      if (emptyState) emptyState.classList.remove('hidden');
+      return;
+    }
+    if (tableWrap) tableWrap.classList.remove('hidden');
+    if (emptyState) emptyState.classList.add('hidden');
+
+    const q = groupSearchQuery.trim().toLowerCase();
+    groups
+      .filter((g) => {
+        if (!q) return true;
+        const name = (g.name || '').toLowerCase();
+        const desc = (g.description || '').toLowerCase();
+        return name.includes(q) || desc.includes(q);
+      })
+      .forEach((g) => {
       const count = agents.filter((a) => {
         if (Array.isArray(a.group_ids)) return a.group_ids.includes(g.id);
         return Number(a.group_id || 0) === g.id;
@@ -168,9 +249,47 @@
         <td>${g.name}</td>
         <td>${g.description || '-'}</td>
         <td>${count}</td>
-        <td><a class="btn secondary" href="/groups/${g.id}/edit">Duzenle</a></td>
+        <td class="row">
+          <button class="btn secondary" type="button" data-action="edit-group" data-group-id="${g.id}">Duzenle</button>
+          <button class="btn danger" type="button" data-action="delete-group" data-group-id="${g.id}" data-group-name="${(g.name || '').replace(/"/g, '&quot;')}">Sil</button>
+        </td>
       `;
       rows.appendChild(tr);
+    });
+
+    rows.querySelectorAll('button[data-action="edit-group"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const groupId = Number(btn.getAttribute('data-group-id') || '0');
+        const group = groups.find((x) => Number(x.id) === groupId);
+        if (!group) return;
+        openGroupEditModal(group);
+      });
+    });
+
+    rows.querySelectorAll('button[data-action="delete-group"]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const groupId = Number(btn.getAttribute('data-group-id') || '0');
+        const groupName = btn.getAttribute('data-group-name') || `#${groupId}`;
+        if (!groupId) return;
+        const affectedAgentCount = agents.filter((a) => {
+          if (Array.isArray(a.group_ids)) return a.group_ids.includes(groupId);
+          return Number(a.group_id || 0) === groupId;
+        }).length;
+        const ok = window.confirm(
+          `'${groupName}' grubunu silmek istiyor musunuz?\n\n` +
+          `Etkilenecek ajan sayisi: ${affectedAgentCount}\n` +
+          `Bu gruptaki ajanlar gruptan cikarilacak.\n\n` +
+          `Bu islem geri alinamaz.`
+        );
+        if (!ok) return;
+        try {
+          await AppCenterApi.req(`/groups/${groupId}`, { method: 'DELETE' });
+          await loadData();
+          AppCenterApi.toast('Grup silindi');
+        } catch (err) {
+          AppCenterApi.toast(err.message);
+        }
+      });
     });
   }
 
@@ -212,6 +331,48 @@
     renderGroupsTable();
   }
 
+  function closeGroupCreateModal() {
+    groupCreateModal.classList.add('hidden');
+  }
+
+  function openGroupCreateModal() {
+    groupCreateModal.classList.remove('hidden');
+    const nameInput = document.querySelector('#group-create-form input[name="name"]');
+    if (nameInput) nameInput.focus();
+  }
+
+  function closeGroupEditModal() {
+    groupEditModal.classList.add('hidden');
+  }
+
+  function openGroupEditModal(group) {
+    const form = document.getElementById('group-edit-form');
+    form.group_id.value = String(group.id || '');
+    form.name.value = (group.name || '').toString();
+    form.description.value = (group.description || '').toString();
+    groupEditModal.classList.remove('hidden');
+    form.name.focus();
+  }
+
+  document.getElementById('groups-new-btn').addEventListener('click', openGroupCreateModal);
+  document.getElementById('group-modal-close-btn').addEventListener('click', closeGroupCreateModal);
+  document.getElementById('group-modal-cancel-btn').addEventListener('click', closeGroupCreateModal);
+  document.getElementById('group-edit-modal-close-btn').addEventListener('click', closeGroupEditModal);
+  document.getElementById('group-edit-modal-cancel-btn').addEventListener('click', closeGroupEditModal);
+  document.getElementById('groups-refresh-btn').addEventListener('click', () => {
+    loadData().catch((err) => AppCenterApi.toast(err.message));
+  });
+  document.getElementById('group-search-input').addEventListener('input', (evt) => {
+    groupSearchQuery = (evt.target.value || '').toString();
+    renderGroupsTable();
+  });
+  groupCreateModal.addEventListener('click', (evt) => {
+    if (evt.target === groupCreateModal) closeGroupCreateModal();
+  });
+  groupEditModal.addEventListener('click', (evt) => {
+    if (evt.target === groupEditModal) closeGroupEditModal();
+  });
+
   document.getElementById('group-create-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
@@ -226,8 +387,35 @@
         body: JSON.stringify(payload),
       });
       e.target.reset();
+      closeGroupCreateModal();
       await loadData();
       AppCenterApi.toast('Grup olusturuldu');
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+
+  document.getElementById('group-edit-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const groupId = Number((f.get('group_id') || '0').toString());
+    if (!groupId) {
+      AppCenterApi.toast('Gecerli grup secilemedi');
+      return;
+    }
+    const payload = {
+      name: (f.get('name') || '').toString(),
+      description: (f.get('description') || '').toString(),
+    };
+    try {
+      await AppCenterApi.req(`/groups/${groupId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      closeGroupEditModal();
+      await loadData();
+      AppCenterApi.toast('Grup guncellendi');
     } catch (err) {
       AppCenterApi.toast(err.message);
     }

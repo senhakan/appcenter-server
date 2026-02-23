@@ -1,23 +1,172 @@
 {% extends 'base.html' %}
 {% block title %}Uygulamalar{% endblock %}
 {% block content %}
+<style>
+  .apps-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(21, 34, 56, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 998;
+    padding: 16px;
+  }
+  .apps-modal-backdrop.hidden {
+    display: none;
+  }
+  .apps-modal {
+    width: 100%;
+    max-width: 860px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 18px;
+    max-height: 92vh;
+    overflow: auto;
+  }
+  .apps-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .apps-modal-head h3 {
+    margin: 0;
+  }
+</style>
+
 <div class="card">
   <div class="row spread wrap">
     <h3 style="margin: 0;">Uygulamalar</h3>
     <div class="row">
-      <a class="btn" href="/applications/upload">Yeni Yukle</a>
-      <button class="btn secondary" onclick="loadApps()">Yenile</button>
+      <button class="btn" id="apps-new-btn" type="button">Yeni Yukle</button>
+      <button class="btn secondary" id="apps-refresh-btn" type="button">Yenile</button>
     </div>
   </div>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th>ID</th><th>Ikon</th><th>Ad</th><th>Versiyon</th><th>Kurulum Param.</th><th>Tip</th><th>Boyut</th><th></th>
+          <th>ID</th><th>Ikon</th><th>Ad</th><th>Versiyon</th><th>Param.</th><th>Tip</th><th>Boyut</th><th></th>
         </tr>
       </thead>
       <tbody id="app-rows"></tbody>
     </table>
+  </div>
+</div>
+
+<div id="app-create-modal" class="apps-modal-backdrop hidden" aria-live="polite">
+  <div class="apps-modal">
+    <div class="apps-modal-head">
+      <h3>Yeni Uygulama Yukle</h3>
+    </div>
+    <form id="app-create-form" class="grid">
+      <div class="grid cols-2">
+        <div>
+          <label>Gorunen Ad</label>
+          <input name="display_name" required />
+        </div>
+        <div>
+          <label>Versiyon</label>
+          <input name="version" required />
+        </div>
+      </div>
+      <div>
+        <label>Aciklama</label>
+        <textarea name="description"></textarea>
+      </div>
+      <div class="grid cols-2">
+        <div>
+          <label>Parametreler</label>
+          <input name="install_args" placeholder="/S /qn" />
+        </div>
+        <div>
+          <label>Kaldirma Parametreleri</label>
+          <input name="uninstall_args" placeholder="/uninstall /quiet" />
+        </div>
+      </div>
+      <div class="grid cols-2">
+        <div>
+          <label>Uygulama Ikonu (opsiyonel)</label>
+          <input name="icon" type="file" accept=".png,.jpg,.jpeg,.webp,.svg" />
+        </div>
+        <div>
+          <label>Kurulum Dosyasi (.msi / .exe)</label>
+          <input name="file" type="file" accept=".msi,.exe" required />
+        </div>
+      </div>
+      <div class="row" style="justify-content:flex-end;">
+        <button class="btn secondary" id="app-create-cancel-btn" type="button">Iptal</button>
+        <button class="btn" type="submit">Yukle</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="app-edit-modal" class="apps-modal-backdrop hidden" aria-live="polite">
+  <div class="apps-modal">
+    <div class="apps-modal-head">
+      <h3>Uygulama Duzenle</h3>
+    </div>
+    <form id="app-edit-form" class="grid">
+      <input type="hidden" name="id" />
+      <div class="grid cols-2">
+        <div>
+          <label>Gorunen Ad</label>
+          <input name="display_name" required />
+        </div>
+        <div>
+          <label>Versiyon</label>
+          <input name="version" required />
+        </div>
+      </div>
+      <div>
+        <label>Aciklama</label>
+        <textarea name="description"></textarea>
+      </div>
+      <div class="grid cols-2">
+        <div>
+          <label>Parametreler</label>
+          <input name="install_args" placeholder="/S /qn" />
+        </div>
+        <div>
+          <label>Kaldirma Parametreleri</label>
+          <input name="uninstall_args" placeholder="/uninstall /quiet" />
+        </div>
+      </div>
+      <div class="grid cols-2">
+        <div>
+          <label>Kategori</label>
+          <input name="category" />
+        </div>
+        <div class="row wrap" style="margin-top: 26px;">
+          <label><input type="checkbox" name="is_visible_in_store" /> Store'da gorunsun</label>
+          <label><input type="checkbox" name="is_active" /> Aktif</label>
+        </div>
+      </div>
+      <div class="row" style="justify-content:flex-end;">
+        <button class="btn secondary" id="app-edit-cancel-btn" type="button">Iptal</button>
+        <button class="btn" type="submit">Kaydet</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="app-delete-modal" class="apps-modal-backdrop hidden" aria-live="polite">
+  <div class="apps-modal" style="max-width:520px;">
+    <div class="apps-modal-head">
+      <h3>Silme Onayi</h3>
+      <button class="btn secondary" id="app-delete-close-btn" type="button">Kapat</button>
+    </div>
+    <div class="grid">
+      <div id="app-delete-message" class="muted"></div>
+      <div class="row" style="justify-content:flex-end;">
+        <button class="btn secondary" id="app-delete-cancel-btn" type="button">Iptal</button>
+        <button class="btn danger" id="app-delete-confirm-btn" type="button">Sil</button>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}
@@ -25,48 +174,157 @@
 <script>
   AppCenterApi.protectPage();
 
+  const appById = new Map();
+  let pendingDeleteId = 0;
+
+  const createModal = document.getElementById('app-create-modal');
+  const editModal = document.getElementById('app-edit-modal');
+  const deleteModal = document.getElementById('app-delete-modal');
+
+  function esc(v) {
+    return (v ?? '').toString()
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
   function formatBytes(n) {
     if (!n) return '-';
     return `${(n / (1024 * 1024)).toFixed(2)} MB`;
   }
 
-  async function removeApp(id) {
-    if (!confirm(`Uygulama silinsin mi? (${id})`)) return;
-    try {
-      await AppCenterApi.req(`/applications/${id}`, { method: 'DELETE' });
-      AppCenterApi.toast('Silindi');
-      loadApps();
-    } catch (err) {
-      AppCenterApi.toast(err.message);
-    }
-  }
+  function openModal(modal) { modal.classList.remove('hidden'); }
+  function closeModal(modal) { modal.classList.add('hidden'); }
 
   async function loadApps() {
     try {
       const data = await AppCenterApi.req('/applications');
       const rows = document.getElementById('app-rows');
       rows.innerHTML = '';
+      appById.clear();
       (data.items || []).forEach((app) => {
+        appById.set(Number(app.id), app);
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${app.id}</td>
-          <td>${app.icon_url ? `<img src="${app.icon_url}" alt="icon" style="width:28px;height:28px;border-radius:6px;object-fit:cover;border:1px solid #dbe3ef;" />` : '-'}</td>
-          <td>${app.display_name}</td>
-          <td>${app.version}</td>
-          <td>${app.install_args || '-'}</td>
-          <td>${app.file_type}</td>
+          <td>${app.icon_url ? `<img src="${esc(app.icon_url)}" alt="icon" style="width:42px;height:42px;border-radius:6px;object-fit:cover;border:1px solid #dbe3ef;" />` : '-'}</td>
+          <td>${esc(app.display_name)}</td>
+          <td>${esc(app.version)}</td>
+          <td>${esc(app.install_args || '-')}</td>
+          <td>${esc(app.file_type)}</td>
           <td>${formatBytes(app.file_size_bytes)}</td>
           <td class="row">
-            <a class="btn secondary" href="/applications/${app.id}/edit">Duzenle</a>
-            <button class="btn danger" onclick="removeApp(${app.id})">Sil</button>
+            <button class="btn secondary" type="button" data-action="edit" data-id="${app.id}">Duzenle</button>
+            <button class="btn danger" type="button" data-action="delete" data-id="${app.id}">Sil</button>
           </td>
         `;
         rows.appendChild(tr);
+      });
+
+      rows.querySelectorAll('button[data-action="edit"]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = Number(btn.getAttribute('data-id') || '0');
+          const app = appById.get(id);
+          if (!app) return;
+          const form = document.getElementById('app-edit-form');
+          form.id.value = String(app.id);
+          form.display_name.value = app.display_name || '';
+          form.version.value = app.version || '';
+          form.description.value = app.description || '';
+          form.install_args.value = app.install_args || '';
+          form.uninstall_args.value = app.uninstall_args || '';
+          form.category.value = app.category || '';
+          form.is_visible_in_store.checked = !!app.is_visible_in_store;
+          form.is_active.checked = !!app.is_active;
+          openModal(editModal);
+        });
+      });
+
+      rows.querySelectorAll('button[data-action="delete"]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = Number(btn.getAttribute('data-id') || '0');
+          const app = appById.get(id);
+          if (!app) return;
+          pendingDeleteId = id;
+          document.getElementById('app-delete-message').textContent =
+            `'${app.display_name}' (ID: ${id}) uygulamasi silinecek. Bu islem geri alinamaz.`;
+          openModal(deleteModal);
+        });
       });
     } catch (err) {
       AppCenterApi.toast(err.message);
     }
   }
+
+  document.getElementById('apps-new-btn').addEventListener('click', () => openModal(createModal));
+  document.getElementById('apps-refresh-btn').addEventListener('click', () => loadApps());
+
+  document.getElementById('app-create-cancel-btn').addEventListener('click', () => closeModal(createModal));
+  document.getElementById('app-edit-cancel-btn').addEventListener('click', () => closeModal(editModal));
+  document.getElementById('app-delete-close-btn').addEventListener('click', () => closeModal(deleteModal));
+  document.getElementById('app-delete-cancel-btn').addEventListener('click', () => closeModal(deleteModal));
+
+  createModal.addEventListener('click', (e) => { if (e.target === createModal) closeModal(createModal); });
+  editModal.addEventListener('click', (e) => { if (e.target === editModal) closeModal(editModal); });
+  deleteModal.addEventListener('click', (e) => { if (e.target === deleteModal) closeModal(deleteModal); });
+
+  document.getElementById('app-create-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      const form = new FormData(e.target);
+      await AppCenterApi.req('/applications', { method: 'POST', body: form });
+      e.target.reset();
+      closeModal(createModal);
+      AppCenterApi.toast('Yukleme tamamlandi');
+      await loadApps();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+
+  document.getElementById('app-edit-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = new FormData(e.target);
+    const id = Number((form.get('id') || '0').toString());
+    if (!id) return;
+    const payload = {
+      display_name: (form.get('display_name') || '').toString(),
+      version: (form.get('version') || '').toString(),
+      description: (form.get('description') || '').toString() || null,
+      install_args: (form.get('install_args') || '').toString() || null,
+      uninstall_args: (form.get('uninstall_args') || '').toString() || null,
+      category: (form.get('category') || '').toString() || null,
+      is_visible_in_store: form.get('is_visible_in_store') === 'on',
+      is_active: form.get('is_active') === 'on',
+    };
+    try {
+      await AppCenterApi.req(`/applications/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      closeModal(editModal);
+      AppCenterApi.toast('Uygulama guncellendi');
+      await loadApps();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+
+  document.getElementById('app-delete-confirm-btn').addEventListener('click', async () => {
+    if (!pendingDeleteId) return;
+    try {
+      await AppCenterApi.req(`/applications/${pendingDeleteId}`, { method: 'DELETE' });
+      pendingDeleteId = 0;
+      closeModal(deleteModal);
+      AppCenterApi.toast('Silindi');
+      await loadApps();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
 
   loadApps();
 </script>

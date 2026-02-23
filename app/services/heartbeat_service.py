@@ -100,7 +100,9 @@ def _pending_commands(db: Session, agent: Agent, now: datetime) -> list[CommandI
                 file_hash=app.file_hash,
                 file_size_bytes=app.file_size_bytes,
                 install_args=app.install_args,
-                force_update=deployment.force_update if deployment else False,
+                # Store-origin installs (no deployment row) should run immediately:
+                # skip work-hours/jitter gating on the agent side.
+                force_update=deployment.force_update if deployment else True,
                 priority=deployment.priority if deployment else 5,
             )
         )
@@ -247,6 +249,14 @@ def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> t
             agent.system_profile_json = json.dumps(profile_dict)
             agent.system_profile_hash = profile_hash
             agent.system_profile_updated_at = now
+
+    # Remote support runtime status (live session/helper visibility).
+    if payload.remote_support is not None:
+        agent.remote_support_state = payload.remote_support.state
+        agent.remote_support_session_id = payload.remote_support.session_id
+        agent.remote_support_helper_running = bool(payload.remote_support.helper_running)
+        agent.remote_support_helper_pid = payload.remote_support.helper_pid
+        agent.remote_support_updated_at = now
 
     agent.last_seen = now
     agent.status = "online"

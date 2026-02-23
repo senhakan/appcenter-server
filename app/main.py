@@ -14,6 +14,7 @@ from fastapi.templating import Jinja2Templates
 from app.api.v1.agent import router as agent_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.inventory import router as inventory_router
+from app.api.v1.remote_support import router as remote_support_router
 from app.api.v1.web import router as web_router
 from app.config import get_settings
 from app.database import init_db, seed_initial_data
@@ -62,6 +63,7 @@ app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(agent_router, prefix=settings.api_v1_prefix)
 app.include_router(web_router, prefix=settings.api_v1_prefix)
 app.include_router(inventory_router, prefix=settings.api_v1_prefix)
+app.include_router(remote_support_router, prefix=settings.api_v1_prefix)
 
 
 @app.exception_handler(HTTPException)
@@ -129,6 +131,13 @@ def agent_detail_page(request: Request, agent_uuid: str):
     return templates.TemplateResponse(
         "agents/detail.html",
         {"request": request, "active_page": "agents", "agent_uuid": agent_uuid},
+    )
+
+@app.get("/remote-support/sessions/{session_id}")
+def remote_support_session_page(request: Request, session_id: int):
+    return templates.TemplateResponse(
+        "remote_support/session.html",
+        {"request": request, "active_page": "agents", "session_id": session_id},
     )
 
 

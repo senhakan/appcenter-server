@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     app_name: str = "AppCenter Server"
-    app_version: str = "1.1.0"
+    app_version: str = "1.1.3"
     api_v1_prefix: str = "/api/v1"
 
     # Database
@@ -32,6 +32,17 @@ class Settings(BaseSettings):
     # Logging
     log_file: str = "/var/log/appcenter/server.log"
     log_level: str = "INFO"
+
+    # Remote support
+    remote_support_enabled: bool = False
+    remote_support_approval_timeout_sec: int = 120
+    remote_support_default_max_duration_min: int = 60
+    remote_support_max_duration_min: int = 480
+    remote_support_vnc_password: str = ""
+    guac_reverse_vnc_host: str = ""
+    guac_reverse_vnc_port: int = 5500
+    novnc_token_file: str = "/opt/appcenter/novnc/tokens.txt"
+    novnc_ws_path: str = "/novnc-ws"
 
     model_config = SettingsConfigDict(
         env_file=".env",

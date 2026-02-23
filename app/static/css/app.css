@@ -211,6 +211,49 @@ td {
   transform: translateY(0);
 }
 
+.session-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(21, 34, 56, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 16px;
+}
+
+.session-modal.hidden {
+  display: none;
+}
+
+.session-modal-card {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+
+.session-modal-card h3 {
+  margin: 0 0 8px;
+}
+
+.session-modal-card p {
+  margin: 0 0 14px;
+  color: var(--muted);
+}
+
+.session-modal-card.critical {
+  border-color: rgba(214, 40, 40, 0.45);
+  box-shadow: 0 14px 32px rgba(214, 40, 40, 0.2);
+}
+
+#session-timeout-countdown.critical {
+  color: var(--danger);
+}
+
 @media (max-width: 900px) {
   .grid.cols-4,
   .grid.cols-2 {

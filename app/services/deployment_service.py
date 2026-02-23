@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Optional
 
+from datetime import datetime, timedelta, timezone
+
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -118,3 +120,59 @@ def delete_deployment(db: Session, deployment_id: int) -> None:
     deployment = get_deployment(db, deployment_id)
     db.delete(deployment)
     db.commit()
+
+
+def queue_store_install_for_agent(db: Session, agent_uuid: str, app_id: int) -> tuple[str, str]:
+    app = (
+        db.query(Application)
+        .filter(
+            Application.id == app_id,
+            Application.is_active.is_(True),
+            Application.is_visible_in_store.is_(True),
+        )
+        .first()
+    )
+    if not app:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found in store")
+
+    agent_app = (
+        db.query(AgentApplication)
+        .filter(AgentApplication.agent_uuid == agent_uuid, AgentApplication.app_id == app_id)
+        .first()
+    )
+
+    if not agent_app:
+        db.add(
+            AgentApplication(
+                agent_uuid=agent_uuid,
+                app_id=app_id,
+                status="pending",
+            )
+        )
+        db.commit()
+        return "queued", "Install request queued"
+
+    if agent_app.status in {"pending", "downloading", "installing"}:
+        # Recover from stale in-progress states (e.g. agent/service restart after
+        # command assignment). Fresh in-progress tasks remain untouched.
+        stale_cutoff = datetime.now(timezone.utc) - timedelta(minutes=5)
+        last_attempt = agent_app.last_attempt
+        if last_attempt is not None and last_attempt.tzinfo is None:
+            last_attempt = last_attempt.replace(tzinfo=timezone.utc)
+        is_stale = (last_attempt is None) or (last_attempt < stale_cutoff)
+        if is_stale:
+            agent_app.status = "pending"
+            agent_app.error_message = None
+            db.add(agent_app)
+            db.commit()
+            return "queued", "Install request re-queued"
+        return "already_queued", "Install request already queued"
+
+    if agent_app.status == "installed" and agent_app.installed_version == app.version:
+        return "already_installed", "Application already installed"
+
+    agent_app.status = "pending"
+    agent_app.error_message = None
+    db.add(agent_app)
+    db.commit()
+    return "queued", "Install request queued"

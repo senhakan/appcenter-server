@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AppCenter noVNC Redirect</title>
+  </head>
+  <body>
+    <script>
+      (function () {
+        const params = new URLSearchParams(window.location.search);
+        const ws = params.get("ws") || "";
+        const password = params.get("password") || "";
+
+        // Backward-compat for old embed flow: convert ws URL to noVNC vnc.html query.
+        let host = window.location.hostname;
+        let port = window.location.port || (window.location.protocol === "https:" ? "443" : "80");
+        let path = "novnc-ws";
+        let token = "";
+        let encrypt = window.location.protocol === "https:" ? "1" : "0";
+
+        if (ws) {
+          try {
+            const u = new URL(ws);
+            host = u.hostname || host;
+            port = u.port || port;
+            path = (u.pathname || "/novnc-ws").replace(/^\//, "");
+            token = u.searchParams.get("token") || "";
+            encrypt = u.protocol === "wss:" ? "1" : "0";
+          } catch (_) {
+            // Keep defaults if parse fails.
+          }
+        }
+
+        const q = new URLSearchParams({
+          autoconnect: "1",
+          resize: "scale",
+          show_dot: "true",
+          host,
+          port,
+          encrypt,
+          path,
+          password,
+          token,
+        });
+        window.location.replace(`/static/novnc-v1/vnc.html?${q.toString()}`);
+      })();
+    </script>
+  </body>
+</html>

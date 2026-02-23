@@ -10,6 +10,15 @@ Bu dokuman production ortami icin deploy, smoke ve rollback adimlarini tanimlar.
 - Service: `appcenter` (systemd)
 - Reverse proxy: nginx
 
+### 1.2 Guacamole Durumu (2026-02-23)
+
+- Guacamole viewer kod yolu server uygulamasindan cikarilmistir.
+- Guacamole container'lari varsayilan olarak kapalidir.
+- Guacamole'yi tekrar devreye almak icin tek referans:
+  - `config/guacamole/REENABLE.md`
+  - `config/guacamole/docker-compose.guacamole.yml`
+  - `config/guacamole/nginx.guacamole.conf.snippet`
+
 ### 1.1 Bu Sunucuda Aktif Deployment Profili
 
 - Kaynak repo dizini: `/root/appcenter/server`
@@ -59,6 +68,28 @@ sudo systemctl is-active appcenter
   - yanlis: `CORS_ORIGINS=*`
 - `rsync --delete` `.env` dosyasini silebilir; mutlaka exclude edin.
 
+### 2.4 Agent Update Publish (Zorunlu Standart)
+
+Agent update yayinlarken manuel upload yerine her zaman bu script kullanilir:
+
+```bash
+cd /root/appcenter/server
+APPCENTER_ADMIN_USERNAME='admin' APPCENTER_ADMIN_PASSWORD='admin123' \
+./scripts/publish-agent-update.sh --version 0.1.19
+```
+
+Alternatif (canli dizin):
+
+```bash
+cd /opt/appcenter/server
+APPCENTER_ADMIN_USERNAME='admin' APPCENTER_ADMIN_PASSWORD='admin123' \
+./scripts/publish-agent-update.sh --version 0.1.19
+```
+
+Not:
+- Script: test (`go test ./...`) + windows agent build + `POST /api/v1/agent-update/upload`
+- Build atlamak icin: `--no-build --file <path/to/exe|msi>`
+
 ## 3. Hizli Production Smoke
 
 ```bash
@@ -73,6 +104,11 @@ Web login ve kritik akislar manuel kontrol edilir:
 - group create + dual-listbox agent assignment
 - agent heartbeat/task flow
 - agent detail: login session listesi (local/RDP) gorunumu
+  - remote support alanlari gorunumu:
+    - `Remote State`
+    - `Remote Session ID`
+    - `Remote Helper`
+    - `Remote Guncelleme`
 - settings update
   - `ui_timezone` (IANA) guncellemesi ve zaman gosterimlerinin dogrulanmasi
 - agent update upload/download
@@ -127,6 +163,36 @@ git checkout <stable_commit>
 source venv39/bin/activate
 pip install -r requirements.txt
 sudo systemctl restart appcenter
+```
+
+### 5.1 Remote Support Snapshot (2026-02-20)
+
+- Server runtime snapshot:
+  - `/opt/appcenter/server/.backup_remote_support_runtime_20260220_194350`
+  - Icerik: `app/models.py`, `app/schemas.py`, `app/database.py`, `app/services/heartbeat_service.py`, `app/templates/agents/detail.html`, `.env`, `appcenter.db`
+- Agent runtime snapshot (Windows test host `10.6.20.172`):
+  - `C:\\Temp\\appcenter-backup-20260220_224401`
+  - Icerik: `appcenter-service.exe`, `acremote-helper.exe`, `config.yaml`
+
+### 5.2 noVNC Baseline Snapshot (2026-02-23)
+
+- Hedef: noVNC iframe tabanli mevcut calisan duruma hizli geri donus.
+- Referans git tag: `remote-support-novnc-iframe-baseline-20260223`
+- Baseline kapsam:
+  - Guacamole kod yolu devre disi
+  - noVNC session ekrani aktif
+  - Session UI tablo duzeni + baglanti badge/mesaj akisi
+
+Geri donus adimlari:
+
+```bash
+cd /opt/appcenter/server
+git fetch --all --tags
+git checkout remote-support-novnc-iframe-baseline-20260223
+source venv/bin/activate
+pip install -r requirements.txt
+sudo systemctl restart appcenter
+curl -f http://127.0.0.1:8000/health
 ```
 
 ## 6. Nginx Notu (Bu Sunucu)

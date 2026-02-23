@@ -3,6 +3,7 @@ from __future__ import annotations
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
+import re
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -10,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import get_db
-from app.models import Agent, AgentApplication, Application, Setting, TaskHistory
+from app.models import Agent, AgentApplication, AgentSoftwareInventory, Application, Setting, TaskHistory
 from app.services.heartbeat_service import process_heartbeat
 from app.schemas import (
     AgentConfig,
@@ -21,14 +22,73 @@ from app.schemas import (
     HeartbeatRequest,
     HeartbeatResponse,
     MessageResponse,
+    RemoteSupportEnd,
+    RemoteSupportRequest,
     StoreAppItem,
     StoreResponse,
     TaskStatusRequest,
 )
+from app.services.deployment_service import queue_store_install_for_agent
 from app.services import inventory_service
+from app.services import remote_support_service as rs
 from app.utils.file_handler import parse_range_header
 
 router = APIRouter(prefix="/agent", tags=["agent"])
+
+
+def _clean_error_message(value: str | None) -> str | None:
+    if not value:
+        return None
+    cleaned = value.replace("\x00", "").strip()
+    if not cleaned:
+        return None
+    # Keep store cards compact.
+    if len(cleaned) > 500:
+        return cleaned[:500] + "..."
+    return cleaned
+
+
+def _canon_name(value: str | None) -> str:
+    if not value:
+        return ""
+    value = value.casefold()
+    value = re.sub(r"[^a-z0-9]+", "", value)
+    return value
+
+
+def _detect_store_conflict(
+    app: Application,
+    inventory_rows: list[AgentSoftwareInventory],
+) -> tuple[bool, str | None, str | None]:
+    app_key = _canon_name(app.display_name)
+    if len(app_key) < 3:
+        return False, None, None
+
+    matches: list[AgentSoftwareInventory] = []
+    for row in inventory_rows:
+        inv_name = row.normalized_name or row.software_name
+        inv_key = _canon_name(inv_name)
+        if len(inv_key) < 3:
+            continue
+        if app_key in inv_key or inv_key in app_key:
+            matches.append(row)
+
+    if not matches:
+        return False, None, None
+
+    versions = sorted({(m.software_version or "").strip() for m in matches if (m.software_version or "").strip()})
+    has_same_version = app.version.strip() in versions if app.version else False
+    confidence = "high" if has_same_version else "medium"
+    if has_same_version:
+        msg = "Bu uygulamanin ayni surumu sisteminizde olabilir. Kurulumdan once mevcut kurulumu kontrol etmeniz onerilir."
+    else:
+        joined = ", ".join(versions[:3]) if versions else "bilinmiyor"
+        msg = (
+            "Bu uygulamanin farkli bir surumu sisteminizde olabilir "
+            f"(tespit edilen: {joined}). Kurulumdan once mevcut surumu kaldirmaniz onerilir."
+        )
+    return True, confidence, msg
+
 settings = get_settings()
 
 
@@ -101,7 +161,32 @@ def heartbeat(
 ) -> HeartbeatResponse:
     agent = _authenticate_agent(db, x_agent_uuid, x_agent_secret)
     now, config, commands, _inv_sync = process_heartbeat(db, agent, payload)
-    return HeartbeatResponse(server_time=now, config=config, commands=commands)
+
+    remote_req: RemoteSupportRequest | None = None
+    remote_end: RemoteSupportEnd | None = None
+    if settings.remote_support_enabled:
+        pending = rs.get_pending_for_agent(db, x_agent_uuid)
+        if pending:
+            remote_req = RemoteSupportRequest(
+                session_id=pending.id,
+                admin_name=rs.admin_name_for_session(db, pending),
+                reason=pending.reason or "",
+                requested_at=pending.requested_at,
+                timeout_at=pending.approval_timeout_at,
+            )
+        else:
+            end_sig = rs.get_end_signal_for_agent(db, x_agent_uuid)
+            if end_sig:
+                remote_end = RemoteSupportEnd(session_id=end_sig.id)
+                rs.mark_end_signal_delivered(db, end_sig.id, x_agent_uuid)
+
+    return HeartbeatResponse(
+        server_time=now,
+        config=config,
+        commands=commands,
+        remote_support_request=remote_req,
+        remote_support_end=remote_end,
+    )
 
 
 @router.get("/download/{app_id}")
@@ -203,13 +288,30 @@ def report_task_status(
             .first()
         )
         if agent_app:
+            def _to_utc(dt: datetime | None) -> datetime | None:
+                if dt is None:
+                    return None
+                if dt.tzinfo is None:
+                    return dt.replace(tzinfo=timezone.utc)
+                return dt.astimezone(timezone.utc)
+
+            task_started = _to_utc(task.started_at)
+            last_attempt = _to_utc(agent_app.last_attempt)
+            stale_for_agent_state = (
+                task_started is not None
+                and last_attempt is not None
+                and task_started < last_attempt
+            )
+
             if payload.status == "success":
                 agent_app.status = "installed"
                 agent_app.installed_version = payload.installed_version or agent_app.installed_version
             elif payload.status in {"failed", "timeout"}:
-                agent_app.status = "failed"
-                agent_app.retry_count += 1
-                agent_app.error_message = payload.error or payload.message
+                # Do not let stale failures overwrite a newer successful state.
+                if not (stale_for_agent_state and agent_app.status == "installed"):
+                    agent_app.status = "failed"
+                    agent_app.retry_count += 1
+                    agent_app.error_message = payload.error or payload.message
             elif payload.status == "downloading":
                 agent_app.status = "downloading"
             agent_app.last_attempt = now
@@ -249,11 +351,20 @@ def get_store_applications(
         .order_by(Application.display_name.asc())
         .all()
     )
+    inventory_rows = (
+        db.query(AgentSoftwareInventory)
+        .filter(AgentSoftwareInventory.agent_uuid == x_agent_uuid)
+        .all()
+    )
 
     apps: list[StoreAppItem] = []
     for app, agent_app in rows:
         size_mb = int(((app.file_size_bytes or 0) + (1024 * 1024 - 1)) / (1024 * 1024))
-        installed = bool(agent_app and agent_app.status in {"installed", "installing", "downloading"})
+        # Only treat as installed when installation is actually complete.
+        installed = bool(agent_app and agent_app.status == "installed")
+        install_state = agent_app.status if agent_app else "not_installed"
+        error_message = _clean_error_message(agent_app.error_message if agent_app else None)
+        conflict_detected, conflict_confidence, conflict_message = _detect_store_conflict(app, inventory_rows)
         installed_version = agent_app.installed_version if agent_app else None
         can_uninstall = bool(agent_app and agent_app.status == "installed")
         apps.append(
@@ -266,11 +377,28 @@ def get_store_applications(
                 file_size_mb=size_mb,
                 category=app.category,
                 installed=installed,
+                install_state=install_state,
+                error_message=error_message,
+                conflict_detected=conflict_detected,
+                conflict_confidence=conflict_confidence,
+                conflict_message=conflict_message,
                 installed_version=installed_version,
                 can_uninstall=can_uninstall,
             )
         )
     return StoreResponse(apps=apps)
+
+
+@router.post("/store/{app_id}/install", response_model=MessageResponse)
+def install_from_store(
+    app_id: int,
+    x_agent_uuid: str = Header(..., alias="X-Agent-UUID"),
+    x_agent_secret: str = Header(..., alias="X-Agent-Secret"),
+    db: Session = Depends(get_db),
+) -> MessageResponse:
+    _authenticate_agent(db, x_agent_uuid, x_agent_secret)
+    status_key, message = queue_store_install_for_agent(db, x_agent_uuid, app_id)
+    return MessageResponse(status=status_key, message=message)
 
 
 @router.get("/update/download/{filename}")
