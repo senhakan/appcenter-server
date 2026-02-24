@@ -33,6 +33,19 @@ Bu dokuman production ortami icin deploy, smoke ve rollback adimlarini tanimlar.
   - Session state `pending_approval` icin bekleme/aciklama metni gosterilir; onaylaninca otomatik baglanir.
   - Kullanici metinlerinde `noVNC` yerine `Canli ekran` terimi kullanilir.
 
+### 1.4 Store Grubu + Tray Policy (2026-02-24)
+
+- `Store` grubu sistem grubudur:
+  - UI'dan silinemez.
+  - Grup adi degistirilemez.
+- Agent heartbeat `config` alaninda `store_tray_enabled` bayragi dondurulur.
+  - Ajan `Store` grubundaysa: `true`
+  - Degilse: `false`
+- Agent service bu policy'i uygular:
+  - `true` iken `appcenter-tray.exe` kullanici oturumunda calisiyor durumda tutulur.
+  - `false` iken `appcenter-tray.exe` sonlandirilir.
+- `/groups` ekraninda "Gruba Ajan Ata" kaydindan sonra secili grup korunur (dropdown resetlenmez); basari toast'i gosterilir.
+
 ### 1.1 Bu Sunucuda Aktif Deployment Profili
 
 - Kaynak repo dizini: `/root/appcenter/server`

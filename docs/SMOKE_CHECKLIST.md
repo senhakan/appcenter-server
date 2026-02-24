@@ -42,6 +42,7 @@ Her deploy sonrasi minimum kontrol listesi.
 - `/deployments/{deployment_id}/edit` -> 200
 - `/groups/{group_id}/edit` -> 200
   - (opsiyonel) UI tarih/saat gosterimleri `ui_timezone` ayarina gore degisiyor mu kontrol et
+  - (opsiyonel) `/groups` ekraninda "Gruba Ajan Ata" kaydi sonrasi secili grup degismiyor mu kontrol et
 
 ## G. Agent Detay (Opsiyonel)
 
@@ -68,5 +69,6 @@ Her deploy sonrasi minimum kontrol listesi.
 - Grup duzenleme:
 - grup adi/aciklama guncellenir
 - dual-listbox ile ajan atamasi degisir ve kalici olur
+ - `Store` sistem grubu icin silme ve ad degistirme engelli olmalidir
 - Deployment duzenleme:
 - hedef tipi/target/priorite/aktiflik guncellenir

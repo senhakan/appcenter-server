@@ -231,3 +231,15 @@ Not:
 - Bu asama icin geri donus referansi (git tag):
   - `remote-support-novnc-iframe-baseline-20260223`
   - Bu baseline, noVNC iframe akisinin calistigi ve Guacamole'nin devre disi kaldigi noktadir.
+
+## Grup/Tray Policy Notu (2026-02-24)
+
+- `Store` grubu sistem grubudur:
+  - API/UI seviyesinde silinemez.
+  - Adi degistirilemez.
+- Agent heartbeat `config` alanina `store_tray_enabled` bayragi eklenmistir.
+  - Ajan `Store` grubundaysa `true`, degilse `false`.
+- Agent service, bu bayraga gore `appcenter-tray.exe` prosesini servis seviyesinde yonetir.
+  - `true`: tray prosesi kullanici oturumunda calisir durumda tutulur.
+  - `false`: tray prosesi kapatilir.
+- `/groups` ekraninda "Gruba Ajan Ata" kaydi sonrasi secili grup korunur (ilk gruba donmez).
