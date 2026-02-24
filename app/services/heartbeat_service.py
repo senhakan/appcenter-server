@@ -5,15 +5,18 @@ import hashlib
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.models import (
     Agent,
     AgentApplication,
+    AgentGroup,
     AgentIdentityHistory,
     AgentStatusHistory,
     AgentSystemProfileHistory,
     Application,
     Deployment,
+    Group,
     RemoteSupportSession,
     TaskHistory,
 )
@@ -38,6 +41,19 @@ def get_heartbeat_config(db: Session) -> HeartbeatConfig:
         agent_download_url=download_url or None,
         agent_hash=agent_hash or None,
     )
+
+
+def _is_store_tray_enabled_for_agent(db: Session, agent_uuid: str) -> bool:
+    row = (
+        db.query(AgentGroup.agent_uuid)
+        .join(Group, Group.id == AgentGroup.group_id)
+        .filter(
+            AgentGroup.agent_uuid == agent_uuid,
+            func.lower(Group.name) == "store",
+        )
+        .first()
+    )
+    return row is not None
 
 
 def _sync_installed_apps(db: Session, agent: Agent, payload: HeartbeatRequest, now: datetime) -> None:
@@ -323,6 +339,7 @@ def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> t
     config = get_heartbeat_config(db)
     config.inventory_scan_interval_min = int(_get_setting(db, "inventory_scan_interval_min", "10"))
     config.inventory_sync_required = inventory_sync_required
+    config.store_tray_enabled = _is_store_tray_enabled_for_agent(db, agent.uuid)
 
     db.commit()
     return now, config, commands, inventory_sync_required

@@ -59,6 +59,7 @@ DEFAULT_SETTINGS = {
 }
 
 DEFAULT_GROUPS = {
+    "Store": "AppCenter Store tray uygulamasinin zorunlu oldugu ajanlar",
     "Genel": "Tum bilgisayarlar",
     "IT": "Bilgi Islem",
     "Muhasebe": "Muhasebe departmani",

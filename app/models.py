@@ -44,6 +44,10 @@ class Group(Base):
     agents: Mapped[list["Agent"]] = relationship(back_populates="group")
     agent_groups: Mapped[list["AgentGroup"]] = relationship(back_populates="group", cascade="all, delete-orphan")
 
+    @property
+    def is_system(self) -> bool:
+        return (self.name or "").strip().lower() == "store"
+
 
 class Agent(Base):
     __tablename__ = "agents"

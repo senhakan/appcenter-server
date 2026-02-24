@@ -133,7 +133,7 @@ def get_remote_session_novnc_ticket(
         return {"status": "ok", "viewer": {"enabled": False, "reason": "missing_agent_ip"}}
 
     try:
-        token, ws_path = novnc.build_ticket(agent_ip=agent_ip, vnc_port=5900)
+        token, ws_path = novnc.build_ticket(agent_ip=agent_ip, vnc_port=20010)
         novnc.cleanup_old_tokens()
     except OSError as exc:
         return {"status": "ok", "viewer": {"enabled": False, "reason": f"novnc_token_error:{exc}"}}

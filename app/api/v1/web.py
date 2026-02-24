@@ -74,6 +74,7 @@ router = APIRouter(tags=["web"])
 settings = get_settings()
 MIN_SESSION_TIMEOUT_MINUTES = 1
 MAX_SESSION_TIMEOUT_MINUTES = 1440
+SYSTEM_GROUP_NAMES = {"store"}
 
 
 @router.get("/agents", response_model=AgentListResponse)
@@ -233,6 +234,13 @@ def groups_update(
     group = db.query(Group).filter(Group.id == group_id).first()
     if not group:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+    if (group.name or "").strip().lower() in SYSTEM_GROUP_NAMES and payload.name is not None:
+        name = payload.name.strip()
+        if name.lower() != (group.name or "").strip().lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="System group name cannot be changed",
+            )
 
     if payload.name is not None:
         name = payload.name.strip()
@@ -315,6 +323,8 @@ def groups_delete(
     group = db.query(Group).filter(Group.id == group_id).first()
     if not group:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+    if (group.name or "").strip().lower() in SYSTEM_GROUP_NAMES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="System group cannot be deleted")
 
     # Remove memberships first; keep legacy single-group column consistent.
     db.query(AgentGroup).filter(AgentGroup.group_id == group_id).delete(synchronize_session=False)

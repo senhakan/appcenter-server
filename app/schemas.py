@@ -141,6 +141,7 @@ class HeartbeatConfig(BaseModel):
     agent_hash: Optional[str] = None
     inventory_sync_required: bool = False
     inventory_scan_interval_min: int = 10
+    store_tray_enabled: bool = False
 
 
 class RemoteSupportRequest(BaseModel):
@@ -176,7 +177,7 @@ class RemoteSessionAgentApproveRequest(BaseModel):
 
 class RemoteSessionReadyRequest(BaseModel):
     vnc_ready: bool = True
-    local_vnc_port: int = 5900
+    local_vnc_port: int = 20010
 
 
 class RemoteSessionEndedRequest(BaseModel):
@@ -391,6 +392,7 @@ class GroupResponse(BaseModel):
     name: str
     description: Optional[str] = None
     created_at: datetime
+    is_system: bool = False
 
 
 class GroupListResponse(BaseModel):

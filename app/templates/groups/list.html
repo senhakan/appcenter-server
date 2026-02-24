@@ -244,14 +244,17 @@
         return Number(a.group_id || 0) === g.id;
       }).length;
       const tr = document.createElement('tr');
+      const isSystem = Boolean(g.is_system);
+      const editDisabled = isSystem ? 'disabled title="Sistem grubu duzenlenemez"' : '';
+      const deleteDisabled = isSystem ? 'disabled title="Sistem grubu silinemez"' : '';
       tr.innerHTML = `
         <td>${g.id}</td>
         <td>${g.name}</td>
         <td>${g.description || '-'}</td>
         <td>${count}</td>
         <td class="row">
-          <button class="btn secondary" type="button" data-action="edit-group" data-group-id="${g.id}">Duzenle</button>
-          <button class="btn danger" type="button" data-action="delete-group" data-group-id="${g.id}" data-group-name="${(g.name || '').replace(/"/g, '&quot;')}">Sil</button>
+          <button class="btn secondary" type="button" data-action="edit-group" data-group-id="${g.id}" ${editDisabled}>Duzenle</button>
+          <button class="btn danger" type="button" data-action="delete-group" data-group-id="${g.id}" data-group-name="${(g.name || '').replace(/"/g, '&quot;')}" ${deleteDisabled}>Sil</button>
         </td>
       `;
       rows.appendChild(tr);
@@ -295,6 +298,7 @@
 
   function renderSelectors() {
     const groupSelect = document.getElementById('assign-group-id');
+    const previousSelected = Number(groupSelect.value || 0);
     groupSelect.innerHTML = '';
     groups.forEach((g) => {
       const op = document.createElement('option');
@@ -302,6 +306,9 @@
       op.textContent = `${g.name} (#${g.id})`;
       groupSelect.appendChild(op);
     });
+    if (previousSelected && groups.some((g) => Number(g.id) === previousSelected)) {
+      groupSelect.value = String(previousSelected);
+    }
 
     syncSelectedAgentsForCurrentGroup();
   }
