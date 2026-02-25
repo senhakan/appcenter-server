@@ -46,6 +46,23 @@ Bu dokuman production ortami icin deploy, smoke ve rollback adimlarini tanimlar.
   - `false` iken `appcenter-tray.exe` sonlandirilir.
 - `/groups` ekraninda "Gruba Ajan Ata" kaydindan sonra secili grup korunur (dropdown resetlenmez); basari toast'i gosterilir.
 
+### 1.5 Remote Support Akis Notlari (2026-02-26)
+
+- Pending approval kapanis davranisi:
+  - Session penceresi kapatilirsa `pending_approval` oturumlar `/cancel` endpoint'i ile sonlandirilir.
+  - Acik pencere yokken ayni ajan icin tekrar `Baglan` tiklanirsa mevcut bekleyen session penceresi yeniden acilir.
+  - Acik pencere varken tekrar `Baglan` tiklanirsa bilgi toast'i gosterilir.
+- Session UI:
+  - Ustteki session detay tablosu kaldirildi.
+  - Kullanici reddederse modal gosterilir: `Baglanti Istegi Kabul Edilmedi`.
+  - Modal `Tamam` ile session penceresi kapatilir.
+  - Pending overlay icine `Iptal` butonu eklendi (istegi iptal + pencere kapatma akisi).
+- Ajanlar sayfasi:
+  - `Baglanti Talebi` modalinda:
+    - `Enter` (Shift'siz): talep gonder
+    - `Shift+Enter`: yeni satir
+    - `Escape`: modal kapat
+
 ### 1.1 Bu Sunucuda Aktif Deployment Profili
 
 - Kaynak repo dizini: `/root/appcenter/server`
