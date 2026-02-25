@@ -33,6 +33,7 @@ def _get_setting(db: Session, key: str, default: str) -> str:
 def get_heartbeat_config(db: Session) -> HeartbeatConfig:
     download_url = _get_setting(db, "agent_download_url", "")
     agent_hash = _get_setting(db, "agent_hash", "")
+    runtime_base_url = (_get_setting(db, "runtime_update_base_url", "") or "").strip()
     return HeartbeatConfig(
         bandwidth_limit_kbps=int(_get_setting(db, "bandwidth_limit_kbps", "1024")),
         work_hour_start=_get_setting(db, "work_hour_start", "09:00"),
@@ -40,6 +41,9 @@ def get_heartbeat_config(db: Session) -> HeartbeatConfig:
         latest_agent_version=_get_setting(db, "agent_latest_version", "1.0.0"),
         agent_download_url=download_url or None,
         agent_hash=agent_hash or None,
+        runtime_update_base_url=runtime_base_url or None,
+        runtime_update_interval_min=int(_get_setting(db, "runtime_update_interval_min", "60")),
+        runtime_update_jitter_sec=int(_get_setting(db, "runtime_update_jitter_sec", "300")),
     )
 
 

@@ -708,6 +708,19 @@ def settings_update(
                         f"{MIN_SESSION_TIMEOUT_MINUTES} and {MAX_SESSION_TIMEOUT_MINUTES}"
                     ),
                 )
+        if key in {"runtime_update_interval_min", "runtime_update_jitter_sec"}:
+            try:
+                num = int((value or "").strip())
+            except Exception:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid {key}",
+                )
+            if num < 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"{key} must be >= 0",
+                )
         item = db.query(Setting).filter(Setting.key == key).first()
         if not item:
             item = Setting(key=key, value=value, description="Updated via API", updated_at=now)

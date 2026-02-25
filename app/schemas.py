@@ -142,6 +142,9 @@ class HeartbeatConfig(BaseModel):
     inventory_sync_required: bool = False
     inventory_scan_interval_min: int = 10
     store_tray_enabled: bool = False
+    runtime_update_base_url: Optional[str] = None
+    runtime_update_interval_min: int = 60
+    runtime_update_jitter_sec: int = 300
 
 
 class RemoteSupportRequest(BaseModel):

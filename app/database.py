@@ -56,6 +56,9 @@ DEFAULT_SETTINGS = {
     "inventory_scan_interval_min": ("10", "Agent envanter tarama araligi (dakika)"),
     "inventory_history_retention_days": ("90", "Yazilim degisim gecmisi saklama suresi (gun)"),
     "system_history_retention_days": ("360", "Sistem profili degisim gecmisi saklama suresi (gun)"),
+    "runtime_update_base_url": ("", "Agent runtime update base URL (manifest + binaries)"),
+    "runtime_update_interval_min": ("60", "Agent runtime update kontrol araligi (dakika)"),
+    "runtime_update_jitter_sec": ("300", "Agent runtime update jitter (saniye)"),
 }
 
 DEFAULT_GROUPS = {
