@@ -135,6 +135,7 @@
 <script>
   AppCenterApi.protectPage();
   const AGENT_PAGE_SIZE = 20;
+  const RS_WINDOW_PRESENCE_TTL_MS = 15000;
   let allAgents = [];
   let filteredAgents = [];
   let currentPage = 1;
@@ -196,6 +197,34 @@
     if (!allowed) title = 'Bu ajan Remote Support grubunda degil';
     else if (!online) title = 'Baglanti istegi icin ajan cevrimici olmali';
     return { enabled, title };
+  }
+
+  function getAgentByUUID(agentUUID) {
+    if (!agentUUID) return null;
+    return allAgents.find((a) => String(a.uuid || '') === String(agentUUID)) || null;
+  }
+
+  function rsWindowPresenceKey(sessionId) {
+    return `appcenter_rs_window_open_${String(sessionId || '').trim()}`;
+  }
+
+  function isRemoteSessionWindowOpen(sessionId) {
+    const sid = Number(sessionId || 0);
+    if (!sid) return false;
+    try {
+      const raw = localStorage.getItem(rsWindowPresenceKey(sid)) || '';
+      const ts = Number(raw);
+      if (!Number.isFinite(ts) || ts <= 0) return false;
+      return (Date.now() - ts) <= RS_WINDOW_PRESENCE_TTL_MS;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function openRemoteSessionWindow(sessionId) {
+    const sid = Number(sessionId || 0);
+    if (!sid) return;
+    window.open(`/remote-support/sessions/${encodeURIComponent(String(sid))}`, '_blank');
   }
 
   function renderPage() {
@@ -434,8 +463,21 @@
       const btn = evt.target.closest('.js-connect-remote');
       if (!btn) return;
       if ((btn.getAttribute('data-connect-enabled') || '0') !== '1') return;
+      const agentUUID = btn.getAttribute('data-agent-uuid') || '';
+      const agent = getAgentByUUID(agentUUID);
+      const rsState = (agent && agent.remote_support_state ? String(agent.remote_support_state) : '').toLowerCase();
+      const rsSessionId = Number((agent && agent.remote_support_session_id) || 0);
+      if (rsState === 'pending_approval' && rsSessionId > 0) {
+        if (isRemoteSessionWindowOpen(rsSessionId)) {
+          AppCenterApi.toast('Destek ekrani acik, ilgili ekrandan takip ediniz.');
+          return;
+        }
+        openRemoteSessionWindow(rsSessionId);
+        AppCenterApi.toast(`Bekleyen destek ekrani tekrar acildi (oturum #${rsSessionId})`);
+        return;
+      }
       openRemoteRequestModal(
-        btn.getAttribute('data-agent-uuid') || '',
+        agentUUID,
         btn.getAttribute('data-agent-hostname') || '',
         btn.getAttribute('data-agent-status') || ''
       );

@@ -1,12 +1,368 @@
 {% extends 'base.html' %}
 {% block title %}Uzak Destek Oturumu{% endblock %}
 {% block content %}
+<style>
+  /* Remote support session is a dedicated viewer page: hide global topbar/navigation. */
+  .topbar {
+    display: none !important;
+  }
+  .rs-viewer-shell {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-height: 560px;
+    position: relative;
+  }
+  .rs-control-rail {
+    width: 52px;
+    min-width: 52px;
+    background: linear-gradient(180deg, #0f62fe 0%, #0a4fcf 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.12);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 6px;
+    position: relative;
+  }
+  .rs-rail-btn {
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.95;
+    cursor: pointer;
+    transition: background-color .15s ease, opacity .15s ease, transform .12s ease;
+  }
+  .rs-rail-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+  .rs-rail-btn:active {
+    transform: scale(0.96);
+  }
+  .rs-rail-btn.is-active {
+    background: rgba(255, 255, 255, 0.28);
+  }
+  .rs-rail-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .rs-rail-btn svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .rs-monitor-main {
+    position: relative;
+  }
+  .rs-monitor-wrap {
+    position: relative;
+    width: 36px;
+    height: 36px;
+  }
+  .rs-monitor-num {
+    position: absolute;
+    right: 4px;
+    bottom: 2px;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    color: #fff;
+  }
+  .rs-monitor-pop {
+    position: absolute;
+    left: 100%;
+    top: 0;
+    display: flex;
+    gap: 6px;
+    padding: 6px;
+    border-radius: 10px;
+    background: rgba(7, 25, 67, 0.98);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.28);
+    opacity: 0;
+    transform: translateX(0) scale(.96);
+    pointer-events: none;
+    transition: opacity .16s ease, transform .16s ease;
+    z-index: 20;
+  }
+  .rs-monitor-pop.open {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    pointer-events: auto;
+  }
+  .rs-monitor-opt {
+    width: 38px;
+    height: 36px;
+    border: 0;
+    border-radius: 8px;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    cursor: pointer;
+  }
+  .rs-monitor-opt svg {
+    width: 15px;
+    height: 15px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.7;
+  }
+  .rs-monitor-opt span {
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .rs-monitor-opt.active {
+    background: rgba(255, 255, 255, 0.28);
+  }
+  .rs-monitor-opt:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .rs-rail-sep {
+    width: 22px;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.25);
+    margin: 2px 0;
+  }
+  .rs-rail-btn-help {
+    margin-top: auto;
+  }
+  .rs-viewer-stage {
+    flex: 1;
+    min-width: 0;
+    min-height: 560px;
+  }
+  .rs-side-drawer {
+    position: absolute;
+    top: 0;
+    left: 52px;
+    width: 320px;
+    height: 100%;
+    background: linear-gradient(180deg, #0f1b36 0%, #13264d 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 8px 0 24px rgba(0, 0, 0, 0.28);
+    transform: scaleX(0);
+    transform-origin: left center;
+    opacity: 0;
+    transition: transform .22s ease, opacity .22s ease;
+    z-index: 12;
+    pointer-events: none;
+    color: #e6ecff;
+    display: flex;
+    flex-direction: column;
+  }
+  .rs-side-drawer.open {
+    transform: scaleX(1);
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .rs-info-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 12px 12px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .rs-info-close {
+    border: 0;
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .rs-info-body {
+    padding: 10px 12px 14px;
+    overflow: auto;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .rs-info-item {
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.12);
+  }
+  .rs-info-item:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+  .rs-info-k {
+    color: #afc1ee;
+    margin-bottom: 2px;
+    font-size: 11px;
+  }
+  .rs-info-v {
+    color: #fff;
+    word-break: break-word;
+  }
+  .rs-info-loading {
+    color: #c6d4f5;
+    font-style: italic;
+  }
+  .rs-paste-body {
+    padding: 10px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    height: 100%;
+  }
+  .rs-paste-text {
+    width: 100%;
+    min-height: 180px;
+    resize: vertical;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(8, 14, 32, 0.55);
+    color: #fff;
+    border-radius: 8px;
+    padding: 8px;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 12px;
+  }
+  .rs-paste-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .rs-paste-note {
+    color: #b8c9ef;
+    font-size: 11px;
+    line-height: 1.35;
+  }
+  .rs-help-actions {
+    margin-top: auto;
+    padding: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+  }
+  .rs-help-end-btn {
+    width: 100%;
+    background: #c81e1e;
+    border-color: #c81e1e;
+  }
+  .rs-help-end-btn:hover {
+    background: #b11a1a;
+    border-color: #b11a1a;
+  }
+  .rs-center-toast {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #0f62fe;
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 10px 28px rgba(15, 98, 254, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s ease;
+    z-index: 9999;
+  }
+  .rs-center-toast.show {
+    opacity: 1;
+  }
+  .rs-approval-overlay {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 15;
+    background: rgba(8, 16, 36, 0.58);
+    backdrop-filter: blur(1px);
+  }
+  .rs-approval-overlay.show {
+    display: flex;
+  }
+  .rs-approval-card {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    min-width: 0;
+    text-align: center;
+    color: #fff;
+    box-shadow: none;
+  }
+  .rs-approval-loader {
+    position: relative;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    perspective: 800px;
+    margin: 0 auto 8px;
+  }
+  .rs-approval-loader .ring {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    border-radius: 50%;
+  }
+  .rs-approval-loader .ring.one {
+    left: 0;
+    top: 0;
+    border-bottom: 3px solid #e8efff;
+    animation: rs-rotate-one 1s linear infinite;
+  }
+  .rs-approval-loader .ring.two {
+    right: 0;
+    top: 0;
+    border-right: 3px solid #e8efff;
+    animation: rs-rotate-two 1s linear infinite;
+  }
+  .rs-approval-loader .ring.three {
+    right: 0;
+    bottom: 0;
+    border-top: 3px solid #e8efff;
+    animation: rs-rotate-three 1s linear infinite;
+  }
+  @keyframes rs-rotate-one {
+    0% { transform: rotateX(35deg) rotateY(-45deg) rotateZ(0deg); }
+    100% { transform: rotateX(35deg) rotateY(-45deg) rotateZ(360deg); }
+  }
+  @keyframes rs-rotate-two {
+    0% { transform: rotateX(50deg) rotateY(10deg) rotateZ(0deg); }
+    100% { transform: rotateX(50deg) rotateY(10deg) rotateZ(360deg); }
+  }
+  @keyframes rs-rotate-three {
+    0% { transform: rotateX(35deg) rotateY(55deg) rotateZ(0deg); }
+    100% { transform: rotateX(35deg) rotateY(55deg) rotateZ(360deg); }
+  }
+  .rs-approval-text {
+    font-size: 14px;
+    font-weight: 700;
+    color: #d8e6ff;
+  }
+</style>
 <div class="card">
   <div class="row spread wrap">
     <h3 style="margin:0;">Uzak Destek Oturumu #{{ session_id }}</h3>
     <div class="row wrap" style="gap:8px;">
       <button id="btn-refresh" class="btn secondary" type="button">Yenile</button>
-      <button id="btn-end" class="btn" type="button">Oturumu Bitir</button>
     </div>
   </div>
 
@@ -16,24 +372,172 @@
     <div id="viewer-status" class="muted">Canli ekran baglantisi hazirlaniyor...</div>
   </div>
   <div id="viewer-toolbar" style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:10px; border:1px solid #2f3640; border-radius:10px; background:linear-gradient(135deg,#151b2f 0%,#1e2947 100%);">
-    <button id="tool-connect" class="btn" type="button">Baglan</button>
+    <button id="tool-connect-toggle" class="btn" type="button">Baglan</button>
     <button id="tool-fullscreen" class="btn secondary" type="button">Tam Ekran</button>
     <button id="tool-scale" class="btn secondary" type="button">Olcekleme: Acik</button>
     <button id="tool-viewonly" class="btn secondary" type="button">Kontrol: Acik</button>
     <button id="tool-cad" class="btn secondary" type="button">Ctrl+Alt+Del</button>
     <button id="tool-clipboard" class="btn secondary" type="button">Clipboard Gonder</button>
-    <button id="tool-disconnect" class="btn secondary" type="button">Baglantiyi Kes</button>
     <span id="toolbar-monitor-pill" class="badge warn">Monitör: -</span>
     <span id="toolbar-mode-pill" class="badge warn">Mod: -</span>
   </div>
   <div id="viewer-wrap" style="margin-top:8px; min-height:560px; border:1px solid #2f3640; border-radius:10px; background:#0b1020; overflow:hidden;">
-    <div id="viewer-display" style="width:100%; height:100%; min-height:560px;"></div>
+    <div class="rs-viewer-shell">
+      <aside class="rs-control-rail" aria-label="Uzak destek kontrol bari (taslak)">
+        <button id="rail-info" class="rs-rail-btn" type="button" aria-label="Ajan Bilgisi" title="Ajan Bilgisi">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 10v6"/><path d="M12 7h.01"/></svg>
+        </button>
+        <div class="rs-monitor-wrap">
+          <button id="rail-monitor" class="rs-rail-btn rs-monitor-main" type="button" aria-label="Monitör" title="Monitör Secimi">
+            <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M12 17v3"/><path d="M8 20h8"/></svg>
+            <span id="rail-monitor-num" class="rs-monitor-num">1</span>
+          </button>
+          <div id="rs-monitor-pop" class="rs-monitor-pop" aria-label="Monitör Seçimi">
+            <button id="rail-monitor-opt-1" class="rs-monitor-opt" type="button" title="Monitör 1">
+              <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M12 17v3"/><path d="M8 20h8"/></svg>
+              <span>1</span>
+            </button>
+            <button id="rail-monitor-opt-2" class="rs-monitor-opt" type="button" title="Monitör 2">
+              <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M12 17v3"/><path d="M8 20h8"/></svg>
+              <span>2</span>
+            </button>
+          </div>
+        </div>
+        <div class="rs-rail-sep"></div>
+        <button id="rail-connect-toggle" class="rs-rail-btn" type="button" aria-label="Baglan" title="Baglan">
+          <svg viewBox="0 0 24 24"><path d="M10 14l4-4"/><path d="M8 6h10v10"/><path d="M14 6H6v12h12v-8"/></svg>
+        </button>
+        <button id="rail-fullscreen" class="rs-rail-btn" type="button" aria-label="Tam ekran" title="Tam Ekran">
+          <svg viewBox="0 0 24 24"><path d="M8 3H3v5"/><path d="M16 3h5v5"/><path d="M21 16v5h-5"/><path d="M3 16v5h5"/></svg>
+        </button>
+        <button id="rail-scale" class="rs-rail-btn" type="button" aria-label="Olcekleme" title="Olcekleme">
+          <svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="5"/><path d="M14.5 14.5L20 20"/></svg>
+        </button>
+        <button id="rail-viewonly" class="rs-rail-btn" type="button" aria-label="Kontrol" title="Kontrol Ac/Kapat">
+          <svg viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.5"/></svg>
+        </button>
+        <div class="rs-rail-sep"></div>
+        <button id="rail-cad" class="rs-rail-btn" type="button" aria-label="Klavye kisayolu" title="Ctrl+Alt+Del">
+          <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M10 10h.01M13 10h.01M16 10h.01M8 14h8"/></svg>
+        </button>
+        <button id="rail-clipboard" class="rs-rail-btn" type="button" aria-label="Clipboard" title="Clipboard Gonder">
+          <svg viewBox="0 0 24 24"><rect x="8" y="4" width="8" height="4" rx="1"/><path d="M8 6H6v14h12V6h-2"/></svg>
+        </button>
+        <div class="rs-rail-sep"></div>
+        <button id="rail-help" class="rs-rail-btn rs-rail-btn-help" type="button" aria-label="Yardim" title="Yardim">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.1 9.2a3 3 0 0 1 5.8 1.2c0 2-2.2 2.5-2.7 4"/><path d="M12 17h.01"/></svg>
+        </button>
+      </aside>
+      <div id="viewer-display" class="rs-viewer-stage" style="width:100%; height:100%; min-height:560px;"></div>
+      <aside id="rs-agent-info-drawer" class="rs-side-drawer" aria-label="Ajan Bilgi Paneli">
+        <div class="rs-info-head">
+          <span>Ajan Bilgisi</span>
+          <button id="rs-agent-info-close" class="rs-info-close" type="button" aria-label="Kapat">×</button>
+        </div>
+        <div class="rs-info-body">
+          <div id="rs-agent-info-loading" class="rs-info-loading">Yukleniyor...</div>
+          <div class="rs-info-item">
+            <div class="rs-info-k">Hostname</div>
+            <div id="rs-info-hostname" class="rs-info-v">-</div>
+          </div>
+          <div class="rs-info-item">
+            <div class="rs-info-k">Oturum Açan Kullanici</div>
+            <div id="rs-info-user" class="rs-info-v">-</div>
+          </div>
+          <div class="rs-info-item">
+            <div class="rs-info-k">IP</div>
+            <div id="rs-info-ip" class="rs-info-v">-</div>
+          </div>
+          <div class="rs-info-item">
+            <div class="rs-info-k">Donanim Modeli</div>
+            <div id="rs-info-model" class="rs-info-v">-</div>
+          </div>
+          <div class="rs-info-item">
+            <div class="rs-info-k">OS Bilgisi</div>
+            <div id="rs-info-os" class="rs-info-v">-</div>
+          </div>
+        </div>
+      </aside>
+      <aside id="rs-paste-drawer" class="rs-side-drawer" aria-label="Clipboard Gonder Paneli">
+        <div class="rs-info-head">
+          <span>Clipboard Gonder</span>
+          <button id="rs-paste-close" class="rs-info-close" type="button" aria-label="Kapat">×</button>
+        </div>
+        <div class="rs-paste-body">
+          <textarea id="rs-paste-text" class="rs-paste-text" placeholder="Uzak cihaza gonderilecek metni buraya yazin..."></textarea>
+          <div class="rs-paste-actions">
+            <button id="rs-paste-read" class="btn secondary" type="button">Pano Oku</button>
+            <button id="rs-paste-send" class="btn" type="button">Gonder</button>
+            <button id="rs-paste-clear" class="btn secondary" type="button">Temizle</button>
+          </div>
+          <div class="rs-paste-note">Not: Metin gonderimi aktif baglantida calisir.</div>
+        </div>
+      </aside>
+      <aside id="rs-help-drawer" class="rs-side-drawer" aria-label="Baglanti Yardim Paneli">
+        <div class="rs-info-head">
+          <span>Baglanti Bilgileri</span>
+          <button id="rs-help-close" class="rs-info-close" type="button" aria-label="Kapat">×</button>
+        </div>
+        <div class="rs-info-body">
+          <div class="rs-info-item">
+            <div class="rs-info-k">Durum</div>
+            <div id="rs-help-status" class="rs-info-v">-</div>
+          </div>
+          <div class="rs-info-item">
+            <div class="rs-info-k">Ajan</div>
+            <div id="rs-help-agent" class="rs-info-v">-</div>
+          </div>
+          <div class="rs-info-item">
+            <div class="rs-info-k">Talep Eden</div>
+            <div id="rs-help-admin" class="rs-info-v">-</div>
+          </div>
+          <div class="rs-info-item">
+            <div class="rs-info-k">Sebep</div>
+            <div id="rs-help-reason" class="rs-info-v">-</div>
+          </div>
+          <div class="rs-info-item">
+            <div class="rs-info-k">Talep</div>
+            <div id="rs-help-requested" class="rs-info-v">-</div>
+          </div>
+          <div class="rs-info-item">
+            <div class="rs-info-k">Onay</div>
+            <div id="rs-help-approved" class="rs-info-v">-</div>
+          </div>
+          <div class="rs-info-item">
+            <div class="rs-info-k">Baglandi</div>
+            <div id="rs-help-connected" class="rs-info-v">-</div>
+          </div>
+          <div class="rs-info-item">
+            <div class="rs-info-k">Bitis</div>
+            <div id="rs-help-ended" class="rs-info-v">-</div>
+          </div>
+          <div class="rs-info-item">
+            <div class="rs-info-k">Bitiren</div>
+            <div id="rs-help-endedby" class="rs-info-v">-</div>
+          </div>
+        </div>
+        <div class="rs-help-actions">
+          <button id="rs-help-end-session" class="btn rs-help-end-btn" type="button">Oturumu Bitir</button>
+        </div>
+      </aside>
+      <div id="rs-approval-overlay" class="rs-approval-overlay" aria-live="polite">
+        <div class="rs-approval-card">
+          <div class="rs-approval-loader" aria-hidden="true">
+            <div class="ring one"></div>
+            <div class="ring two"></div>
+            <div class="ring three"></div>
+          </div>
+          <div class="rs-approval-text">Onay bekleniyor...</div>
+        </div>
+      </div>
+    </div>
   </div>
   <div style="margin-top:10px;">
     <div class="muted" style="margin-bottom:6px;">Baglanti Loglari</div>
     <div id="conn-log" style="height:160px; overflow:auto; border:1px solid #2f3640; border-radius:8px; background:#0d1324; padding:8px; font-family:monospace; font-size:12px; line-height:1.45;"></div>
   </div>
 </div>
+<div id="rs-center-toast" class="rs-center-toast" aria-live="polite"></div>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -52,6 +556,16 @@
   let reconnectTimer = null;
   let reconnectAttempt = 0;
   let manualDisconnectRequested = false;
+  let infoDrawerOpen = false;
+  let pasteDrawerOpen = false;
+  let infoLoadedOnce = false;
+  let infoLastFetchMs = 0;
+  let infoFetchInFlight = false;
+  let centerToastTimer = null;
+  let monitorMenuOpen = false;
+  let selectedMonitor = 1;
+  let helpDrawerOpen = false;
+  let windowPresenceTimer = null;
 
   function esc(s) {
     return (s || '')
@@ -81,6 +595,12 @@
       return;
     }
     el.className = 'badge warn';
+  }
+
+  function toggleApprovalOverlay(show) {
+    const el = document.getElementById('rs-approval-overlay');
+    if (!el) return;
+    el.classList.toggle('show', !!show);
   }
 
   function nowStamp() {
@@ -165,6 +685,238 @@
     }
   }
 
+  function setRailBtn(id, enabled, active) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = !enabled;
+    if (active) el.classList.add('is-active');
+    else el.classList.remove('is-active');
+  }
+
+  function setText(id, value) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = value && String(value).trim() ? String(value) : '-';
+  }
+
+  function showCenterToast(message) {
+    const el = document.getElementById('rs-center-toast');
+    if (!el) return;
+    el.textContent = message || '';
+    el.classList.add('show');
+    if (centerToastTimer) clearTimeout(centerToastTimer);
+    centerToastTimer = setTimeout(() => {
+      el.classList.remove('show');
+    }, 1300);
+  }
+
+  function getMonitorCount() {
+    const raw = Number((currentSession && currentSession.monitor_count) || 0);
+    // If monitor count is missing/zero, default to single-monitor UX.
+    return raw > 0 ? raw : 1;
+  }
+
+  function setMonitorMenuOpen(open) {
+    monitorMenuOpen = !!open;
+    const pop = document.getElementById('rs-monitor-pop');
+    if (pop) pop.classList.toggle('open', monitorMenuOpen);
+  }
+
+  function setSelectedMonitor(index, silent) {
+    const count = getMonitorCount();
+    const max = count > 0 ? count : 1;
+    const next = Math.min(Math.max(1, Number(index) || 1), max);
+    selectedMonitor = next;
+    const n = document.getElementById('rail-monitor-num');
+    if (n) n.textContent = String(selectedMonitor);
+    if (!silent) {
+      addConnLog(`Monitör ${selectedMonitor} secildi.`, 'ok');
+      showCenterToast(`${selectedMonitor}. monitor secildi`);
+    }
+  }
+
+  function getAgentUsers(agent) {
+    const list = Array.isArray(agent && agent.logged_in_sessions) ? agent.logged_in_sessions : [];
+    const users = [];
+    list.forEach((s) => {
+      const u = (s && s.username ? String(s.username) : '').trim();
+      if (!u) return;
+      const t = (s && s.session_type ? String(s.session_type) : '').trim();
+      users.push(t ? `${u} (${t})` : u);
+    });
+    return users.length ? users.join(', ') : '-';
+  }
+
+  function buildModelText(agent) {
+    const sys = agent && agent.system_profile ? agent.system_profile : null;
+    const manu = (sys && sys.manufacturer ? String(sys.manufacturer) : '').trim();
+    const model = (sys && sys.model ? String(sys.model) : '').trim();
+    const out = `${manu} ${model}`.trim();
+    return out || '-';
+  }
+
+  function buildOsText(agent) {
+    const sys = agent && agent.system_profile ? agent.system_profile : null;
+    if (sys) {
+      const osFull = (sys.os_full_name || '').toString().trim();
+      const osVer = (sys.os_version || '').toString().trim();
+      const build = (sys.build_number || '').toString().trim();
+      const s = `${osFull} ${osVer}`.trim();
+      return build ? `${s} (Build ${build})` : (s || '-');
+    }
+    return ((agent && agent.os_version) ? String(agent.os_version) : '-') || '-';
+  }
+
+  async function loadAgentInfo(opts) {
+    const options = opts || {};
+    const showLoading = !!options.showLoading;
+    const force = !!options.force;
+    const loading = document.getElementById('rs-agent-info-loading');
+    const agentUUID = (currentSession && currentSession.agent_uuid) ? String(currentSession.agent_uuid) : '';
+    if (!agentUUID) {
+      setText('rs-info-hostname', '-');
+      setText('rs-info-user', '-');
+      setText('rs-info-ip', '-');
+      setText('rs-info-model', '-');
+      setText('rs-info-os', '-');
+      if (loading) loading.style.display = infoLoadedOnce ? 'none' : '';
+      return;
+    }
+    if (infoFetchInFlight) return;
+    const now = Date.now();
+    if (!force && (now - infoLastFetchMs) < 10000) return; // avoid visible churn on 3s session polling
+
+    infoFetchInFlight = true;
+    if (loading) loading.style.display = showLoading && !infoLoadedOnce ? '' : 'none';
+    try {
+      const agent = await AppCenterApi.req(`/agents/${encodeURIComponent(agentUUID)}`);
+      setText('rs-info-hostname', agent.hostname || '-');
+      setText('rs-info-user', getAgentUsers(agent));
+      setText('rs-info-ip', agent.ip_address || '-');
+      setText('rs-info-model', buildModelText(agent));
+      setText('rs-info-os', buildOsText(agent));
+      infoLoadedOnce = true;
+      infoLastFetchMs = Date.now();
+    } catch (_) {
+      if (!infoLoadedOnce) {
+        setText('rs-info-hostname', '-');
+        setText('rs-info-user', '-');
+        setText('rs-info-ip', '-');
+        setText('rs-info-model', '-');
+        setText('rs-info-os', '-');
+      }
+      addConnLog('Ajan bilgi paneli verisi alinamadi.', 'error');
+    } finally {
+      infoFetchInFlight = false;
+      if (loading) loading.style.display = infoLoadedOnce ? 'none' : '';
+    }
+  }
+
+  function setDrawerState(kind, open) {
+    const infoDrawer = document.getElementById('rs-agent-info-drawer');
+    const pasteDrawer = document.getElementById('rs-paste-drawer');
+    const helpDrawer = document.getElementById('rs-help-drawer');
+    const railInfo = document.getElementById('rail-info');
+    const railClipboard = document.getElementById('rail-clipboard');
+    const railHelp = document.getElementById('rail-help');
+
+    if (kind === 'info') {
+      infoDrawerOpen = open;
+      pasteDrawerOpen = false;
+      helpDrawerOpen = false;
+    } else if (kind === 'paste') {
+      pasteDrawerOpen = open;
+      infoDrawerOpen = false;
+      helpDrawerOpen = false;
+    } else if (kind === 'help') {
+      helpDrawerOpen = open;
+      infoDrawerOpen = false;
+      pasteDrawerOpen = false;
+    } else {
+      infoDrawerOpen = false;
+      pasteDrawerOpen = false;
+      helpDrawerOpen = false;
+    }
+
+    if (infoDrawer) infoDrawer.classList.toggle('open', infoDrawerOpen);
+    if (pasteDrawer) pasteDrawer.classList.toggle('open', pasteDrawerOpen);
+    if (helpDrawer) helpDrawer.classList.toggle('open', helpDrawerOpen);
+    if (railInfo) railInfo.classList.toggle('is-active', infoDrawerOpen);
+    if (railClipboard) railClipboard.classList.toggle('is-active', pasteDrawerOpen);
+    if (railHelp) railHelp.classList.toggle('is-active', helpDrawerOpen);
+  }
+
+  function toggleInfoDrawer(forceOpen) {
+    const drawer = document.getElementById('rs-agent-info-drawer');
+    if (!drawer) return;
+    const next = typeof forceOpen === 'boolean' ? forceOpen : !infoDrawerOpen;
+    setDrawerState('info', next);
+    if (next) loadAgentInfo({ showLoading: true, force: true });
+  }
+
+  function togglePasteDrawer(forceOpen) {
+    const drawer = document.getElementById('rs-paste-drawer');
+    if (!drawer) return;
+    const next = typeof forceOpen === 'boolean' ? forceOpen : !pasteDrawerOpen;
+    setDrawerState('paste', next);
+  }
+
+  function refreshHelpDrawer() {
+    const s = currentSession || {};
+    setText('rs-help-status', s.status || '-');
+    setText('rs-help-agent', s.agent_uuid || '-');
+    setText('rs-help-admin', s.admin_name || '-');
+    setText('rs-help-reason', s.reason || '-');
+    setText('rs-help-requested', AppCenterApi.formatDate(s.requested_at) || '-');
+    setText('rs-help-approved', AppCenterApi.formatDate(s.approved_at) || '-');
+    setText('rs-help-connected', AppCenterApi.formatDate(s.connected_at) || '-');
+    setText('rs-help-ended', AppCenterApi.formatDate(s.ended_at) || '-');
+    setText('rs-help-endedby', s.ended_by || '-');
+  }
+
+  function toggleHelpDrawer(forceOpen) {
+    const drawer = document.getElementById('rs-help-drawer');
+    if (!drawer) return;
+    const next = typeof forceOpen === 'boolean' ? forceOpen : !helpDrawerOpen;
+    setDrawerState('help', next);
+    if (next) refreshHelpDrawer();
+  }
+
+  async function readClipboardToPanel() {
+    const ta = document.getElementById('rs-paste-text');
+    if (!ta) return;
+    try {
+      const txt = await navigator.clipboard.readText();
+      ta.value = txt || '';
+      addConnLog('Pano metni alindi.', 'ok');
+    } catch (_) {
+      addConnLog('Pano okuma basarisiz.', 'error');
+    }
+  }
+
+  function sendPasteFromPanel() {
+    const ta = document.getElementById('rs-paste-text');
+    if (!ta) return;
+    const text = (ta.value || '').toString();
+    if (!text.trim()) {
+      addConnLog('Gonderilecek metin bos.', 'warn');
+      return;
+    }
+    if (!currentRfb) {
+      addConnLog('Clipboard gonderimi icin aktif baglanti yok.', 'error');
+      return;
+    }
+    try {
+      currentRfb.clipboardPasteFrom(text);
+      addConnLog('Clipboard metni gonderildi.', 'ok');
+      setViewerStatus('Clipboard metni gonderildi.');
+      togglePasteDrawer(false);
+      showCenterToast('Pano verisi gonderildi');
+    } catch (_) {
+      addConnLog('Clipboard gonderimi basarisiz.', 'error');
+    }
+  }
+
   function syncToolbar() {
     const pill = document.getElementById('toolbar-mode-pill');
     const monitorPill = document.getElementById('toolbar-monitor-pill');
@@ -191,13 +943,57 @@
     const viewBtn = document.getElementById('tool-viewonly');
     if (viewBtn) viewBtn.textContent = `Kontrol: ${viewOnly ? 'Kapali' : 'Acik'}`;
 
-    setToolBtn('tool-connect', connectEnabled, false);
+    const toggleEnabled = isLiveConnected() || canConnect;
+    const toggleDisconnectMode = isLiveConnected();
+    setToolBtn('tool-connect-toggle', toggleEnabled, toggleDisconnectMode);
+    const topToggle = document.getElementById('tool-connect-toggle');
+    if (topToggle) {
+      topToggle.textContent = toggleDisconnectMode ? 'Baglantiyi Kes' : 'Baglan';
+      topToggle.style.background = toggleDisconnectMode ? '#d62828' : '';
+    }
     setToolBtn('tool-fullscreen', embedded, false);
     setToolBtn('tool-scale', enabled, scaleOn);
     setToolBtn('tool-viewonly', enabled, !viewOnly);
     setToolBtn('tool-cad', enabled && !viewOnly, false);
     setToolBtn('tool-clipboard', enabled && !viewOnly, false);
-    setToolBtn('tool-disconnect', isLiveConnected(), false);
+
+    // Keep left icon rail in sync with primary toolbar.
+    setRailBtn('rail-connect-toggle', toggleEnabled, toggleDisconnectMode);
+    setRailBtn('rail-fullscreen', embedded, false);
+    setRailBtn('rail-scale', enabled, scaleOn);
+    setRailBtn('rail-viewonly', enabled, !viewOnly);
+    setRailBtn('rail-cad', enabled && !viewOnly, false);
+    setRailBtn('rail-clipboard', enabled && !viewOnly, pasteDrawerOpen);
+    setRailBtn('rail-info', true, infoDrawerOpen);
+    setRailBtn('rail-help', true, helpDrawerOpen);
+    const railToggle = document.getElementById('rail-connect-toggle');
+    if (railToggle) {
+      railToggle.title = toggleDisconnectMode ? 'Baglantiyi Kes' : 'Baglan';
+      railToggle.setAttribute('aria-label', toggleDisconnectMode ? 'Baglantiyi kes' : 'Baglan');
+      railToggle.innerHTML = toggleDisconnectMode
+        ? '<svg viewBox="0 0 24 24"><path d="M8.5 8.5l7 7"/><path d="M15.5 8.5l-7 7"/><path d="M6 6l12 12"/></svg>'
+        : '<svg viewBox="0 0 24 24"><path d="M9 12a3 3 0 0 1 3-3h3"/><path d="M15 12a3 3 0 0 1-3 3H9"/><path d="M14 9l2-2a3 3 0 1 1 4 4l-2 2"/><path d="M10 15l-2 2a3 3 0 1 1-4-4l2-2"/></svg>';
+    }
+    // Monitor icon is informational for now.
+    const monitorCount = getMonitorCount();
+    if (selectedMonitor > Math.max(1, monitorCount)) selectedMonitor = 1;
+    setRailBtn('rail-monitor', true, monitorMenuOpen);
+    const n = document.getElementById('rail-monitor-num');
+    if (n) n.textContent = String(selectedMonitor);
+    const mainMon = document.getElementById('rail-monitor');
+    if (mainMon) mainMon.title = `Monitör Secimi (aktif: ${selectedMonitor})`;
+    const m1 = document.getElementById('rail-monitor-opt-1');
+    const m2 = document.getElementById('rail-monitor-opt-2');
+    if (m1) {
+      m1.disabled = false;
+      m1.classList.toggle('active', selectedMonitor === 1);
+      m1.title = 'Monitör 1';
+    }
+    if (m2) {
+      m2.disabled = monitorCount < 2;
+      m2.classList.toggle('active', selectedMonitor === 2);
+      m2.title = monitorCount < 2 ? 'aktif değil' : 'Monitör 2';
+    }
   }
 
   function sleepMs(ms) {
@@ -441,6 +1237,8 @@
         return;
       }
       currentSession = s;
+      if (infoDrawerOpen) loadAgentInfo({ showLoading: false, force: false });
+      if (helpDrawerOpen) refreshHelpDrawer();
 
       const html = `
         <div style="overflow-x:auto; border:1px solid #2f3640; border-radius:8px;">
@@ -480,12 +1278,11 @@
       const prevLow = lastSessionStatus;
       lastSessionStatus = low;
       const endedStates = ['ended', 'timeout', 'rejected', 'error'];
-      document.getElementById('btn-end').disabled = endedStates.includes(low);
-
       if (endedStates.includes(low)) {
         autoConnectAttempted = true;
         clearReconnectTimer();
         liveConnState = 'disconnected';
+        toggleApprovalOverlay(false);
         setConnBadge('Sonlandi', 'warn');
         setViewerStatus('Oturum sonlandi.');
         addConnLog('Oturum sonlandi, reconnect durduruldu.', 'warn');
@@ -493,11 +1290,15 @@
       } else {
         if (low === 'pending_approval') {
           autoConnectAttempted = false;
+          toggleApprovalOverlay(true);
           if (!isLiveConnected()) setConnBadge('Onay Bekleniyor', 'warn');
           setViewerStatus('Ajan kullanicisinin onayi bekleniyor. Onay verildiginde baglanti otomatik baslatilacak.');
         } else if (!isLiveConnected()) {
+          toggleApprovalOverlay(false);
           setConnBadge('Hazir', 'warn');
           setViewerStatus('Oturum acildiginda baglanti otomatik baslatilir. Gerekirse Baglan kullanin.');
+        } else {
+          toggleApprovalOverlay(false);
         }
         // Auto-start when session becomes connectable (e.g. pending_approval -> approved)
         if (['approved', 'connecting', 'active'].includes(low) && !isLiveConnected() && !autoConnectAttempted) {
@@ -562,13 +1363,55 @@
     }
   }
 
-  async function endSession() {
-    if (!window.confirm('Bu oturum bitirilsin mi?')) return;
+  function closeSessionPage() {
+    stopSessionWindowPresence();
+    const showClosedNotice = () => {
+      const body = document.body;
+      if (!body) return;
+      body.innerHTML = '';
+      const wrap = document.createElement('div');
+      wrap.style.position = 'fixed';
+      wrap.style.inset = '0';
+      wrap.style.display = 'flex';
+      wrap.style.alignItems = 'center';
+      wrap.style.justifyContent = 'center';
+      wrap.style.background = '#0b1020';
+      wrap.style.color = '#e7ecff';
+      wrap.style.fontFamily = '"IBM Plex Sans", sans-serif';
+      wrap.style.padding = '24px';
+      wrap.style.textAlign = 'center';
+
+      const msg = document.createElement('div');
+      msg.style.maxWidth = '680px';
+      msg.style.fontSize = '22px';
+      msg.style.lineHeight = '1.45';
+      msg.style.fontWeight = '600';
+      msg.textContent = 'Oturum sonlandı, lütfen aktif oturum penceresini kapatın.';
+
+      wrap.appendChild(msg);
+      body.appendChild(wrap);
+      document.title = 'Oturum Sonlandi';
+    };
+
+    try {
+      window.close();
+    } catch (_) {}
+    setTimeout(() => {
+      if (!window.closed) showClosedNotice();
+    }, 220);
+  }
+
+  async function endSession(options) {
+    const opts = options || {};
+    const closePage = !!opts.closePage;
+    const askConfirm = opts.askConfirm !== false;
+    if (askConfirm && !window.confirm('Bu oturum bitirilsin mi?')) return;
     try {
       await AppCenterApi.req(`/remote-support/sessions/${SESSION_ID}/end`, { method: 'POST' });
       AppCenterApi.toast('Oturum bitirme istegi gonderildi');
       closeEndSent = true;
-      loadSession();
+      await loadSession();
+      if (closePage) closeSessionPage();
     } catch (err) {
       AppCenterApi.toast(err.message || 'Oturum bitirilemedi');
     }
@@ -589,11 +1432,48 @@
     } catch (_) {}
   }
 
+  function rsWindowPresenceKey(sessionId) {
+    return `appcenter_rs_window_open_${String(sessionId || '').trim()}`;
+  }
+
+  function touchSessionWindowPresence() {
+    try {
+      localStorage.setItem(rsWindowPresenceKey(SESSION_ID), String(Date.now()));
+    } catch (_) {}
+  }
+
+  function startSessionWindowPresence() {
+    stopSessionWindowPresence();
+    touchSessionWindowPresence();
+    windowPresenceTimer = setInterval(touchSessionWindowPresence, 5000);
+  }
+
+  function stopSessionWindowPresence() {
+    if (windowPresenceTimer) {
+      clearInterval(windowPresenceTimer);
+      windowPresenceTimer = null;
+    }
+    try {
+      localStorage.removeItem(rsWindowPresenceKey(SESSION_ID));
+    } catch (_) {}
+  }
+
   (async function init() {
     await AppCenterApi.initUi();
-    document.getElementById('tool-connect').addEventListener('click', startViewer);
+    document.getElementById('tool-connect-toggle').addEventListener('click', () => {
+      if (isLiveConnected()) {
+        manualDisconnectRequested = true;
+        disconnectViewer();
+        liveConnState = 'disconnected';
+        setConnBadge('Ayrildi', 'warn');
+        setViewerStatus('Baglanti kullanici tarafindan sonlandirildi.');
+        addConnLog('Baglanti kullanici tarafindan sonlandirildi. Otomatik reconnect kapatildi.', 'warn');
+        syncToolbar();
+        return;
+      }
+      startViewer('manual');
+    });
     document.getElementById('btn-refresh').addEventListener('click', loadSession);
-    document.getElementById('btn-end').addEventListener('click', endSession);
     document.getElementById('tool-fullscreen').addEventListener('click', async () => {
       const wrap = document.getElementById('viewer-wrap');
       if (!wrap) return;
@@ -613,6 +1493,7 @@
     document.getElementById('tool-viewonly').addEventListener('click', () => {
       if (!currentRfb) return;
       currentRfb.viewOnly = !currentRfb.viewOnly;
+      showCenterToast(currentRfb.viewOnly ? 'Kontrol kapatildi' : 'Kontrol acildi');
       syncToolbar();
     });
     document.getElementById('tool-cad').addEventListener('click', async () => {
@@ -621,27 +1502,99 @@
       await sendCadWithFallback();
       setViewerStatus('Ctrl+Alt+Del gonderildi.');
     });
-    document.getElementById('tool-clipboard').addEventListener('click', async () => {
-      if (!currentRfb) return;
-      let text = '';
-      try {
-        text = await navigator.clipboard.readText();
-      } catch (_) {
-        text = window.prompt('Gonderilecek metni girin:', '') || '';
-      }
-      if (!text) return;
-      try { currentRfb.clipboardPasteFrom(text); } catch (_) {}
+    document.getElementById('tool-clipboard').addEventListener('click', () => {
+      if (document.getElementById('tool-clipboard').disabled) return;
+      togglePasteDrawer();
     });
-    document.getElementById('tool-disconnect').addEventListener('click', () => {
-      manualDisconnectRequested = true;
-      disconnectViewer();
-      liveConnState = 'disconnected';
-      setConnBadge('Ayrildi', 'warn');
-      setViewerStatus('Baglanti kullanici tarafindan sonlandirildi.');
-      addConnLog('Baglanti kullanici tarafindan sonlandirildi. Otomatik reconnect kapatildi.', 'warn');
-      syncToolbar();
-    });
+    const bindRailToTool = (railId, toolId) => {
+      const rail = document.getElementById(railId);
+      const tool = document.getElementById(toolId);
+      if (!rail || !tool) return;
+      rail.addEventListener('click', () => {
+        if (rail.disabled || tool.disabled) return;
+        tool.click();
+      });
+    };
+    bindRailToTool('rail-connect-toggle', 'tool-connect-toggle');
+    bindRailToTool('rail-fullscreen', 'tool-fullscreen');
+    bindRailToTool('rail-scale', 'tool-scale');
+    bindRailToTool('rail-viewonly', 'tool-viewonly');
+    bindRailToTool('rail-cad', 'tool-cad');
+    bindRailToTool('rail-clipboard', 'tool-clipboard');
+    const railMonitor = document.getElementById('rail-monitor');
+    if (railMonitor) {
+      railMonitor.addEventListener('click', (ev) => {
+        if (railMonitor.disabled) return;
+        ev.stopPropagation();
+        setMonitorMenuOpen(!monitorMenuOpen);
+        syncToolbar();
+      });
+    }
+    const mon1 = document.getElementById('rail-monitor-opt-1');
+    if (mon1) {
+      mon1.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if (mon1.disabled) return;
+        setSelectedMonitor(1, false);
+        setMonitorMenuOpen(false);
+        syncToolbar();
+      });
+    }
+    const mon2 = document.getElementById('rail-monitor-opt-2');
+    if (mon2) {
+      mon2.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if (mon2.disabled) return;
+        setSelectedMonitor(2, false);
+        setMonitorMenuOpen(false);
+        syncToolbar();
+      });
+    }
+    const railInfo = document.getElementById('rail-info');
+    if (railInfo) {
+      railInfo.addEventListener('click', () => {
+        if (railInfo.disabled) return;
+        toggleInfoDrawer();
+      });
+    }
+    const railHelp = document.getElementById('rail-help');
+    if (railHelp) {
+      railHelp.addEventListener('click', () => {
+        if (railHelp.disabled) return;
+        toggleHelpDrawer();
+      });
+    }
+    const infoClose = document.getElementById('rs-agent-info-close');
+    if (infoClose) {
+      infoClose.addEventListener('click', () => toggleInfoDrawer(false));
+    }
+    const helpClose = document.getElementById('rs-help-close');
+    if (helpClose) {
+      helpClose.addEventListener('click', () => toggleHelpDrawer(false));
+    }
+    const helpEnd = document.getElementById('rs-help-end-session');
+    if (helpEnd) {
+      helpEnd.addEventListener('click', async () => {
+        await endSession({ closePage: true, askConfirm: true });
+      });
+    }
+    const pasteClose = document.getElementById('rs-paste-close');
+    if (pasteClose) {
+      pasteClose.addEventListener('click', () => togglePasteDrawer(false));
+    }
+    const pasteRead = document.getElementById('rs-paste-read');
+    if (pasteRead) pasteRead.addEventListener('click', readClipboardToPanel);
+    const pasteSend = document.getElementById('rs-paste-send');
+    if (pasteSend) pasteSend.addEventListener('click', sendPasteFromPanel);
+    const pasteClear = document.getElementById('rs-paste-clear');
+    if (pasteClear) {
+      pasteClear.addEventListener('click', () => {
+        const ta = document.getElementById('rs-paste-text');
+        if (ta) ta.value = '';
+      });
+    }
     await loadSession();
+    startSessionWindowPresence();
     const initState = ((currentSession && currentSession.status) || '').toLowerCase();
     if (['approved', 'connecting', 'active'].includes(initState) && !isLiveConnected() && !autoConnectAttempted) {
       startViewer();
@@ -657,13 +1610,22 @@
     addConnLog(`Oturum sayfasi acildi (session=${SESSION_ID}, mod=${NOVNC_MODE})`, 'ok');
     syncToolbar();
     window.addEventListener('beforeunload', () => {
+      stopSessionWindowPresence();
       endSessionOnClose();
       clearReconnectTimer();
       disconnectViewer();
     });
     window.addEventListener('pagehide', () => {
+      stopSessionWindowPresence();
       endSessionOnClose();
       clearReconnectTimer();
+    });
+    document.addEventListener('click', (ev) => {
+      if (!monitorMenuOpen) return;
+      const rail = document.querySelector('.rs-control-rail');
+      if (rail && rail.contains(ev.target)) return;
+      setMonitorMenuOpen(false);
+      syncToolbar();
     });
     window.addEventListener('resize', () => {
       syncViewerGeometry();
