@@ -38,8 +38,6 @@ Base = declarative_base()
 
 DEFAULT_SETTINGS = {
     "bandwidth_limit_kbps": ("1024", "Agent download bandwidth limit (KB/s)"),
-    "work_hour_start": ("09:00", "Work hours start time (HH:MM) - UTC"),
-    "work_hour_end": ("18:00", "Work hours end time (HH:MM) - UTC"),
     "heartbeat_interval_sec": ("60", "Agent heartbeat interval (seconds)"),
     "agent_timeout_sec": ("300", "Agent offline threshold (5 minutes)"),
     "download_timeout_sec": ("1800", "Max download timeout (30 minutes)"),
@@ -56,7 +54,6 @@ DEFAULT_SETTINGS = {
     "inventory_scan_interval_min": ("10", "Agent envanter tarama araligi (dakika)"),
     "inventory_history_retention_days": ("90", "Yazilim degisim gecmisi saklama suresi (gun)"),
     "system_history_retention_days": ("360", "Sistem profili degisim gecmisi saklama suresi (gun)"),
-    "runtime_update_base_url": ("", "Agent runtime update base URL (manifest + binaries)"),
     "runtime_update_interval_min": ("60", "Agent runtime update kontrol araligi (dakika)"),
     "runtime_update_jitter_sec": ("300", "Agent runtime update jitter (saniye)"),
 }

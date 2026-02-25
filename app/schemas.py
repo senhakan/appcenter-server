@@ -36,8 +36,6 @@ class AgentRegisterRequest(BaseModel):
 class AgentConfig(BaseModel):
     heartbeat_interval_sec: int = 60
     bandwidth_limit_kbps: int = 1024
-    work_hour_start: str = "09:00"
-    work_hour_end: str = "18:00"
 
 
 class AgentRegisterResponse(BaseModel):
@@ -134,15 +132,12 @@ class CommandItem(BaseModel):
 
 class HeartbeatConfig(BaseModel):
     bandwidth_limit_kbps: int = 1024
-    work_hour_start: str = "09:00"
-    work_hour_end: str = "18:00"
     latest_agent_version: str = "1.0.0"
     agent_download_url: Optional[str] = None
     agent_hash: Optional[str] = None
     inventory_sync_required: bool = False
     inventory_scan_interval_min: int = 10
     store_tray_enabled: bool = False
-    runtime_update_base_url: Optional[str] = None
     runtime_update_interval_min: int = 60
     runtime_update_jitter_sec: int = 300
 

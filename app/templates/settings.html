@@ -22,7 +22,6 @@
       <div><label>Envanter Tarama Araligi (dk)</label><input id="s-inv-interval" /></div>
       <div><label>Envanter Gecmis Saklama (gun)</label><input id="s-inv-retention" /></div>
       <div><label>Sistem Gecmisi Saklama (gun)</label><input id="s-system-retention" /></div>
-      <div><label>Runtime Update Base URL</label><input id="s-runtime-base-url" placeholder="https://appcenter.akgun.com.tr/agent-runtime" /></div>
       <div><label>Runtime Update Interval (dk)</label><input id="s-runtime-interval" type="number" min="0" /></div>
       <div><label>Runtime Update Jitter (sn)</label><input id="s-runtime-jitter" type="number" min="0" /></div>
       <button class="btn" type="submit">Ayarlari Kaydet</button>
@@ -57,7 +56,6 @@
       document.getElementById('s-inv-interval').value = map.inventory_scan_interval_min || '10';
       document.getElementById('s-inv-retention').value = map.inventory_history_retention_days || '90';
       document.getElementById('s-system-retention').value = map.system_history_retention_days || '360';
-      document.getElementById('s-runtime-base-url').value = map.runtime_update_base_url || '';
       document.getElementById('s-runtime-interval').value = map.runtime_update_interval_min || '60';
       document.getElementById('s-runtime-jitter').value = map.runtime_update_jitter_sec || '300';
     } catch (err) {
@@ -82,7 +80,6 @@
             inventory_scan_interval_min: document.getElementById('s-inv-interval').value,
             inventory_history_retention_days: document.getElementById('s-inv-retention').value,
             system_history_retention_days: document.getElementById('s-system-retention').value,
-            runtime_update_base_url: document.getElementById('s-runtime-base-url').value,
             runtime_update_interval_min: document.getElementById('s-runtime-interval').value,
             runtime_update_jitter_sec: document.getElementById('s-runtime-jitter').value,
           },

@@ -103,8 +103,6 @@ def _agent_config(db: Session) -> AgentConfig:
     return AgentConfig(
         heartbeat_interval_sec=int(_get_setting(db, "heartbeat_interval_sec", "60")),
         bandwidth_limit_kbps=int(_get_setting(db, "bandwidth_limit_kbps", "1024")),
-        work_hour_start=_get_setting(db, "work_hour_start", "09:00"),
-        work_hour_end=_get_setting(db, "work_hour_end", "18:00"),
     )
 
 
