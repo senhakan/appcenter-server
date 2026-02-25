@@ -60,6 +60,7 @@ DEFAULT_SETTINGS = {
 
 DEFAULT_GROUPS = {
     "Store": "AppCenter Store tray uygulamasinin zorunlu oldugu ajanlar",
+    "Remote Support": "Uzak destek baglantisina izin verilen ajanlar",
     "Genel": "Tum bilgisayarlar",
     "IT": "Bilgi Islem",
     "Muhasebe": "Muhasebe departmani",
@@ -341,6 +342,7 @@ def _migrate_sqlite_remote_support_table() -> None:
                     requested_at TEXT NOT NULL,
                     approval_timeout_at TEXT NOT NULL,
                     approved_at TEXT,
+                    monitor_count INTEGER,
                     connected_at TEXT,
                     ended_at TEXT,
                     ended_by TEXT,
@@ -364,6 +366,8 @@ def _migrate_sqlite_remote_support_table() -> None:
         existing_columns = {row["name"] for row in rows}
         if "end_signal_pending" not in existing_columns:
             conn.execute(text("ALTER TABLE remote_support_sessions ADD COLUMN end_signal_pending INTEGER NOT NULL DEFAULT 0"))
+        if "monitor_count" not in existing_columns:
+            conn.execute(text("ALTER TABLE remote_support_sessions ADD COLUMN monitor_count INTEGER"))
 
 
 def seed_initial_data() -> None:

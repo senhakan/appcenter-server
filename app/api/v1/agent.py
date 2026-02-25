@@ -162,7 +162,8 @@ def heartbeat(
 
     remote_req: RemoteSupportRequest | None = None
     remote_end: RemoteSupportEnd | None = None
-    if settings.remote_support_enabled:
+    remote_support_allowed = settings.remote_support_enabled and bool(getattr(config, "remote_support_enabled", False))
+    if remote_support_allowed:
         pending = rs.get_pending_for_agent(db, x_agent_uuid)
         if pending:
             remote_req = RemoteSupportRequest(

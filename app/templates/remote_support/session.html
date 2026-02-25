@@ -23,7 +23,8 @@
     <button id="tool-cad" class="btn secondary" type="button">Ctrl+Alt+Del</button>
     <button id="tool-clipboard" class="btn secondary" type="button">Clipboard Gonder</button>
     <button id="tool-disconnect" class="btn secondary" type="button">Baglantiyi Kes</button>
-    <span id="toolbar-mode-pill" class="badge warn" style="margin-left:auto;">Mod: -</span>
+    <span id="toolbar-monitor-pill" class="badge warn">Monitör: -</span>
+    <span id="toolbar-mode-pill" class="badge warn">Mod: -</span>
   </div>
   <div id="viewer-wrap" style="margin-top:8px; min-height:560px; border:1px solid #2f3640; border-radius:10px; background:#0b1020; overflow:hidden;">
     <div id="viewer-display" style="width:100%; height:100%; min-height:560px;"></div>
@@ -94,6 +95,12 @@
 
   function syncToolbar() {
     const pill = document.getElementById('toolbar-mode-pill');
+    const monitorPill = document.getElementById('toolbar-monitor-pill');
+    if (monitorPill) {
+      const monitorCount = Number((currentSession && currentSession.monitor_count) || 0);
+      monitorPill.textContent = `Monitör: ${monitorCount > 0 ? monitorCount : '-'}`;
+      monitorPill.className = monitorCount > 0 ? 'badge ok' : 'badge warn';
+    }
     if (pill) {
       pill.textContent = `Mod: ${NOVNC_MODE}`;
       pill.className = NOVNC_MODE === 'embedded' ? 'badge ok' : 'badge warn';
@@ -347,6 +354,7 @@
               <tr>
                 <th style="text-align:left; padding:8px 10px;">Durum</th>
                 <th style="text-align:left; padding:8px 10px;">Ajan</th>
+                <th style="text-align:left; padding:8px 10px;">Talep Eden</th>
                 <th style="text-align:left; padding:8px 10px;">Sebep</th>
                 <th style="text-align:left; padding:8px 10px;">Talep</th>
                 <th style="text-align:left; padding:8px 10px;">Onay</th>
@@ -359,6 +367,7 @@
               <tr>
                 <td style="padding:8px 10px;"><span class="badge ${s.status === 'active' ? 'ok' : 'warn'}">${esc(s.status || '-')}</span></td>
                 <td style="padding:8px 10px; font-family:monospace; font-size:12px;" title="${esc(s.agent_uuid || '-')}">${esc(s.agent_uuid || '-')}</td>
+                <td style="padding:8px 10px;">${esc(s.admin_name || '-')}</td>
                 <td style="padding:8px 10px;" title="${esc(s.reason || '-')}">${esc(s.reason || '-')}</td>
                 <td style="padding:8px 10px; white-space:nowrap;">${esc(AppCenterApi.formatDate(s.requested_at))}</td>
                 <td style="padding:8px 10px; white-space:nowrap;">${esc(AppCenterApi.formatDate(s.approved_at))}</td>

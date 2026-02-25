@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     app_name: str = "AppCenter Server"
-    app_version: str = "1.1.3"
+    app_version: str = "1.1.4"
     api_v1_prefix: str = "/api/v1"
 
     # Database

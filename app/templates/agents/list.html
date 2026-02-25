@@ -56,6 +56,31 @@
     width: 240px;
     white-space: nowrap;
   }
+  .rs-request-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(21, 34, 56, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 998;
+    padding: 16px;
+  }
+  .rs-request-modal-backdrop.hidden {
+    display: none;
+  }
+  .rs-request-modal {
+    width: 100%;
+    max-width: 560px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 18px;
+  }
+  .rs-request-modal textarea {
+    min-height: 96px;
+  }
 </style>
 <div class="card">
   <div class="row spread wrap">
@@ -88,6 +113,23 @@
     </div>
   </div>
 </div>
+
+<div id="rs-request-modal" class="rs-request-modal-backdrop hidden" aria-live="polite">
+  <div class="rs-request-modal">
+    <div class="row spread wrap" style="margin-bottom:10px;">
+      <h3 style="margin:0;">Baglanti Talebi</h3>
+    </div>
+    <div id="rs-request-target" class="muted" style="margin-bottom:10px;">-</div>
+    <div>
+      <label for="rs-request-reason">Baglanti talebi icin aciklama giriniz.</label>
+      <textarea id="rs-request-reason" maxlength="500" placeholder="Ornek: Kullanici talebi ile uzaktan destek"></textarea>
+    </div>
+    <div class="row" style="justify-content:flex-end; margin-top:12px; gap:8px;">
+      <button class="btn secondary" id="rs-request-cancel-btn" type="button">Iptal</button>
+      <button class="btn" id="rs-request-send-btn" type="button">Talep Gonder</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -96,6 +138,8 @@
   let allAgents = [];
   let filteredAgents = [];
   let currentPage = 1;
+  let remoteSupportGroupId = 0;
+  let pendingRemoteTarget = null;
 
   function esc(s) {
     return (s || '')
@@ -138,6 +182,22 @@
     });
   }
 
+  function isRemoteSupportAllowed(agent) {
+    if (!remoteSupportGroupId || !agent) return false;
+    const groupIds = Array.isArray(agent.group_ids) ? agent.group_ids : [];
+    return groupIds.includes(remoteSupportGroupId);
+  }
+
+  function connectButtonState(agent) {
+    const allowed = isRemoteSupportAllowed(agent);
+    const online = (agent && (agent.status || '').toLowerCase() === 'online');
+    const enabled = allowed && online;
+    let title = '';
+    if (!allowed) title = 'Bu ajan Remote Support grubunda degil';
+    else if (!online) title = 'Baglanti istegi icin ajan cevrimici olmali';
+    return { enabled, title };
+  }
+
   function renderPage() {
     const rows = document.getElementById('agent-rows');
     const pageInfo = document.getElementById('agent-page-info');
@@ -168,6 +228,7 @@
       const helperText = agent.remote_support_helper_running
         ? `Calisiyor${agent.remote_support_helper_pid ? (' (PID ' + agent.remote_support_helper_pid + ')') : ''}`
         : 'Calismiyor';
+      const connectState = connectButtonState(agent);
       tr.innerHTML = `
         <td class="js-col-host">
           <span class="agent-host-wrap">
@@ -185,12 +246,14 @@
           <div class="row wrap" style="gap:6px;">
             <a class="btn secondary" href="/agents/${encodeURIComponent(agent.uuid)}">Detay</a>
             <button
-              class="btn js-connect-remote"
+              class="${connectState.enabled ? 'btn' : 'btn secondary'} js-connect-remote"
               type="button"
               data-agent-uuid="${esc(agent.uuid || '')}"
               data-agent-hostname="${esc(agent.hostname || '')}"
               data-agent-status="${esc(agent.status || '')}"
-              ${agent.status === 'online' ? '' : 'disabled'}
+              data-connect-enabled="${connectState.enabled ? '1' : '0'}"
+              ${connectState.title ? `title="${esc(connectState.title)}"` : ''}
+              ${connectState.enabled ? '' : 'disabled'}
             >Baglan</button>
           </div>
         </td>
@@ -257,18 +320,28 @@
       if (ipCol) ipCol.textContent = agent.ip_address || '-';
       const verCol = row.querySelector('.js-col-version');
       if (verCol) verCol.textContent = agent.version || '-';
+      const btn = row.querySelector('.js-connect-remote');
+      if (btn) {
+        const connectState = connectButtonState(agent);
+        btn.className = `${connectState.enabled ? 'btn' : 'btn secondary'} js-connect-remote`;
+        btn.setAttribute('data-agent-status', agent.status || '');
+        btn.setAttribute('data-connect-enabled', connectState.enabled ? '1' : '0');
+        if (connectState.title) btn.setAttribute('title', connectState.title);
+        else btn.removeAttribute('title');
+        btn.disabled = !connectState.enabled;
+      }
     });
   }
 
-  async function requestRemoteSupport(agentUUID, agentHostname, agentStatus) {
+  async function requestRemoteSupport(agentUUID, agentHostname, agentStatus, reasonText) {
     const status = (agentStatus || '').toLowerCase();
     if (status !== 'online') {
       AppCenterApi.toast('Baglanti istegi icin ajan cevrimici olmali');
       return;
     }
-
-    const targetLabel = agentHostname || agentUUID;
-    if (!window.confirm(`${targetLabel} icin baglanti istegi gonderilsin mi?`)) {
+    const reason = (reasonText || '').toString().trim();
+    if (reason.length < 3) {
+      AppCenterApi.toast('Aciklama en az 3 karakter olmali');
       return;
     }
 
@@ -276,7 +349,7 @@
       await AppCenterApi.initUi();
       const payload = {
         agent_uuid: agentUUID,
-        reason: 'Ajanlar listesinden baslatildi',
+        reason,
         max_duration_min: 60,
       };
       const data = await AppCenterApi.req('/remote-support/sessions', {
@@ -289,9 +362,37 @@
       if (sid !== '-') {
         window.open(`/remote-support/sessions/${encodeURIComponent(sid)}`, '_blank', 'noopener,noreferrer');
       }
+      return true;
     } catch (err) {
       AppCenterApi.toast(err.message || 'Baglanti istegi gonderilemedi');
+      return false;
     }
+  }
+
+  function closeRemoteRequestModal() {
+    const modal = document.getElementById('rs-request-modal');
+    const reasonInput = document.getElementById('rs-request-reason');
+    if (modal) modal.classList.add('hidden');
+    if (reasonInput) reasonInput.value = '';
+    pendingRemoteTarget = null;
+  }
+
+  function openRemoteRequestModal(agentUUID, agentHostname, agentStatus) {
+    pendingRemoteTarget = {
+      uuid: agentUUID || '',
+      hostname: agentHostname || '',
+      status: agentStatus || '',
+    };
+    const modal = document.getElementById('rs-request-modal');
+    const targetEl = document.getElementById('rs-request-target');
+    const reasonInput = document.getElementById('rs-request-reason');
+    if (targetEl) {
+      const label = pendingRemoteTarget.hostname || pendingRemoteTarget.uuid;
+      targetEl.textContent = `Hedef ajan: ${label}`;
+    }
+    if (reasonInput) reasonInput.value = '';
+    if (modal) modal.classList.remove('hidden');
+    if (reasonInput) reasonInput.focus();
   }
 
   async function loadAgents(opts) {
@@ -300,8 +401,14 @@
       await AppCenterApi.initUi();
       const prevFiltered = [...filteredAgents];
       const prevPage = pageSlice(prevFiltered);
-      const data = await AppCenterApi.req('/agents');
-      allAgents = data.items || [];
+      const [agentData, groupData] = await Promise.all([
+        AppCenterApi.req('/agents'),
+        AppCenterApi.req('/groups'),
+      ]);
+      allAgents = agentData.items || [];
+      const groups = groupData.items || [];
+      const rsGroup = groups.find((g) => (g.name || '').toString().trim().toLowerCase() === 'remote support');
+      remoteSupportGroupId = rsGroup && rsGroup.id ? Number(rsGroup.id) : 0;
       applyFilter();
       if (!soft) {
         renderPage();
@@ -326,11 +433,30 @@
     document.getElementById('agent-rows').addEventListener('click', (evt) => {
       const btn = evt.target.closest('.js-connect-remote');
       if (!btn) return;
-      requestRemoteSupport(
+      if ((btn.getAttribute('data-connect-enabled') || '0') !== '1') return;
+      openRemoteRequestModal(
         btn.getAttribute('data-agent-uuid') || '',
         btn.getAttribute('data-agent-hostname') || '',
         btn.getAttribute('data-agent-status') || ''
       );
+    });
+    const rsCancel = document.getElementById('rs-request-cancel-btn');
+    const rsSend = document.getElementById('rs-request-send-btn');
+    const rsModal = document.getElementById('rs-request-modal');
+    rsCancel.addEventListener('click', closeRemoteRequestModal);
+    rsModal.addEventListener('click', (evt) => {
+      if (evt.target === rsModal) closeRemoteRequestModal();
+    });
+    rsSend.addEventListener('click', async () => {
+      if (!pendingRemoteTarget) return;
+      const reason = (document.getElementById('rs-request-reason').value || '').toString().trim();
+      const ok = await requestRemoteSupport(
+        pendingRemoteTarget.uuid,
+        pendingRemoteTarget.hostname,
+        pendingRemoteTarget.status,
+        reason
+      );
+      if (ok) closeRemoteRequestModal();
     });
     document.getElementById('agent-search').addEventListener('input', () => {
       currentPage = 1;

@@ -18,6 +18,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.group_policy import is_system_group_name
 
 
 def utcnow() -> datetime:
@@ -46,7 +47,7 @@ class Group(Base):
 
     @property
     def is_system(self) -> bool:
-        return (self.name or "").strip().lower() == "store"
+        return is_system_group_name(self.name)
 
 
 class Agent(Base):
@@ -275,6 +276,7 @@ class RemoteSupportSession(Base):
     requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     approval_timeout_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    monitor_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     connected_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)

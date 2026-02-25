@@ -138,6 +138,7 @@ class HeartbeatConfig(BaseModel):
     inventory_sync_required: bool = False
     inventory_scan_interval_min: int = 10
     store_tray_enabled: bool = False
+    remote_support_enabled: bool = False
     runtime_update_interval_min: int = 60
     runtime_update_jitter_sec: int = 300
 
@@ -165,12 +166,13 @@ class HeartbeatResponse(BaseModel):
 
 class RemoteSessionCreateRequest(BaseModel):
     agent_uuid: str
-    reason: str = ""
+    reason: str = Field(min_length=3, max_length=500)
     max_duration_min: int = Field(default=60, ge=1, le=480)
 
 
 class RemoteSessionAgentApproveRequest(BaseModel):
     approved: bool
+    monitor_count: Optional[int] = Field(default=None, ge=1, le=16)
 
 
 class RemoteSessionReadyRequest(BaseModel):

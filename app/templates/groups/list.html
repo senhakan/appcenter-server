@@ -46,6 +46,15 @@
   .group-list-search {
     max-width: 340px;
   }
+  .group-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .group-lock {
+    color: #8a6d1f;
+    font-size: 0.9rem;
+  }
   .group-modal-backdrop {
     position: fixed;
     inset: 0;
@@ -245,11 +254,12 @@
       }).length;
       const tr = document.createElement('tr');
       const isSystem = Boolean(g.is_system);
+      const lockIcon = isSystem ? '<span class="group-lock" title="Sistem grubu">&#128274;</span>' : '';
       const editDisabled = isSystem ? 'disabled title="Sistem grubu duzenlenemez"' : '';
       const deleteDisabled = isSystem ? 'disabled title="Sistem grubu silinemez"' : '';
       tr.innerHTML = `
         <td>${g.id}</td>
-        <td>${g.name}</td>
+        <td><span class="group-name">${g.name}${lockIcon}</span></td>
         <td>${g.description || '-'}</td>
         <td>${count}</td>
         <td class="row">

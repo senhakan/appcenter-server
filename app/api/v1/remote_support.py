@@ -34,8 +34,10 @@ def create_remote_session(
         "session": {
             "id": session.id,
             "agent_uuid": session.agent_uuid,
+            "admin_name": rs.admin_name_for_session(db, session),
             "status": session.status,
             "reason": session.reason,
+            "monitor_count": session.monitor_count,
             "requested_at": session.requested_at,
             "approval_timeout_at": session.approval_timeout_at,
             "max_duration_min": session.max_duration_min,
@@ -60,8 +62,10 @@ def list_remote_sessions(
             {
                 "id": s.id,
                 "agent_uuid": s.agent_uuid,
+                "admin_name": rs.admin_name_for_session(db, s),
                 "status": s.status,
                 "reason": s.reason,
+                "monitor_count": s.monitor_count,
                 "requested_at": s.requested_at,
                 "approved_at": s.approved_at,
                 "connected_at": s.connected_at,
@@ -88,8 +92,10 @@ def get_remote_session(
         "session": {
             "id": s.id,
             "agent_uuid": s.agent_uuid,
+            "admin_name": rs.admin_name_for_session(db, s),
             "status": s.status,
             "reason": s.reason,
+            "monitor_count": s.monitor_count,
             "requested_at": s.requested_at,
             "approval_timeout_at": s.approval_timeout_at,
             "approved_at": s.approved_at,
@@ -160,7 +166,7 @@ def approve_remote_session(
     db: Session = Depends(get_db),
 ):
     _authenticate_agent(db, x_agent_uuid, x_agent_secret)
-    session = rs.approve_from_agent(db, session_id, x_agent_uuid, body.approved)
+    session = rs.approve_from_agent(db, session_id, x_agent_uuid, body.approved, body.monitor_count)
     if body.approved and session.status == "approved":
         return {
             "status": "ok",

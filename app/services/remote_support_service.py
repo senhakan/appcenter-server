@@ -6,10 +6,11 @@ from typing import Optional
 import string
 
 from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import Agent, RemoteSupportSession, User
+from app.models import Agent, AgentGroup, Group, RemoteSupportSession, User
 
 settings = get_settings()
 
@@ -68,6 +69,19 @@ def _ensure_agent_online(db: Session, agent_uuid: str) -> Agent:
     return agent
 
 
+def is_agent_allowed(db: Session, agent_uuid: str) -> bool:
+    row = (
+        db.query(AgentGroup.agent_uuid)
+        .join(Group, Group.id == AgentGroup.group_id)
+        .filter(
+            AgentGroup.agent_uuid == agent_uuid,
+            func.lower(Group.name) == "remote support",
+        )
+        .first()
+    )
+    return row is not None
+
+
 def _ensure_no_active_session(db: Session, agent_uuid: str) -> None:
     existing = (
         db.query(RemoteSupportSession)
@@ -80,6 +94,16 @@ def _ensure_no_active_session(db: Session, agent_uuid: str) -> None:
 
 def create_session(db: Session, agent_uuid: str, admin_user_id: int, reason: str, max_duration_min: int) -> RemoteSupportSession:
     ensure_enabled()
+    clean_reason = (reason or "").strip()
+    if len(clean_reason) < 3:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Connection reason is required")
+    if len(clean_reason) > 500:
+        clean_reason = clean_reason[:500]
+    if not is_agent_allowed(db, agent_uuid):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Agent is not in Remote Support group",
+        )
     _ensure_agent_online(db, agent_uuid)
     _ensure_no_active_session(db, agent_uuid)
 
@@ -94,7 +118,7 @@ def create_session(db: Session, agent_uuid: str, admin_user_id: int, reason: str
         agent_uuid=agent_uuid,
         admin_user_id=admin_user_id,
         status="pending_approval",
-        reason=reason or "",
+        reason=clean_reason,
         vnc_password=vnc_password,
         requested_at=now,
         approval_timeout_at=now + timedelta(seconds=timeout_sec),
@@ -172,7 +196,13 @@ def mark_end_signal_delivered(db: Session, session_id: int, agent_uuid: str) -> 
         db.commit()
 
 
-def approve_from_agent(db: Session, session_id: int, agent_uuid: str, approved: bool) -> RemoteSupportSession:
+def approve_from_agent(
+    db: Session,
+    session_id: int,
+    agent_uuid: str,
+    approved: bool,
+    monitor_count: int | None = None,
+) -> RemoteSupportSession:
     ensure_enabled()
     session = get_session(db, session_id)
     if session.agent_uuid != agent_uuid:
@@ -191,6 +221,8 @@ def approve_from_agent(db: Session, session_id: int, agent_uuid: str, approved: 
     elif approved:
         session.status = "approved"
         session.approved_at = now
+        if monitor_count is not None and monitor_count > 0:
+            session.monitor_count = int(monitor_count)
         _set_agent_remote_state(db, agent_uuid, "approved", session.id, helper_running=False)
     else:
         session.status = "rejected"
@@ -333,4 +365,5 @@ def admin_name_for_session(db: Session, session: RemoteSupportSession) -> str:
     user = db.query(User).filter(User.id == session.admin_user_id).first()
     if not user:
         return "AppCenter Admin"
-    return user.full_name or user.username
+    # Remote support consent message must reflect the actual login account.
+    return (user.username or "").strip() or "AppCenter Admin"
