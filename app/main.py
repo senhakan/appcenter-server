@@ -5,6 +5,8 @@ import base64
 from contextlib import asynccontextmanager
 import logging
 from pathlib import Path
+import socket
+import time
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
@@ -115,18 +117,40 @@ async def novnc_ws_bridge(websocket: WebSocket):
         await websocket.close(code=1008, reason="internal_ws_mode_disabled")
         return
 
+    client_ip = getattr(getattr(websocket, "client", None), "host", "-")
     token = (websocket.query_params.get("token") or "").strip()
     target = novnc_service.consume_internal_ticket(token)
     if not target:
+        logger.warning("novnc bridge reject: invalid ticket ip=%s", client_ip)
         await websocket.close(code=1008, reason="invalid_or_expired_token")
         return
     agent_ip, vnc_port = target
 
     try:
         reader, writer = await asyncio.wait_for(asyncio.open_connection(agent_ip, vnc_port), timeout=8)
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "novnc bridge connect failed ip=%s target=%s:%s err=%s",
+            client_ip,
+            agent_ip,
+            vnc_port,
+            exc,
+        )
         await websocket.close(code=1011, reason="vnc_target_unreachable")
         return
+    sock = writer.get_extra_info("socket")
+    if sock:
+        try:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            # Linux TCP keepalive tuning; ignore on unsupported platforms.
+            if hasattr(socket, "TCP_KEEPIDLE"):
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 30)
+            if hasattr(socket, "TCP_KEEPINTVL"):
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 10)
+            if hasattr(socket, "TCP_KEEPCNT"):
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
+        except Exception as exc:
+            logger.warning("novnc bridge keepalive setup failed target=%s:%s err=%s", agent_ip, vnc_port, exc)
 
     offered = (websocket.headers.get("sec-websocket-protocol") or "").lower()
     offered_list = [p.strip() for p in offered.split(",") if p.strip()]
@@ -137,6 +161,14 @@ async def novnc_ws_bridge(websocket: WebSocket):
         selected_subprotocol = "base64"
 
     await websocket.accept(subprotocol=selected_subprotocol)
+    started_at = time.monotonic()
+    logger.warning(
+        "novnc bridge open ip=%s target=%s:%s proto=%s",
+        client_ip,
+        agent_ip,
+        vnc_port,
+        selected_subprotocol or "-",
+    )
 
     async def ws_to_tcp():
         try:
@@ -158,9 +190,11 @@ async def novnc_ws_bridge(websocket: WebSocket):
                         writer.write(payload)
                         await writer.drain()
                 # unreachable
-        except WebSocketDisconnect:
+        except WebSocketDisconnect as exc:
+            logger.warning("novnc bridge close side=browser ip=%s code=%s", client_ip, getattr(exc, "code", None))
             return
-        except Exception:
+        except Exception as exc:
+            logger.warning("novnc bridge error side=browser ip=%s err=%s", client_ip, exc)
             return
 
     async def tcp_to_ws():
@@ -168,19 +202,35 @@ async def novnc_ws_bridge(websocket: WebSocket):
             while True:
                 chunk = await reader.read(65536)
                 if not chunk:
+                    logger.warning("novnc bridge eof side=vnc ip=%s target=%s:%s", client_ip, agent_ip, vnc_port)
                     break
                 if selected_subprotocol == "base64":
                     await websocket.send_text(base64.b64encode(chunk).decode("ascii"))
                 else:
                     await websocket.send_bytes(chunk)
-        except WebSocketDisconnect:
+        except WebSocketDisconnect as exc:
+            logger.warning("novnc bridge close side=browser_send ip=%s code=%s", client_ip, getattr(exc, "code", None))
             return
+        except Exception as exc:
+            logger.warning("novnc bridge error side=vnc ip=%s target=%s:%s err=%s", client_ip, agent_ip, vnc_port, exc)
+            return
+
+    async def tcp_keepalive_request():
+        # Keep VNC session alive during idle periods:
+        # Client->Server FramebufferUpdateRequest (incremental=1, x=0,y=0,w=1,h=1).
+        keepalive = b"\x03\x01\x00\x00\x00\x00\x00\x01\x00\x01"
+        try:
+            while True:
+                await asyncio.sleep(25)
+                writer.write(keepalive)
+                await writer.drain()
         except Exception:
             return
 
     task_a = asyncio.create_task(ws_to_tcp())
     task_b = asyncio.create_task(tcp_to_ws())
-    done, pending = await asyncio.wait({task_a, task_b}, return_when=asyncio.FIRST_COMPLETED)
+    task_c = asyncio.create_task(tcp_keepalive_request())
+    done, pending = await asyncio.wait({task_a, task_b, task_c}, return_when=asyncio.FIRST_COMPLETED)
     for t in pending:
         t.cancel()
     await asyncio.gather(*pending, return_exceptions=True)
@@ -195,6 +245,14 @@ async def novnc_ws_bridge(websocket: WebSocket):
         await websocket.close()
     except Exception:
         pass
+    duration = time.monotonic() - started_at
+    logger.warning(
+        "novnc bridge closed ip=%s target=%s:%s duration_sec=%.1f",
+        client_ip,
+        agent_ip,
+        vnc_port,
+        duration,
+    )
 
 
 @app.get("/ui")

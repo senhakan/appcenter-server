@@ -29,6 +29,10 @@
   <div id="viewer-wrap" style="margin-top:8px; min-height:560px; border:1px solid #2f3640; border-radius:10px; background:#0b1020; overflow:hidden;">
     <div id="viewer-display" style="width:100%; height:100%; min-height:560px;"></div>
   </div>
+  <div style="margin-top:10px;">
+    <div class="muted" style="margin-bottom:6px;">Baglanti Loglari</div>
+    <div id="conn-log" style="height:160px; overflow:auto; border:1px solid #2f3640; border-radius:8px; background:#0d1324; padding:8px; font-family:monospace; font-size:12px; line-height:1.45;"></div>
+  </div>
 </div>
 {% endblock %}
 {% block scripts %}
@@ -45,6 +49,9 @@
   let lastSessionStatus = '';
   let closeEndSent = false;
   let liveConnState = 'idle'; // idle|ticketing|connecting|connected|reconnecting|disconnected|error
+  let reconnectTimer = null;
+  let reconnectAttempt = 0;
+  let manualDisconnectRequested = false;
 
   function esc(s) {
     return (s || '')
@@ -74,6 +81,71 @@
       return;
     }
     el.className = 'badge warn';
+  }
+
+  function nowStamp() {
+    const d = new Date();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    return `${hh}:${mm}:${ss}`;
+  }
+
+  function addConnLog(text, tone) {
+    const wrap = document.getElementById('conn-log');
+    if (!wrap) return;
+    const line = document.createElement('div');
+    line.style.whiteSpace = 'pre-wrap';
+    line.style.wordBreak = 'break-word';
+    if (tone === 'error') {
+      line.style.color = '#ffb4b4';
+    } else if (tone === 'ok') {
+      line.style.color = '#b7ffd2';
+    } else {
+      line.style.color = '#d8deed';
+    }
+    line.textContent = `[${nowStamp()}] ${text}`;
+    wrap.appendChild(line);
+    while (wrap.childElementCount > 250) {
+      wrap.removeChild(wrap.firstChild);
+    }
+    wrap.scrollTop = wrap.scrollHeight;
+  }
+
+  function clearReconnectTimer() {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+  }
+
+  function isSessionConnectable() {
+    const st = ((currentSession && currentSession.status) || '').toLowerCase();
+    return ['approved', 'connecting', 'active'].includes(st);
+  }
+
+  function shouldAutoReconnect() {
+    if (closeEndSent) return false;
+    if (manualDisconnectRequested) return false;
+    if (!isSessionConnectable()) return false;
+    return true;
+  }
+
+  function scheduleReconnect(reason) {
+    if (!shouldAutoReconnect()) return;
+    if (reconnectTimer) return;
+    reconnectAttempt += 1;
+    const delayMs = Math.min(10000, 1500 * reconnectAttempt);
+    liveConnState = 'reconnecting';
+    setConnBadge('Yeniden Baglaniyor', 'warn');
+    setViewerStatus(`Baglanti koptu (${reason}). ${Math.round(delayMs / 1000)} sn sonra tekrar denenecek...`);
+    addConnLog(`Kopma algilandi (${reason}), reconnect planlandi (${Math.round(delayMs / 1000)} sn)`, 'warn');
+    reconnectTimer = setTimeout(async () => {
+      reconnectTimer = null;
+      if (!shouldAutoReconnect()) return;
+      addConnLog(`Reconnect denemesi #${reconnectAttempt}`, 'warn');
+      await startViewer('reconnect');
+    }, delayMs);
   }
 
   function isLiveConnected() {
@@ -185,18 +257,26 @@
       if (st === 'connecting') {
         liveConnState = 'connecting';
         setConnBadge('Baglaniyor', 'warn');
+        addConnLog('Iframe noVNC: baglaniyor', 'warn');
       } else if (st === 'connected') {
         liveConnState = 'connected';
+        reconnectAttempt = 0;
+        clearReconnectTimer();
         setConnBadge('Bagli', 'ok');
+        addConnLog('Iframe noVNC: baglandi', 'ok');
       } else if (st === 'reconnecting') {
         liveConnState = 'reconnecting';
         setConnBadge('Yeniden Baglaniyor', 'warn');
+        addConnLog('Iframe noVNC: yeniden baglaniyor', 'warn');
       } else if (st === 'disconnecting') {
         liveConnState = 'disconnected';
         setConnBadge('Ayriliyor', 'warn');
+        addConnLog('Iframe noVNC: ayriliyor', 'warn');
       } else if (st === 'disconnected') {
         liveConnState = 'disconnected';
         setConnBadge('Ayrildi', 'warn');
+        addConnLog('Iframe noVNC: ayrildi', 'warn');
+        scheduleReconnect('iframe_disconnected');
       }
       return;
     }
@@ -206,15 +286,19 @@
       if (low.includes('authentication rejected') || low.includes('credentials are required') || low.includes('security')) {
         liveConnState = 'error';
         setConnBadge('Kimlik Hatasi', 'error');
+        addConnLog(`Iframe noVNC hata: ${text || 'kimlik dogrulama'}`, 'error');
       } else if (low.includes('failed to connect to server') || low.includes('something went wrong')) {
         liveConnState = 'error';
         setConnBadge('Sunucuya Erisim Yok', 'error');
+        addConnLog(`Iframe noVNC hata: ${text || 'baglanti kurulamadı'}`, 'error');
+        scheduleReconnect('iframe_connect_error');
       }
       if (text) setViewerStatus(text);
     }
   }
 
   function disconnectViewer() {
+    clearReconnectTimer();
     if (currentRfb) {
       try {
         currentRfb.disconnect();
@@ -283,8 +367,11 @@
 
     rfb.addEventListener('connect', () => {
       liveConnState = 'connected';
+      reconnectAttempt = 0;
+      clearReconnectTimer();
       setConnBadge('Bagli', 'ok');
       setViewerStatus('Canli ekran baglantisi aktif.');
+      addConnLog('Embedded noVNC: baglandi', 'ok');
       syncToolbar();
       try {
         rfb.focus();
@@ -296,8 +383,13 @@
       liveConnState = clean ? 'disconnected' : 'error';
       setConnBadge(clean ? 'Ayrildi' : 'Baglanti Hatasi', clean ? 'warn' : 'error');
       setViewerStatus(clean ? 'Baglanti kapandi.' : 'Baglanti beklenmedik sekilde koptu.');
+      addConnLog(
+        `Embedded noVNC: ${clean ? 'baglanti kapandi' : 'beklenmedik kopma'}${e && e.detail ? ` (code=${String(e.detail.code || '-')})` : ''}`,
+        clean ? 'warn' : 'error'
+      );
       currentRfb = null;
       syncToolbar();
+      scheduleReconnect(clean ? 'embedded_disconnected' : 'embedded_error');
     });
     rfb.addEventListener('credentialsrequired', () => {
       try {
@@ -309,11 +401,13 @@
       setConnBadge('Kimlik Hatasi', 'error');
       const reason = e && e.detail && e.detail.status ? String(e.detail.status) : 'security_failure';
       setViewerStatus(`Guvenlik dogrulamasi basarisiz (${reason}).`);
+      addConnLog(`Embedded noVNC guvenlik hatasi: ${reason}`, 'error');
     });
 
     liveConnState = 'connecting';
     setConnBadge('Baglaniyor', 'warn');
     setViewerStatus(`Canli ekran baglantisi aciliyor (${wsUrl})...`);
+    addConnLog(`Embedded noVNC baglanti denemesi: ${wsUrl}`, 'warn');
     syncViewerGeometry();
     syncToolbar();
   }
@@ -333,6 +427,7 @@
     liveConnState = 'connecting';
     setConnBadge('Baglaniyor', 'warn');
     setViewerStatus(`Canli ekran baglantisi aciliyor (${scheme}://${window.location.host}/${basePath})...`);
+    addConnLog(`Iframe noVNC baglanti denemesi: ${scheme}://${window.location.host}/${basePath}`, 'warn');
     syncToolbar();
   }
 
@@ -389,9 +484,11 @@
 
       if (endedStates.includes(low)) {
         autoConnectAttempted = true;
+        clearReconnectTimer();
         liveConnState = 'disconnected';
         setConnBadge('Sonlandi', 'warn');
         setViewerStatus('Oturum sonlandi.');
+        addConnLog('Oturum sonlandi, reconnect durduruldu.', 'warn');
         disconnectViewer();
       } else {
         if (low === 'pending_approval') {
@@ -417,20 +514,23 @@
     }
   }
 
-  async function startViewer() {
+  async function startViewer(trigger = 'manual') {
     const state = ((currentSession && currentSession.status) || '').toLowerCase();
     if (!['approved', 'connecting', 'active'].includes(state)) {
       liveConnState = 'error';
       setConnBadge('Durum Uygun Degil', 'error');
       setViewerStatus('Baglanmadan once oturum onaylanmis olmalidir.');
+      addConnLog('Baglanti denemesi reddedildi: oturum durumu uygun degil', 'error');
       syncToolbar();
       return;
     }
     try {
+      manualDisconnectRequested = false;
       autoConnectAttempted = true;
       liveConnState = 'ticketing';
       setConnBadge('Bilet Aliniyor', 'warn');
       setViewerStatus('Canli ekran baglanti bileti aliniyor...');
+      addConnLog(`Baglanti baslatildi (kaynak=${trigger})`, 'warn');
       const data = await AppCenterApi.req(`/remote-support/sessions/${SESSION_ID}/novnc-ticket`);
       const ticket = data && data.viewer ? data.viewer : null;
       if (!ticket || !ticket.enabled) {
@@ -438,6 +538,8 @@
         liveConnState = 'error';
         setConnBadge('Bilet Hatasi', 'error');
         setViewerStatus(`Goruntu acilamadi (${reason}).`);
+        addConnLog(`Ticket hatasi: ${reason}`, 'error');
+        scheduleReconnect('ticket_error');
         syncToolbar();
         return;
       }
@@ -454,6 +556,8 @@
       liveConnState = 'error';
       setConnBadge('Baglanti Hatasi', 'error');
       setViewerStatus(err.message || 'Canli ekran baslatilamadi');
+      addConnLog(`Baglanti hatasi: ${err && err.message ? err.message : 'bilinmeyen hata'}`, 'error');
+      scheduleReconnect('start_error');
       syncToolbar();
     }
   }
@@ -529,10 +633,12 @@
       try { currentRfb.clipboardPasteFrom(text); } catch (_) {}
     });
     document.getElementById('tool-disconnect').addEventListener('click', () => {
+      manualDisconnectRequested = true;
       disconnectViewer();
       liveConnState = 'disconnected';
       setConnBadge('Ayrildi', 'warn');
       setViewerStatus('Baglanti kullanici tarafindan sonlandirildi.');
+      addConnLog('Baglanti kullanici tarafindan sonlandirildi. Otomatik reconnect kapatildi.', 'warn');
       syncToolbar();
     });
     await loadSession();
@@ -548,13 +654,16 @@
       setConnBadge('Hazir', 'warn');
       setViewerStatus(`Onayli oturumda baglanti otomatik baslatilir. (mod: ${NOVNC_MODE})`);
     }
+    addConnLog(`Oturum sayfasi acildi (session=${SESSION_ID}, mod=${NOVNC_MODE})`, 'ok');
     syncToolbar();
     window.addEventListener('beforeunload', () => {
       endSessionOnClose();
+      clearReconnectTimer();
       disconnectViewer();
     });
     window.addEventListener('pagehide', () => {
       endSessionOnClose();
+      clearReconnectTimer();
     });
     window.addEventListener('resize', () => {
       syncViewerGeometry();
