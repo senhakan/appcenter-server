@@ -357,6 +357,57 @@
     font-weight: 700;
     color: #d8e6ff;
   }
+  .rs-approval-actions {
+    margin-top: 10px;
+    display: flex;
+    justify-content: center;
+  }
+  .rs-approval-cancel-btn {
+    min-width: 118px;
+    background: #d62828;
+    border-color: #d62828;
+    color: #fff;
+  }
+  .rs-approval-cancel-btn:hover {
+    background: #bb2222;
+    border-color: #bb2222;
+  }
+  .rs-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(12, 20, 38, 0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 12000;
+    padding: 16px;
+  }
+  .rs-modal-backdrop.show {
+    display: flex;
+  }
+  .rs-modal-card {
+    width: min(420px, 94vw);
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 16px;
+    color: #0f172a;
+  }
+  .rs-modal-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .rs-modal-text {
+    font-size: 14px;
+    line-height: 1.45;
+    margin-bottom: 12px;
+  }
+  .rs-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
 </style>
 <div class="card">
   <div class="row spread wrap">
@@ -366,7 +417,6 @@
     </div>
   </div>
 
-  <div style="margin-top:8px;" id="session-box" class="muted">Yukleniyor...</div>
   <div style="margin-top:8px; display:flex; align-items:center; gap:8px;">
     <span id="conn-badge" class="badge warn">Hazir</span>
     <div id="viewer-status" class="muted">Canli ekran baglantisi hazirlaniyor...</div>
@@ -528,6 +578,9 @@
             <div class="ring three"></div>
           </div>
           <div class="rs-approval-text">Onay bekleniyor...</div>
+          <div class="rs-approval-actions">
+            <button id="rs-approval-cancel" class="btn rs-approval-cancel-btn" type="button">Iptal</button>
+          </div>
         </div>
       </div>
     </div>
@@ -538,6 +591,15 @@
   </div>
 </div>
 <div id="rs-center-toast" class="rs-center-toast" aria-live="polite"></div>
+<div id="rs-rejected-modal" class="rs-modal-backdrop" aria-live="polite">
+  <div class="rs-modal-card">
+    <div class="rs-modal-title">Baglanti Istegi Kabul Edilmedi</div>
+    <div class="rs-modal-text">Kullanici baglanti istegini kabul etmedi.</div>
+    <div class="rs-modal-actions">
+      <button id="rs-rejected-ok" class="btn" type="button">Tamam</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -566,6 +628,7 @@
   let selectedMonitor = 1;
   let helpDrawerOpen = false;
   let windowPresenceTimer = null;
+  let rejectionModalShown = false;
 
   function esc(s) {
     return (s || '')
@@ -1233,46 +1296,11 @@
       const data = await AppCenterApi.req(`/remote-support/sessions/${SESSION_ID}`);
       const s = (data && data.session) ? data.session : null;
       if (!s) {
-        document.getElementById('session-box').textContent = 'Oturum verisi alinamadi';
         return;
       }
       currentSession = s;
       if (infoDrawerOpen) loadAgentInfo({ showLoading: false, force: false });
       if (helpDrawerOpen) refreshHelpDrawer();
-
-      const html = `
-        <div style="overflow-x:auto; border:1px solid #2f3640; border-radius:8px;">
-          <table style="min-width:1100px; width:100%; border-collapse:collapse;">
-            <thead>
-              <tr>
-                <th style="text-align:left; padding:8px 10px;">Durum</th>
-                <th style="text-align:left; padding:8px 10px;">Ajan</th>
-                <th style="text-align:left; padding:8px 10px;">Talep Eden</th>
-                <th style="text-align:left; padding:8px 10px;">Sebep</th>
-                <th style="text-align:left; padding:8px 10px;">Talep</th>
-                <th style="text-align:left; padding:8px 10px;">Onay</th>
-                <th style="text-align:left; padding:8px 10px;">Baglandi</th>
-                <th style="text-align:left; padding:8px 10px;">Bitis</th>
-                <th style="text-align:left; padding:8px 10px;">Bitiren</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style="padding:8px 10px;"><span class="badge ${s.status === 'active' ? 'ok' : 'warn'}">${esc(s.status || '-')}</span></td>
-                <td style="padding:8px 10px; font-family:monospace; font-size:12px;" title="${esc(s.agent_uuid || '-')}">${esc(s.agent_uuid || '-')}</td>
-                <td style="padding:8px 10px;">${esc(s.admin_name || '-')}</td>
-                <td style="padding:8px 10px;" title="${esc(s.reason || '-')}">${esc(s.reason || '-')}</td>
-                <td style="padding:8px 10px; white-space:nowrap;">${esc(AppCenterApi.formatDate(s.requested_at))}</td>
-                <td style="padding:8px 10px; white-space:nowrap;">${esc(AppCenterApi.formatDate(s.approved_at))}</td>
-                <td style="padding:8px 10px; white-space:nowrap;">${esc(AppCenterApi.formatDate(s.connected_at))}</td>
-                <td style="padding:8px 10px; white-space:nowrap;">${esc(AppCenterApi.formatDate(s.ended_at))}</td>
-                <td style="padding:8px 10px;">${esc(s.ended_by || '-')}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      `;
-      document.getElementById('session-box').innerHTML = html;
 
       const low = (s.status || '').toLowerCase();
       const prevLow = lastSessionStatus;
@@ -1287,6 +1315,10 @@
         setViewerStatus('Oturum sonlandi.');
         addConnLog('Oturum sonlandi, reconnect durduruldu.', 'warn');
         disconnectViewer();
+        if (low === 'rejected') {
+          setViewerStatus('Baglanti istegi kullanici tarafindan reddedildi.');
+          openRejectedModal();
+        }
       } else {
         if (low === 'pending_approval') {
           autoConnectAttempted = false;
@@ -1311,7 +1343,7 @@
         syncToolbar();
       }
     } catch (err) {
-      document.getElementById('session-box').textContent = err.message || 'Oturum verisi alinamadi';
+      addConnLog(`Oturum verisi alinamadi: ${err && err.message ? err.message : 'bilinmeyen hata'}`, 'error');
     }
   }
 
@@ -1401,6 +1433,13 @@
     }, 220);
   }
 
+  function openRejectedModal() {
+    if (rejectionModalShown) return;
+    rejectionModalShown = true;
+    const modal = document.getElementById('rs-rejected-modal');
+    if (modal) modal.classList.add('show');
+  }
+
   async function endSession(options) {
     const opts = options || {};
     const closePage = !!opts.closePage;
@@ -1417,14 +1456,29 @@
     }
   }
 
+  async function cancelPendingSessionAndClose() {
+    const state = ((currentSession && currentSession.status) || '').toLowerCase();
+    if (state !== 'pending_approval') return;
+    try {
+      await AppCenterApi.req(`/remote-support/sessions/${SESSION_ID}/cancel`, { method: 'POST' });
+      closeEndSent = true;
+      addConnLog('Onay bekleyen oturum iptal edildi.', 'warn');
+      AppCenterApi.toast('Baglanti istegi iptal edildi');
+      closeSessionPage();
+    } catch (err) {
+      AppCenterApi.toast(err.message || 'Istek iptal edilemedi');
+    }
+  }
+
   function endSessionOnClose() {
     if (closeEndSent) return;
     const state = ((currentSession && currentSession.status) || '').toLowerCase();
-    if (!['approved', 'connecting', 'active'].includes(state)) return;
+    if (!['pending_approval', 'approved', 'connecting', 'active'].includes(state)) return;
     closeEndSent = true;
+    const endpoint = state === 'pending_approval' ? 'cancel' : 'end';
     try {
       const token = localStorage.getItem('appcenter_token') || '';
-      fetch(`/api/v1/remote-support/sessions/${SESSION_ID}/end`, {
+      fetch(`/api/v1/remote-support/sessions/${SESSION_ID}/${endpoint}`, {
         method: 'POST',
         keepalive: true,
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -1576,6 +1630,18 @@
     if (helpEnd) {
       helpEnd.addEventListener('click', async () => {
         await endSession({ closePage: true, askConfirm: true });
+      });
+    }
+    const approvalCancel = document.getElementById('rs-approval-cancel');
+    if (approvalCancel) {
+      approvalCancel.addEventListener('click', async () => {
+        await cancelPendingSessionAndClose();
+      });
+    }
+    const rejectedOk = document.getElementById('rs-rejected-ok');
+    if (rejectedOk) {
+      rejectedOk.addEventListener('click', () => {
+        closeSessionPage();
       });
     }
     const pasteClose = document.getElementById('rs-paste-close');

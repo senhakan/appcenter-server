@@ -118,6 +118,16 @@ def end_remote_session(
     return MessageResponse(status="ok", message="Session ended")
 
 
+@router.post("/remote-support/sessions/{session_id}/cancel", response_model=MessageResponse)
+def cancel_remote_session(
+    session_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    rs.cancel_pending_session(db, session_id, admin_user_id=user.id)
+    return MessageResponse(status="ok", message="Pending approval cancelled")
+
+
 @router.get("/remote-support/sessions/{session_id}/novnc-ticket")
 def get_remote_session_novnc_ticket(
     session_id: int,

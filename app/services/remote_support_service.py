@@ -295,6 +295,27 @@ def end_session_from_agent(db: Session, session_id: int, agent_uuid: str, ended_
     return session
 
 
+def cancel_pending_session(db: Session, session_id: int, admin_user_id: int | None = None) -> RemoteSupportSession:
+    ensure_enabled()
+    session = get_session(db, session_id)
+    if admin_user_id and int(session.admin_user_id) != int(admin_user_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Session does not belong to user")
+    if session.status != "pending_approval":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Session is not waiting approval")
+
+    session.status = "ended"
+    session.ended_at = _utcnow()
+    session.ended_by = "admin_cancel_on_close"
+    session.vnc_password = None
+    # Notify agent to tear down any pre-started helper and pending consent flow.
+    session.end_signal_pending = True
+    _set_agent_remote_state(db, session.agent_uuid, "idle", None, helper_running=False)
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+    return session
+
+
 def check_approval_timeouts(db: Session) -> int:
     now = _utcnow()
     sessions = (

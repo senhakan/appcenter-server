@@ -485,9 +485,30 @@
     const rsCancel = document.getElementById('rs-request-cancel-btn');
     const rsSend = document.getElementById('rs-request-send-btn');
     const rsModal = document.getElementById('rs-request-modal');
+    const rsReason = document.getElementById('rs-request-reason');
     rsCancel.addEventListener('click', closeRemoteRequestModal);
     rsModal.addEventListener('click', (evt) => {
       if (evt.target === rsModal) closeRemoteRequestModal();
+    });
+    if (rsReason) {
+      rsReason.addEventListener('keydown', (evt) => {
+        if (evt.key === 'Escape') {
+          evt.preventDefault();
+          closeRemoteRequestModal();
+          return;
+        }
+        if (evt.key === 'Enter' && !evt.shiftKey) {
+          evt.preventDefault();
+          rsSend.click();
+        }
+      });
+    }
+    document.addEventListener('keydown', (evt) => {
+      if (!rsModal || rsModal.classList.contains('hidden')) return;
+      if (evt.key === 'Escape') {
+        evt.preventDefault();
+        closeRemoteRequestModal();
+      }
     });
     rsSend.addEventListener('click', async () => {
       if (!pendingRemoteTarget) return;
