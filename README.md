@@ -154,6 +154,10 @@
   - `GET /users` sayfasi aktif
   - `GET /audit` sayfasi aktif (admin)
   - Menu ve aksiyon butonlari role gore gizlenir.
+  - Route guard merkezi standart:
+    - Server route context `page_roles` verir.
+    - Frontend sadece `AppCenterApi.protectPage();` cagirir.
+    - `base.html` uzerinden otomatik role kontrolu uygulanir.
 
 ## Dashboard Timeline
 

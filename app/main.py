@@ -450,7 +450,7 @@ def applications_page(request: Request):
 def applications_edit_page(request: Request, app_id: int):
     return templates.TemplateResponse(
         "applications/edit.html",
-        {"request": request, "active_page": "applications", "app_id": app_id},
+        {"request": request, "active_page": "applications", "app_id": app_id, "page_roles": "operator,admin"},
     )
 
 
@@ -458,7 +458,7 @@ def applications_edit_page(request: Request, app_id: int):
 def applications_upload_page(request: Request):
     return templates.TemplateResponse(
         "applications/upload.html",
-        {"request": request, "active_page": "applications"},
+        {"request": request, "active_page": "applications", "page_roles": "operator,admin"},
     )
 
 
@@ -474,7 +474,7 @@ def deployments_page(request: Request):
 def deployments_create_page(request: Request):
     return templates.TemplateResponse(
         "deployments/create.html",
-        {"request": request, "active_page": "deployments"},
+        {"request": request, "active_page": "deployments", "page_roles": "operator,admin"},
     )
 
 
@@ -482,7 +482,12 @@ def deployments_create_page(request: Request):
 def deployments_edit_page(request: Request, deployment_id: int):
     return templates.TemplateResponse(
         "deployments/edit.html",
-        {"request": request, "active_page": "deployments", "deployment_id": deployment_id},
+        {
+            "request": request,
+            "active_page": "deployments",
+            "deployment_id": deployment_id,
+            "page_roles": "operator,admin",
+        },
     )
 
 
@@ -503,7 +508,7 @@ def inventory_software_detail_page(request: Request, software_name: str):
 def inventory_normalization_page(request: Request):
     return templates.TemplateResponse(
         "inventory/normalization.html",
-        {"request": request, "active_page": "inventory"},
+        {"request": request, "active_page": "inventory", "page_roles": "operator,admin"},
     )
 
 
@@ -514,35 +519,47 @@ def licenses_page(request: Request):
 
 @app.get("/licenses/create")
 def licenses_create_page(request: Request):
-    return templates.TemplateResponse("licenses/form.html", {"request": request, "active_page": "licenses", "license_id": None})
+    return templates.TemplateResponse(
+        "licenses/form.html",
+        {"request": request, "active_page": "licenses", "license_id": None, "page_roles": "operator,admin"},
+    )
 
 
 @app.get("/licenses/{license_id}/edit")
 def licenses_edit_page(request: Request, license_id: int):
     return templates.TemplateResponse(
         "licenses/form.html",
-        {"request": request, "active_page": "licenses", "license_id": license_id},
+        {"request": request, "active_page": "licenses", "license_id": license_id, "page_roles": "operator,admin"},
     )
 
 
 @app.get("/settings")
 def settings_page(request: Request):
-    return templates.TemplateResponse("settings.html", {"request": request, "active_page": "settings"})
+    return templates.TemplateResponse(
+        "settings.html",
+        {"request": request, "active_page": "settings", "page_roles": "admin"},
+    )
 
 
 @app.get("/users")
 def users_page(request: Request):
-    return templates.TemplateResponse("users/list.html", {"request": request, "active_page": "users"})
+    return templates.TemplateResponse(
+        "users/list.html",
+        {"request": request, "active_page": "users", "page_roles": "admin"},
+    )
 
 
 @app.get("/audit")
 def audit_page(request: Request):
-    return templates.TemplateResponse("audit/list.html", {"request": request, "active_page": "audit"})
+    return templates.TemplateResponse(
+        "audit/list.html",
+        {"request": request, "active_page": "audit", "page_roles": "admin"},
+    )
 
 
 @app.get("/groups/{group_id}/edit")
 def groups_edit_page(request: Request, group_id: int):
     return templates.TemplateResponse(
         "groups/edit.html",
-        {"request": request, "active_page": "groups", "group_id": group_id},
+        {"request": request, "active_page": "groups", "group_id": group_id, "page_roles": "operator,admin"},
     )

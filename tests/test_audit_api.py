@@ -41,3 +41,10 @@ def test_audit_logs_admin_only_and_filter(client: TestClient, auth_headers: dict
     filtered = client.get("/api/v1/audit/logs", headers=auth_headers, params={"action": "user.create"})
     assert filtered.status_code == 200
     assert filtered.json()["total"] >= 1
+
+    future = client.get("/api/v1/audit/logs", headers=auth_headers, params={"created_from": "2999-01-01"})
+    assert future.status_code == 200
+    assert future.json()["total"] == 0
+
+    invalid = client.get("/api/v1/audit/logs", headers=auth_headers, params={"created_from": "bad-date"})
+    assert invalid.status_code == 400

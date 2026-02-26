@@ -10,6 +10,10 @@
     <input id="audit-user" placeholder="Kullanici ara" style="max-width:220px;" />
     <input id="audit-action" placeholder="Action ara" style="max-width:220px;" />
     <input id="audit-resource" placeholder="Resource ara" style="max-width:220px;" />
+    <label for="audit-created-from" class="muted">Baslangic</label>
+    <input id="audit-created-from" type="date" style="max-width:170px;" />
+    <label for="audit-created-to" class="muted">Bitis</label>
+    <input id="audit-created-to" type="date" style="max-width:170px;" />
     <button class="btn secondary" id="audit-filter-btn" type="button">Filtrele</button>
   </div>
   <div class="table-wrap">
@@ -56,10 +60,36 @@
     const username = (document.getElementById('audit-user').value || '').trim();
     const action = (document.getElementById('audit-action').value || '').trim();
     const resource = (document.getElementById('audit-resource').value || '').trim();
+    const createdFrom = (document.getElementById('audit-created-from').value || '').trim();
+    const createdTo = (document.getElementById('audit-created-to').value || '').trim();
     if (username) params.set('username', username);
     if (action) params.set('action', action);
     if (resource) params.set('resource_type', resource);
+    if (createdFrom) params.set('created_from', createdFrom);
+    if (createdTo) params.set('created_to', createdTo);
     return params.toString();
+  }
+
+  function detailsHtml(detailsJson, rowId) {
+    let parsed = null;
+    let pretty = '';
+    try {
+      parsed = JSON.parse(detailsJson || '{}');
+      pretty = JSON.stringify(parsed, null, 2);
+    } catch (_) {
+      parsed = null;
+    }
+    const shortText = parsed
+      ? JSON.stringify(parsed).slice(0, 120)
+      : (detailsJson || '{}').toString().slice(0, 120);
+    const btnLabel = 'Detay';
+    return `
+      <button class="btn secondary" type="button" data-audit-toggle="${rowId}">${btnLabel}</button>
+      <div id="audit-detail-${rowId}" class="hidden" style="margin-top:6px;">
+        <pre style="max-width:420px; max-height:160px; overflow:auto; margin:0; white-space:pre-wrap;">${esc(pretty || detailsJson || '{}')}</pre>
+      </div>
+      <div class="muted" style="margin-top:4px;">${esc(shortText)}${(shortText.length >= 120 ? '...' : '')}</div>
+    `;
   }
 
   async function loadAudit() {
@@ -74,15 +104,24 @@
       } else {
         items.forEach((item) => {
           const tr = document.createElement('tr');
+          const rowId = `${item.id}`;
           tr.innerHTML = `
             <td>${esc(AppCenterApi.formatDate(item.created_at))}</td>
             <td>${esc(item.username || '-')}</td>
             <td>${esc(item.action || '-')}</td>
             <td>${esc(item.resource_type || '-')}</td>
             <td>${esc(item.resource_id || '-')}</td>
-            <td><code>${esc(item.details_json || '{}')}</code></td>
+            <td>${detailsHtml(item.details_json || '{}', rowId)}</td>
           `;
           rows.appendChild(tr);
+        });
+        rows.querySelectorAll('[data-audit-toggle]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const rowId = btn.getAttribute('data-audit-toggle') || '';
+            const detail = document.getElementById(`audit-detail-${rowId}`);
+            if (!detail) return;
+            detail.classList.toggle('hidden');
+          });
         });
       }
       const from = currentTotal ? currentOffset + 1 : 0;
@@ -110,12 +149,15 @@
     currentOffset += LIMIT;
     loadAudit();
   });
-  ['audit-user', 'audit-action', 'audit-resource'].forEach((id) => {
+  ['audit-user', 'audit-action', 'audit-resource', 'audit-created-from', 'audit-created-to'].forEach((id) => {
     document.getElementById(id).addEventListener('keydown', (evt) => {
       if (evt.key !== 'Enter') return;
       evt.preventDefault();
       resetAndLoad();
     });
+  });
+  ['audit-created-from', 'audit-created-to'].forEach((id) => {
+    document.getElementById(id).addEventListener('change', resetAndLoad);
   });
 
   loadAudit();

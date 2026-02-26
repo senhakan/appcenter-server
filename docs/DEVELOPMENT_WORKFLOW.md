@@ -55,6 +55,18 @@ Detayli yol haritasi ve tema notlari:
 - Agent auth: `X-Agent-UUID` + `X-Agent-Secret`
 - Web auth: JWT Bearer
 
+## 3.1 RBAC UI Route Guard Standarti (Zorunlu)
+
+- Kisitli bir web sayfasi eklendiginde `templates.TemplateResponse(...)` context'ine mutlaka `page_roles` eklenir.
+  - Ornek:
+    - admin-only: `page_roles: "admin"`
+    - operator/admin: `page_roles: "operator,admin"`
+- `base.html` `data-page-roles` attribute'u bu bilgiyi tasir.
+- Frontend'de sayfa script'i sadece `AppCenterApi.protectPage();` cagirir.
+  - `protectPage()` icinde merkezi guard otomatik calisir.
+  - Sayfa bazinda tekrar `guardPageRoles(...)` yazilmaz.
+- API tarafinda role enforcement yine zorunludur (`require_role(...)`), UI guard tek basina guvenlik olarak kabul edilmez.
+
 ## 4. Commit Kurali
 
 - Tek sorumluluklu commit tercih edilir.

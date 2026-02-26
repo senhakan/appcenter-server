@@ -304,6 +304,28 @@
     });
   }
 
+  function guardPageRoles(requiredRoles, redirectPath) {
+    const target = (redirectPath || "/dashboard").toString();
+    const roles = Array.isArray(requiredRoles) ? requiredRoles : [requiredRoles];
+    const normalized = roles.map((r) => normalizeRole(r)).filter(Boolean);
+    if (!normalized.length) return true;
+    const allowed = canAny(normalized);
+    if (!allowed) {
+      window.location.href = target;
+      return false;
+    }
+    return true;
+  }
+
+  function guardPageRolesFromDom() {
+    const body = document.body;
+    if (!body) return true;
+    const raw = (body.getAttribute("data-page-roles") || "").trim();
+    if (!raw) return true;
+    const required = raw.split(",").map((x) => x.trim()).filter(Boolean);
+    return guardPageRoles(required);
+  }
+
   async function getCurrentUser(force) {
     if (!getToken()) return null;
     if (!force && _currentUser) return _currentUser;
@@ -407,9 +429,13 @@
     if (me && me.role) {
       applyNavPermissions(me.role);
       applyRoleControls(me.role);
+      guardPageRolesFromDom();
+      return me;
     } else {
       applyNavPermissions("viewer");
       applyRoleControls("viewer");
+      guardPageRolesFromDom();
+      return null;
     }
   }
 
@@ -429,6 +455,8 @@
     getCurrentRole,
     canAny,
     canAtLeast,
+    guardPageRoles,
+    guardPageRolesFromDom,
     protectPage,
   };
 })();

@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/static/css/app.css?v={{ ASSET_VERSION }}" />
   </head>
-  <body>
+  <body data-page-roles="{{ page_roles|default('') }}">
     <div class="layout">
       {% include 'components/topbar.html' %}
       {% block content %}{% endblock %}
