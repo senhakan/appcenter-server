@@ -25,7 +25,7 @@ from app.config import get_settings
 from app.database import init_db, seed_initial_data
 from app.tasks.scheduler import start_scheduler, stop_scheduler
 from app.utils.file_handler import ensure_upload_dir
-from app.services import novnc_service
+from app.services import agent_signal, novnc_service
 
 settings = get_settings()
 logger = logging.getLogger("appcenter")
@@ -45,6 +45,7 @@ async def lifespan(_: FastAPI):
     seed_initial_data()
     start_scheduler()
     yield
+    agent_signal.clear_all()
     stop_scheduler()
 
 

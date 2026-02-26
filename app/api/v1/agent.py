@@ -1,17 +1,19 @@
 from __future__ import annotations
 
+import asyncio
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 import re
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.database import get_db
-from app.models import Agent, AgentApplication, AgentSoftwareInventory, Application, Setting, TaskHistory
+from app.database import SessionLocal, get_db
+from app.services import agent_signal
+from app.models import Agent, AgentApplication, AgentSoftwareInventory, AgentStatusHistory, Application, Setting, TaskHistory
 from app.services.heartbeat_service import process_heartbeat
 from app.schemas import (
     AgentConfig,
@@ -34,6 +36,8 @@ from app.services import remote_support_service as rs
 from app.utils.file_handler import parse_range_header
 
 router = APIRouter(prefix="/agent", tags=["agent"])
+SIGNAL_OFFLINE_GRACE_SEC = 3
+SIGNAL_MAX_HOLD_SEC = 10
 
 
 def _clean_error_message(value: str | None) -> str | None:
@@ -113,6 +117,79 @@ def _authenticate_agent(db: Session, agent_uuid: str, agent_secret: str) -> Agen
     return agent
 
 
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _mark_agent_online_from_signal(agent_uuid: str) -> None:
+    db = SessionLocal()
+    now = datetime.now(timezone.utc)
+    try:
+        agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
+        if not agent:
+            return
+        old_status = agent.status
+        agent.status = "online"
+        agent.last_seen = now
+        agent.updated_at = now
+        db.add(agent)
+        if old_status != "online":
+            db.add(
+                AgentStatusHistory(
+                    agent_uuid=agent.uuid,
+                    detected_at=now,
+                    old_status=old_status,
+                    new_status="online",
+                    reason="signal_connect",
+                )
+            )
+        db.commit()
+    finally:
+        db.close()
+
+
+def _mark_agent_offline_if_signal_stale(agent_uuid: str, disconnected_at: datetime) -> None:
+    db = SessionLocal()
+    now = datetime.now(timezone.utc)
+    try:
+        agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
+        if not agent:
+            return
+
+        last_seen = _as_utc(agent.last_seen)
+        if last_seen and last_seen > disconnected_at:
+            return
+        if agent.status == "offline":
+            return
+
+        old_status = agent.status
+        agent.status = "offline"
+        agent.updated_at = now
+        db.add(agent)
+        db.add(
+            AgentStatusHistory(
+                agent_uuid=agent.uuid,
+                detected_at=now,
+                old_status=old_status,
+                new_status="offline",
+                reason="signal_disconnect",
+            )
+        )
+        db.commit()
+        rs.end_sessions_for_offline_agents(db, [agent_uuid])
+    finally:
+        db.close()
+
+
+async def _schedule_signal_disconnect_offline(agent_uuid: str, disconnected_at: datetime) -> None:
+    await asyncio.sleep(SIGNAL_OFFLINE_GRACE_SEC)
+    _mark_agent_offline_if_signal_stale(agent_uuid, disconnected_at)
+
+
 @router.post("/register", response_model=AgentRegisterResponse)
 def register_agent(payload: AgentRegisterRequest, db: Session = Depends(get_db)) -> AgentRegisterResponse:
     now = datetime.now(timezone.utc)
@@ -186,6 +263,34 @@ def heartbeat(
         remote_support_request=remote_req,
         remote_support_end=remote_end,
     )
+
+
+@router.get("/signal")
+async def wait_for_signal(
+    timeout: int = Query(default=55, ge=5, le=55),
+    x_agent_uuid: str = Header(..., alias="X-Agent-UUID"),
+    x_agent_secret: str = Header(..., alias="X-Agent-Secret"),
+):
+    db = next(get_db())
+    try:
+        _authenticate_agent(db, x_agent_uuid, x_agent_secret)
+    finally:
+        db.close()
+    _mark_agent_online_from_signal(x_agent_uuid)
+
+    event = agent_signal.get_or_create_event(x_agent_uuid)
+    agent_signal.mark_listener_active(x_agent_uuid)
+    hold_timeout = min(timeout, SIGNAL_MAX_HOLD_SEC)
+    try:
+        await asyncio.wait_for(event.wait(), timeout=hold_timeout)
+        return {"status": "signal", "reason": "wake"}
+    except asyncio.TimeoutError:
+        return {"status": "timeout"}
+    finally:
+        disconnected_at = datetime.now(timezone.utc)
+        event.clear()
+        agent_signal.mark_listener_inactive(x_agent_uuid)
+        asyncio.create_task(_schedule_signal_disconnect_offline(x_agent_uuid, disconnected_at))
 
 
 @router.get("/download/{app_id}")

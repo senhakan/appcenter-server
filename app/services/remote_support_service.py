@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.models import Agent, AgentGroup, Group, RemoteSupportSession, User
+from app.services import agent_signal
 
 settings = get_settings()
 
@@ -129,6 +130,7 @@ def create_session(db: Session, agent_uuid: str, admin_user_id: int, reason: str
     _set_agent_remote_state(db, agent_uuid, "pending_approval", session.id, helper_running=False)
     db.commit()
     db.refresh(session)
+    agent_signal.notify_agent(agent_uuid)
     return session
 
 
@@ -272,6 +274,7 @@ def end_session(db: Session, session_id: int, ended_by: str) -> RemoteSupportSes
     db.add(session)
     db.commit()
     db.refresh(session)
+    agent_signal.notify_agent(session.agent_uuid)
     return session
 
 
@@ -313,6 +316,7 @@ def cancel_pending_session(db: Session, session_id: int, admin_user_id: int | No
     db.add(session)
     db.commit()
     db.refresh(session)
+    agent_signal.notify_agent(session.agent_uuid)
     return session
 
 
