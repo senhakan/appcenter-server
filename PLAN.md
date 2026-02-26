@@ -33,8 +33,9 @@ Tum temel ozellikler uretim ortaminda calisir durumda:
 
 **6.3 Yonetilebilirlik:**
 - [x] Audit log tablosu: `audit_logs (id, user_id, action, resource_type, resource_id, details_json, created_at)`
-- [ ] Audit log middleware: her mutating API call'da otomatik kayit (su an mutating endpoint seviyesinde kayit aktif)
+- [ ] Audit log middleware: her mutating API call'da otomatik kayit (not: su an mutating endpoint seviyesinde kayit aktif)
 - [x] Kritik operasyonlarda UI onay adimi (deployment silme, grup pasife alma, uygulama silme)
+- [x] Rol bazli erisim detaylandirma (admin/operator/viewer, backend `403` + UI gorunurluk)
 
 **6.4 Tabler UI Gecisi:**
 - 6.1-6.3 tamamlanmadan baslanmaz
@@ -42,17 +43,20 @@ Tum temel ozellikler uretim ortaminda calisir durumda:
 
 ### Faz 7: Kullanici Yonetimi & RBAC
 
-- [ ] `app/models.py`: User modeli zaten var (admin/operator/viewer rolleri)
-- [ ] `app/api/v1/users.py`: Yeni router - User CRUD
+- [x] `app/models.py`: User modeli (admin/operator/viewer rolleri) aktif
+- [x] `app/api/v1/users.py`: User CRUD
   - `POST /api/v1/users` (admin only)
   - `GET /api/v1/users` (admin only)
   - `PUT /api/v1/users/{id}` (admin only)
   - `DELETE /api/v1/users/{id}` (admin only, son admin silme engeli)
-- [ ] `app/auth.py`: `require_role(role)` dependency ekle
-- [ ] `app/api/v1/web.py`: Tum mutating endpoint'lere `require_role("operator")` ekle
-- [ ] `app/api/v1/web.py`: Settings ve user endpoint'lerine `require_role("admin")` ekle
-- [ ] `app/templates/base.html`: Menu gorunurluugu role'a gore filtrele
-- [ ] `app/templates/users/`: list.html, create.html, edit.html
+- [x] `app/auth.py`: `require_role(...)` dependency aktif
+- [x] `app/api/v1/web.py`: Mutating endpoint'lerde `operator+`, settings'te `admin` enforcement
+- [x] `app/api/v1/inventory.py` ve `app/api/v1/remote_support.py`: role bazli enforcement
+- [x] `app/api/v1/auth.py`: `GET /api/v1/auth/me`
+- [x] `app/templates/base.html` + `app/static/js/api.js`: menu/aksiyon gorunurlugu role'a gore filtreleme
+- [x] `app/templates/users/list.html`: web user management sayfasi
+- [x] `app/templates/audit/list.html`: audit log web sayfasi (admin)
+- [x] Merkezi page guard standardi: route context `page_roles` + frontend `protectPage()` otomatik guard
 
 ---
 

@@ -45,20 +45,21 @@ Bu dokuman iki amac icin tutulur:
   - dashboard + agents ekranlariyla pilot gecis
   - onay sonrasi tum ekranlara kademeli tasima
 
-### Faz 7 (Planlandi - Beklemede): Kullanici Yonetimi ve Yetkilendirme
-- Durum: Sadece planlandi, henuz implement edilmedi.
+### Faz 7 (Tamamlandi): Kullanici Yonetimi ve Yetkilendirme
+- Durum: Uretimde aktif.
 - Yaklasim: RBAC (role-based access control) + backend enforcement + UI gorunurluk kontrolu.
 - Roller:
   - `admin`: tam yetki
   - `operator`: operasyonel yazma yetkileri (deploy/app/group/agent vb.), kritik sistem ayarlari ve kullanici yonetimi yok
   - `viewer`: salt-okunur
 - Kapsam:
-  - User management API (`/api/v1/users` CRUD + active/passive + password reset)
-  - Role guard dependency (endpoint bazli `403` kontrolu)
-  - UI menu/sayfa/aksiyon gorunurluk kurallari (role'a gore)
-  - `/api/v1/auth/me` veya login response ile role bilgisi
-  - Kendini kilitlemeyi onleyen korumalar (son admin silme/pasifleme engeli)
-  - Audit log altyapisina baglanti
+  - [x] User management API (`/api/v1/users` CRUD)
+  - [x] Role guard dependency (endpoint bazli `403` kontrolu)
+  - [x] UI menu/sayfa/aksiyon gorunurluk kurallari (role'a gore)
+  - [x] `/api/v1/auth/me`
+  - [x] Son admin silme/pasifleme engeli
+  - [x] Audit log altyapisina baglanti
+  - [x] Merkezi UI route guard (`page_roles` + `protectPage()` otomatik kontrol)
 - Yetki matrisi (ozet):
   - Dashboard/Agents/Inventory/Licenses list: `admin`, `operator`, `viewer`
   - Uygulama/Deployment/Group yazma islemleri: `admin`, `operator`
