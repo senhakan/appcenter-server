@@ -15,6 +15,13 @@
   .transfer select {
     min-height: 280px;
   }
+  .field-error {
+    margin-top: 4px;
+    color: #b42318;
+    font-size: 12px;
+    line-height: 1.3;
+    min-height: 16px;
+  }
 </style>
 <div class="card" style="max-width: 980px;">
   <div class="row spread wrap">
@@ -70,6 +77,32 @@
   const groupId = Number("{{ group_id }}");
   let groupItem = null;
   let agents = [];
+
+  function clearFormErrors(formEl) {
+    formEl.querySelectorAll('.field-error').forEach((el) => el.remove());
+  }
+
+  function setFormError(formEl, fieldName, message) {
+    const input = formEl.querySelector(`[name="${fieldName}"]`);
+    if (!input || !message) return;
+    const next = input.nextElementSibling;
+    if (next && next.classList && next.classList.contains('field-error')) {
+      next.textContent = message;
+      return;
+    }
+    const err = document.createElement('div');
+    err.className = 'field-error';
+    err.textContent = message;
+    input.insertAdjacentElement('afterend', err);
+  }
+
+  function parseApiErrorToFields(message) {
+    const m = (message || '').toString().toLowerCase();
+    if (m.includes('group name is required')) return { name: 'Grup adi zorunludur' };
+    if (m.includes('group name already exists')) return { name: 'Bu grup adi zaten kullaniliyor' };
+    if (m.includes('system group cannot be modified')) return { name: 'Sistem grubu duzenlenemez' };
+    return null;
+  }
 
   function toOption(agent) {
     const o = document.createElement('option');
@@ -131,20 +164,29 @@
 
   document.getElementById('group-meta-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    clearFormErrors(e.target);
     if (!groupItem) return;
     const form = new FormData(e.target);
+    const name = (form.get('name') || '').toString().trim();
+    if (!name) {
+      setFormError(e.target, 'name', 'Grup adi zorunludur');
+      AppCenterApi.toast('Formda eksik veya hatali alanlar var');
+      return;
+    }
     try {
       await AppCenterApi.req(`/groups/${groupId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: (form.get('name') || '').toString(),
+          name,
           description: (form.get('description') || '').toString() || null,
         }),
       });
       AppCenterApi.toast('Grup bilgileri guncellendi');
       await loadData();
     } catch (err) {
+      const mapped = parseApiErrorToFields(err.message);
+      if (mapped) Object.entries(mapped).forEach(([k, v]) => setFormError(e.target, k, v));
       AppCenterApi.toast(err.message);
     }
   });

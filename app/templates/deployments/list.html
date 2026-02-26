@@ -57,6 +57,13 @@
   .dep-modal-head h3 {
     margin: 0;
   }
+  .field-error {
+    margin-top: 4px;
+    color: #b42318;
+    font-size: 12px;
+    line-height: 1.3;
+    min-height: 16px;
+  }
 </style>
 <div class="card">
   <div class="row spread wrap">
@@ -65,6 +72,22 @@
       <button class="btn" id="dep-new-btn" type="button">Yeni Dagitim</button>
       <button class="btn secondary" id="dep-refresh-btn" type="button">Yenile</button>
     </div>
+  </div>
+  <div class="row wrap" style="margin:10px 0; gap:10px;">
+    <input id="dep-search" style="max-width:320px;" placeholder="Ara: hedef / uygulama" autocomplete="off" />
+    <select id="dep-filter-active" style="max-width:180px;">
+      <option value="all">Tum Durumlar</option>
+      <option value="active">Sadece Aktif</option>
+      <option value="inactive">Sadece Pasif</option>
+    </select>
+    <select id="dep-sort" style="max-width:220px;">
+      <option value="id_desc">ID (Yeni -> Eski)</option>
+      <option value="id_asc">ID (Eski -> Yeni)</option>
+      <option value="priority_desc">Oncelik (Yuksek -> Dusuk)</option>
+      <option value="priority_asc">Oncelik (Dusuk -> Yuksek)</option>
+      <option value="app_asc">Uygulama (A-Z)</option>
+      <option value="app_desc">Uygulama (Z-A)</option>
+    </select>
   </div>
   <div class="table-wrap">
     <table>
@@ -179,6 +202,7 @@
 
   let depItems = [];
   let appItems = [];
+  let appFormItems = [];
   let agentItems = [];
   let groupItems = [];
 
@@ -197,6 +221,34 @@
   function openModal(modal) { modal.classList.remove('hidden'); }
   function closeModal(modal) { modal.classList.add('hidden'); }
 
+  function clearFormErrors(formEl) {
+    formEl.querySelectorAll('.field-error').forEach((el) => el.remove());
+  }
+
+  function setFormError(formEl, fieldName, message) {
+    const input = formEl.querySelector(`[name="${fieldName}"]`);
+    if (!input || !message) return;
+    const next = input.nextElementSibling;
+    if (next && next.classList && next.classList.contains('field-error')) {
+      next.textContent = message;
+      return;
+    }
+    const err = document.createElement('div');
+    err.className = 'field-error';
+    err.textContent = message;
+    input.insertAdjacentElement('afterend', err);
+  }
+
+  function parseApiErrorToFields(message) {
+    const m = (message || '').toString().toLowerCase();
+    if (m.includes('application not found')) return { app_id: 'Secili uygulama bulunamadi' };
+    if (m.includes('target_id required for group')) return { target_group_id: 'Group hedefi icin grup secilmelidir' };
+    if (m.includes('target_id required for agent')) return { target_agent_uuid: 'Agent hedefi icin agent secilmelidir' };
+    if (m.includes('target_id must be group id')) return { target_group_id: 'Gecersiz grup secimi' };
+    if (m.includes('invalid target_type')) return { target_type: 'Gecersiz hedef tipi' };
+    return null;
+  }
+
   function syncTargetInputs(formEl) {
     const targetType = formEl.querySelector('[data-role="target-type"]').value;
     const groupWrap = formEl.querySelector('[data-role="target-group-wrap"]');
@@ -208,7 +260,7 @@
   function fillFormOptions(formEl) {
     const appSelect = formEl.querySelector('select[name="app_id"]');
     appSelect.innerHTML = '';
-    appItems.forEach((app) => {
+    appFormItems.forEach((app) => {
       const option = document.createElement('option');
       option.value = String(app.id);
       option.textContent = `${app.display_name} (${app.version})`;
@@ -253,7 +305,33 @@
   function renderTable() {
     const rows = document.getElementById('dep-rows');
     rows.innerHTML = '';
-    depItems.forEach((d) => {
+    const searchQ = (document.getElementById('dep-search').value || '').toLowerCase().trim();
+    const activeFilter = (document.getElementById('dep-filter-active').value || 'all').toLowerCase();
+    const sortMode = (document.getElementById('dep-sort').value || 'id_desc').toLowerCase();
+
+    let items = [...depItems];
+    if (activeFilter === 'active') items = items.filter((d) => !!d.is_active);
+    if (activeFilter === 'inactive') items = items.filter((d) => !d.is_active);
+    if (searchQ) {
+      items = items.filter((d) => {
+        const app = appItems.find((a) => Number(a.id) === Number(d.app_id));
+        const appName = (app?.display_name || '').toLowerCase();
+        const targetText = getTargetText(d).toLowerCase();
+        return appName.includes(searchQ) || targetText.includes(searchQ);
+      });
+    }
+    const dir = sortMode.endsWith('_desc') ? -1 : 1;
+    items.sort((a, b) => {
+      if (sortMode.startsWith('priority_')) return ((Number(a.priority) || 0) - (Number(b.priority) || 0)) * dir;
+      if (sortMode.startsWith('app_')) {
+        const aName = (appItems.find((x) => Number(x.id) === Number(a.app_id))?.display_name || '');
+        const bName = (appItems.find((x) => Number(x.id) === Number(b.app_id))?.display_name || '');
+        return aName.localeCompare(bName) * dir;
+      }
+      return ((Number(a.id) || 0) - (Number(b.id) || 0)) * dir;
+    });
+
+    items.forEach((d) => {
       const app = appItems.find((a) => Number(a.id) === Number(d.app_id));
       const appName = app?.display_name || `App #${d.app_id}`;
       const appTitle = `${appName} (ID: ${d.app_id})`;
@@ -296,6 +374,11 @@
 
   async function removeDeployment(id) {
     if (!confirm(`Dagitim silinsin mi? (${id})`)) return;
+    const confirmText = prompt(`Silmeyi onaylamak icin SIL ${id} yazin:`, '');
+    if ((confirmText || '').trim() !== `SIL ${id}`) {
+      AppCenterApi.toast('Silme onayi iptal edildi');
+      return;
+    }
     try {
       await AppCenterApi.req(`/deployments/${id}`, { method: 'DELETE' });
       AppCenterApi.toast('Silindi');
@@ -307,14 +390,16 @@
 
   async function loadDeployments() {
     try {
-      const [depData, appsData, agentsData, groupsData] = await Promise.all([
+      const [depData, allAppsData, activeAppsData, agentsData, groupsData] = await Promise.all([
         AppCenterApi.req('/deployments'),
+        AppCenterApi.req('/applications'),
         AppCenterApi.req('/applications?only_active=true'),
         AppCenterApi.req('/agents'),
         AppCenterApi.req('/groups'),
       ]);
       depItems = depData.items || [];
-      appItems = appsData.items || [];
+      appItems = allAppsData.items || [];
+      appFormItems = activeAppsData.items || [];
       agentItems = agentsData.items || [];
       groupItems = groupsData.items || [];
 
@@ -329,6 +414,7 @@
   function openCreateModal() {
     const form = document.getElementById('dep-create-form');
     form.reset();
+    clearFormErrors(form);
     form.priority.value = '5';
     form.target_type.value = 'All';
     form.is_active.checked = true;
@@ -340,6 +426,7 @@
     const dep = depItems.find((x) => Number(x.id) === Number(id));
     if (!dep) return;
     const form = document.getElementById('dep-edit-form');
+    clearFormErrors(form);
     form.id.value = String(dep.id);
     form.app_id.value = String(dep.app_id);
     form.priority.value = String(dep.priority || 5);
@@ -361,15 +448,32 @@
 
   function formToPayload(form) {
     const fd = new FormData(form);
-    const targetType = (fd.get('target_type') || '').toString();
+    const targetType = (fd.get('target_type') || '').toString().trim();
+    const priorityRaw = (fd.get('priority') || '').toString().trim();
+    const fieldErrors = {};
+    if (!targetType) fieldErrors.target_type = 'Hedef tipi zorunludur';
+    if (!priorityRaw) fieldErrors.priority = 'Oncelik zorunludur';
+    const priority = Number(priorityRaw);
+    if (!Number.isFinite(priority) || priority < 1) fieldErrors.priority = 'Oncelik en az 1 olmalidir';
     let targetId = null;
-    if (targetType === 'Group') targetId = (fd.get('target_group_id') || '').toString() || null;
-    if (targetType === 'Agent') targetId = (fd.get('target_agent_uuid') || '').toString() || null;
+    if (targetType === 'Group') {
+      targetId = (fd.get('target_group_id') || '').toString().trim() || null;
+      if (!targetId) fieldErrors.target_group_id = 'Group hedefi icin grup secilmelidir';
+    }
+    if (targetType === 'Agent') {
+      targetId = (fd.get('target_agent_uuid') || '').toString().trim() || null;
+      if (!targetId) fieldErrors.target_agent_uuid = 'Agent hedefi icin agent secilmelidir';
+    }
+    if (Object.keys(fieldErrors).length) {
+      const err = new Error('Formda eksik veya hatali alanlar var');
+      err.fieldErrors = fieldErrors;
+      throw err;
+    }
     return {
       app_id: Number(fd.get('app_id')),
       target_type: targetType,
       target_id: targetType === 'All' ? null : targetId,
-      priority: Number(fd.get('priority')),
+      priority,
       is_mandatory: fd.get('is_mandatory') === 'on',
       force_update: fd.get('force_update') === 'on',
       is_active: fd.get('is_active') === 'on',
@@ -378,6 +482,9 @@
 
   document.getElementById('dep-new-btn').addEventListener('click', openCreateModal);
   document.getElementById('dep-refresh-btn').addEventListener('click', () => loadDeployments());
+  document.getElementById('dep-search').addEventListener('input', renderTable);
+  document.getElementById('dep-filter-active').addEventListener('change', renderTable);
+  document.getElementById('dep-sort').addEventListener('change', renderTable);
   document.getElementById('dep-create-cancel-btn').addEventListener('click', () => closeModal(createModal));
   document.getElementById('dep-edit-cancel-btn').addEventListener('click', () => closeModal(editModal));
   createModal.addEventListener('click', (e) => { if (e.target === createModal) closeModal(createModal); });
@@ -385,6 +492,7 @@
 
   document.getElementById('dep-create-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    clearFormErrors(e.target);
     try {
       const payload = formToPayload(e.target);
       await AppCenterApi.req('/deployments', {
@@ -396,12 +504,17 @@
       AppCenterApi.toast('Dagitim olusturuldu');
       await loadDeployments();
     } catch (err) {
+      const fieldErrors = err.fieldErrors || parseApiErrorToFields(err.message);
+      if (fieldErrors) {
+        Object.entries(fieldErrors).forEach(([k, v]) => setFormError(e.target, k, v));
+      }
       AppCenterApi.toast(err.message);
     }
   });
 
   document.getElementById('dep-edit-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    clearFormErrors(e.target);
     const id = Number((new FormData(e.target).get('id') || '0').toString());
     if (!id) return;
     try {
@@ -415,6 +528,10 @@
       AppCenterApi.toast('Dagitim guncellendi');
       await loadDeployments();
     } catch (err) {
+      const fieldErrors = err.fieldErrors || parseApiErrorToFields(err.message);
+      if (fieldErrors) {
+        Object.entries(fieldErrors).forEach(([k, v]) => setFormError(e.target, k, v));
+      }
       AppCenterApi.toast(err.message);
     }
   });

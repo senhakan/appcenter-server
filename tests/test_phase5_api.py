@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import sqlite3
+
 from fastapi.testclient import TestClient
 
 
@@ -361,6 +364,72 @@ def test_edit_endpoints_for_app_group_deployment(client: TestClient, auth_header
     assert dep_update.json()['target_type'] == 'Agent'
     assert dep_update.json()['target_id'] == 'agent-edit-1'
     assert dep_update.json()['priority'] == 8
+
+
+def test_group_delete_is_soft_and_hidden_from_default_list(client: TestClient, auth_headers: dict[str, str]) -> None:
+    grp = client.post('/api/v1/groups', headers=auth_headers, json={'name': 'Soft Delete Group'})
+    assert grp.status_code == 200
+    group_id = grp.json()['id']
+
+    deleted = client.delete(f'/api/v1/groups/{group_id}', headers=auth_headers)
+    assert deleted.status_code == 200
+    assert deleted.json()['message'] == 'Group set to inactive'
+
+    active_list = client.get('/api/v1/groups', headers=auth_headers)
+    assert active_list.status_code == 200
+    active_ids = {g['id'] for g in active_list.json()['items']}
+    assert group_id not in active_ids
+
+    all_list = client.get('/api/v1/groups?include_inactive=true', headers=auth_headers)
+    assert all_list.status_code == 200
+    matched = [g for g in all_list.json()['items'] if g['id'] == group_id]
+    assert len(matched) == 1
+    assert matched[0]['is_active'] is False
+
+
+def test_application_icon_update_and_remove(client: TestClient, auth_headers: dict[str, str]) -> None:
+    app_id = _upload_application(client, auth_headers, name='Icon Update App')
+
+    update_icon = client.put(
+        f'/api/v1/applications/{app_id}/icon',
+        headers=auth_headers,
+        files={'icon': ('icon.png', _tiny_png_bytes(), 'image/png')},
+    )
+    assert update_icon.status_code == 200
+    assert (update_icon.json().get('icon_url') or '').startswith('/uploads/icons/')
+
+    remove_icon = client.delete(f'/api/v1/applications/{app_id}/icon', headers=auth_headers)
+    assert remove_icon.status_code == 200
+    assert remove_icon.json()['icon_url'] is None
+
+
+def test_audit_log_written_for_mutating_actions(client: TestClient, auth_headers: dict[str, str]) -> None:
+    grp = client.post('/api/v1/groups', headers=auth_headers, json={'name': 'Audit Group'})
+    assert grp.status_code == 200
+    gid = grp.json()['id']
+
+    upd = client.put(
+        f'/api/v1/groups/{gid}',
+        headers=auth_headers,
+        json={'description': 'audit-check'},
+    )
+    assert upd.status_code == 200
+
+    del_resp = client.delete(f'/api/v1/groups/{gid}', headers=auth_headers)
+    assert del_resp.status_code == 200
+
+    db_url = os.environ.get('DATABASE_URL', '')
+    assert db_url.startswith('sqlite:///')
+    db_path = '/' + db_url.removeprefix('sqlite:///').lstrip('/')
+    with sqlite3.connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT action, resource_type, resource_id FROM audit_logs WHERE resource_type='group' AND resource_id=?",
+            (str(gid),),
+        ).fetchall()
+    actions = {r[0] for r in rows}
+    assert 'group.create' in actions
+    assert 'group.update' in actions
+    assert 'group.deactivate' in actions
 
 
 def test_agent_can_belong_to_multiple_groups(client: TestClient, auth_headers: dict[str, str]) -> None:

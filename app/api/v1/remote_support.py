@@ -17,6 +17,7 @@ from app.schemas import (
 )
 from app.services import novnc_service as novnc
 from app.services import remote_support_service as rs
+from app.services import audit_service as audit
 from app.api.v1.agent import _authenticate_agent
 
 router = APIRouter(tags=["remote-support"])
@@ -29,6 +30,14 @@ def create_remote_session(
     db: Session = Depends(get_db),
 ):
     session = rs.create_session(db, body.agent_uuid, user.id, body.reason, body.max_duration_min)
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="remote_support.session_create",
+        resource_type="remote_support_session",
+        resource_id=str(session.id),
+        details={"agent_uuid": body.agent_uuid, "reason": body.reason},
+    )
     return {
         "status": "ok",
         "session": {
@@ -115,6 +124,14 @@ def end_remote_session(
 ):
     _ = user
     rs.end_session(db, session_id, ended_by="admin")
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="remote_support.session_end",
+        resource_type="remote_support_session",
+        resource_id=str(session_id),
+        details={"ended_by": "admin"},
+    )
     return MessageResponse(status="ok", message="Session ended")
 
 
@@ -125,6 +142,13 @@ def cancel_remote_session(
     db: Session = Depends(get_db),
 ):
     rs.cancel_pending_session(db, session_id, admin_user_id=user.id)
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="remote_support.session_cancel",
+        resource_type="remote_support_session",
+        resource_id=str(session_id),
+    )
     return MessageResponse(status="ok", message="Pending approval cancelled")
 
 

@@ -391,6 +391,7 @@ class GroupResponse(BaseModel):
     id: int
     name: str
     description: Optional[str] = None
+    is_active: bool
     created_at: datetime
     is_system: bool = False
 
@@ -408,6 +409,7 @@ class GroupCreateRequest(BaseModel):
 class GroupUpdateRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 class GroupAssignAgentsRequest(BaseModel):

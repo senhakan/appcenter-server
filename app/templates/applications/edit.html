@@ -1,6 +1,15 @@
 {% extends 'base.html' %}
 {% block title %}Uygulama Duzenle{% endblock %}
 {% block content %}
+<style>
+  .field-error {
+    margin-top: 4px;
+    color: #b42318;
+    font-size: 12px;
+    line-height: 1.3;
+    min-height: 16px;
+  }
+</style>
 <div class="card" style="max-width: 900px;">
   <div class="row spread wrap">
     <h3 style="margin: 0;">Uygulama Duzenle</h3>
@@ -52,6 +61,31 @@
   AppCenterApi.protectPage();
   const appId = Number("{{ app_id }}");
 
+  function clearFormErrors(formEl) {
+    formEl.querySelectorAll('.field-error').forEach((el) => el.remove());
+  }
+
+  function setFormError(formEl, fieldName, message) {
+    const input = formEl.querySelector(`[name="${fieldName}"]`);
+    if (!input || !message) return;
+    const next = input.nextElementSibling;
+    if (next && next.classList && next.classList.contains('field-error')) {
+      next.textContent = message;
+      return;
+    }
+    const err = document.createElement('div');
+    err.className = 'field-error';
+    err.textContent = message;
+    input.insertAdjacentElement('afterend', err);
+  }
+
+  function parseApiErrorToFields(message) {
+    const m = (message || '').toString().toLowerCase();
+    if (m.includes('display_name is required')) return { display_name: 'Gorunen ad zorunludur' };
+    if (m.includes('application name already exists')) return { display_name: 'Bu ad ile baska bir uygulama var' };
+    return null;
+  }
+
   async function loadApp() {
     const data = await AppCenterApi.req(`/applications/${appId}`);
     const form = document.getElementById('app-edit-form');
@@ -67,10 +101,21 @@
 
   document.getElementById('app-edit-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    clearFormErrors(e.target);
     const form = new FormData(e.target);
+    const displayName = (form.get('display_name') || '').toString().trim();
+    const version = (form.get('version') || '').toString().trim();
+    const fieldErrors = {};
+    if (!displayName) fieldErrors.display_name = 'Gorunen ad zorunludur';
+    if (!version) fieldErrors.version = 'Versiyon zorunludur';
+    if (Object.keys(fieldErrors).length) {
+      Object.entries(fieldErrors).forEach(([k, v]) => setFormError(e.target, k, v));
+      AppCenterApi.toast('Formda eksik veya hatali alanlar var');
+      return;
+    }
     const payload = {
-      display_name: (form.get('display_name') || '').toString(),
-      version: (form.get('version') || '').toString(),
+      display_name: displayName,
+      version,
       description: (form.get('description') || '').toString() || null,
       install_args: (form.get('install_args') || '').toString() || null,
       uninstall_args: (form.get('uninstall_args') || '').toString() || null,
@@ -87,6 +132,8 @@
       AppCenterApi.toast('Uygulama guncellendi');
       setTimeout(() => { location.href = '/applications'; }, 700);
     } catch (err) {
+      const mapped = parseApiErrorToFields(err.message);
+      if (mapped) Object.entries(mapped).forEach(([k, v]) => setFormError(e.target, k, v));
       AppCenterApi.toast(err.message);
     }
   });

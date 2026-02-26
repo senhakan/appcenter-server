@@ -88,6 +88,7 @@ def init_db() -> None:
 
 def _run_startup_migrations() -> None:
     if is_sqlite:
+        _migrate_sqlite_groups_table()
         _migrate_sqlite_applications_table()
         _migrate_sqlite_agent_groups_table()
         _migrate_sqlite_agents_inventory_columns()
@@ -98,6 +99,22 @@ def _run_startup_migrations() -> None:
         _migrate_sqlite_agent_identity_history_table()
         _migrate_sqlite_agent_status_history_table()
         _migrate_sqlite_remote_support_table()
+        _migrate_sqlite_audit_logs_table()
+
+
+def _migrate_sqlite_groups_table() -> None:
+    """Add is_active column to groups table for soft-delete support."""
+    with engine.begin() as conn:
+        table_exists = conn.execute(
+            text("SELECT 1 FROM sqlite_master WHERE type='table' AND name='groups' LIMIT 1")
+        ).first()
+        if not table_exists:
+            return
+
+        rows = conn.execute(text("PRAGMA table_info(groups)")).mappings().all()
+        existing_columns = {row["name"] for row in rows}
+        if "is_active" not in existing_columns:
+            conn.execute(text("ALTER TABLE groups ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1"))
 
 
 def _migrate_sqlite_applications_table() -> None:
@@ -368,6 +385,30 @@ def _migrate_sqlite_remote_support_table() -> None:
             conn.execute(text("ALTER TABLE remote_support_sessions ADD COLUMN end_signal_pending INTEGER NOT NULL DEFAULT 0"))
         if "monitor_count" not in existing_columns:
             conn.execute(text("ALTER TABLE remote_support_sessions ADD COLUMN monitor_count INTEGER"))
+
+
+def _migrate_sqlite_audit_logs_table() -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS audit_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    action VARCHAR NOT NULL,
+                    resource_type VARCHAR NOT NULL,
+                    resource_id VARCHAR,
+                    details_json TEXT,
+                    created_at DATETIME,
+                    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
+                )
+                """
+            )
+        )
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_logs(user_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_logs(resource_type, resource_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at)"))
 
 
 def seed_initial_data() -> None:

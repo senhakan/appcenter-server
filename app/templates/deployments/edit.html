@@ -1,6 +1,15 @@
 {% extends 'base.html' %}
 {% block title %}Dagitim Duzenle{% endblock %}
 {% block content %}
+<style>
+  .field-error {
+    margin-top: 4px;
+    color: #b42318;
+    font-size: 12px;
+    line-height: 1.3;
+    min-height: 16px;
+  }
+</style>
 <div class="card" style="max-width: 900px;">
   <div class="row spread wrap">
     <h3 style="margin: 0;">Dagitim Duzenle</h3>
@@ -51,6 +60,34 @@
   AppCenterApi.protectPage();
   const deploymentId = Number("{{ deployment_id }}");
   let loadedDeployment = null;
+
+  function clearFormErrors(formEl) {
+    formEl.querySelectorAll('.field-error').forEach((el) => el.remove());
+  }
+
+  function setFormError(formEl, fieldName, message) {
+    const input = formEl.querySelector(`[name="${fieldName}"]`);
+    if (!input || !message) return;
+    const next = input.nextElementSibling;
+    if (next && next.classList && next.classList.contains('field-error')) {
+      next.textContent = message;
+      return;
+    }
+    const err = document.createElement('div');
+    err.className = 'field-error';
+    err.textContent = message;
+    input.insertAdjacentElement('afterend', err);
+  }
+
+  function parseApiErrorToFields(message) {
+    const m = (message || '').toString().toLowerCase();
+    if (m.includes('application not found')) return { app_id: 'Secili uygulama bulunamadi' };
+    if (m.includes('target_id required for group')) return { target_group_id: 'Group hedefi icin grup secilmelidir' };
+    if (m.includes('target_id required for agent')) return { target_agent_uuid: 'Agent hedefi icin agent secilmelidir' };
+    if (m.includes('target_id must be group id')) return { target_group_id: 'Gecersiz grup secimi' };
+    if (m.includes('invalid target_type')) return { target_type: 'Gecersiz hedef tipi' };
+    return null;
+  }
 
   function syncTargetInputs() {
     const targetType = document.getElementById('target_type').value;
@@ -109,12 +146,30 @@
   document.getElementById('target_type').addEventListener('change', syncTargetInputs);
   document.getElementById('dep-edit-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    clearFormErrors(e.target);
     if (!loadedDeployment) return;
     const form = new FormData(e.target);
-    const targetType = (form.get('target_type') || '').toString();
+    const targetType = (form.get('target_type') || '').toString().trim();
+    const priorityRaw = (form.get('priority') || '').toString().trim();
+    const fieldErrors = {};
+    if (!targetType) fieldErrors.target_type = 'Hedef tipi zorunludur';
+    if (!priorityRaw) fieldErrors.priority = 'Oncelik zorunludur';
+    const priority = Number(priorityRaw);
+    if (!Number.isFinite(priority) || priority < 1) fieldErrors.priority = 'Oncelik en az 1 olmalidir';
     let targetId = null;
-    if (targetType === 'Group') targetId = (form.get('target_group_id') || '').toString() || null;
-    if (targetType === 'Agent') targetId = (form.get('target_agent_uuid') || '').toString() || null;
+    if (targetType === 'Group') {
+      targetId = (form.get('target_group_id') || '').toString().trim() || null;
+      if (!targetId) fieldErrors.target_group_id = 'Group hedefi icin grup secilmelidir';
+    }
+    if (targetType === 'Agent') {
+      targetId = (form.get('target_agent_uuid') || '').toString().trim() || null;
+      if (!targetId) fieldErrors.target_agent_uuid = 'Agent hedefi icin agent secilmelidir';
+    }
+    if (Object.keys(fieldErrors).length) {
+      Object.entries(fieldErrors).forEach(([k, v]) => setFormError(e.target, k, v));
+      AppCenterApi.toast('Formda eksik veya hatali alanlar var');
+      return;
+    }
     try {
       await AppCenterApi.req(`/deployments/${deploymentId}`, {
         method: 'PUT',
@@ -123,7 +178,7 @@
           app_id: Number(form.get('app_id')),
           target_type: targetType,
           target_id: targetType === 'All' ? null : targetId,
-          priority: Number(form.get('priority')),
+          priority,
           is_mandatory: form.get('is_mandatory') === 'on',
           force_update: form.get('force_update') === 'on',
           is_active: form.get('is_active') === 'on',
@@ -132,6 +187,8 @@
       AppCenterApi.toast('Dagitim guncellendi');
       setTimeout(() => { location.href = '/deployments'; }, 700);
     } catch (err) {
+      const mapped = parseApiErrorToFields(err.message);
+      if (mapped) Object.entries(mapped).forEach(([k, v]) => setFormError(e.target, k, v));
       AppCenterApi.toast(err.message);
     }
   });

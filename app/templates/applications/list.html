@@ -45,6 +45,22 @@
       <button class="btn secondary" id="apps-refresh-btn" type="button">Yenile</button>
     </div>
   </div>
+  <div class="row wrap" style="margin:10px 0; gap:10px;">
+    <input id="apps-search" style="max-width:320px;" placeholder="Ara: ad / versiyon / kategori" autocomplete="off" />
+    <select id="apps-filter-active" style="max-width:180px;">
+      <option value="all">Tum Durumlar</option>
+      <option value="active">Sadece Aktif</option>
+      <option value="inactive">Sadece Pasif</option>
+    </select>
+    <select id="apps-sort" style="max-width:220px;">
+      <option value="id_desc">ID (Yeni -> Eski)</option>
+      <option value="id_asc">ID (Eski -> Yeni)</option>
+      <option value="name_asc">Ad (A-Z)</option>
+      <option value="name_desc">Ad (Z-A)</option>
+      <option value="version_asc">Versiyon (A-Z)</option>
+      <option value="version_desc">Versiyon (Z-A)</option>
+    </select>
+  </div>
   <div class="table-wrap">
     <table>
       <thead>
@@ -146,6 +162,15 @@
           <label><input type="checkbox" name="is_active" /> Aktif</label>
         </div>
       </div>
+      <div class="grid cols-2">
+        <div>
+          <label>Ikon Degistir (opsiyonel)</label>
+          <input name="icon" type="file" accept=".png,.jpg,.jpeg,.webp,.svg" />
+        </div>
+        <div class="row wrap" style="margin-top:26px;">
+          <label><input type="checkbox" name="remove_icon" /> Ikonu kaldir</label>
+        </div>
+      </div>
       <div class="row" style="justify-content:flex-end;">
         <button class="btn secondary" id="app-edit-cancel-btn" type="button">Iptal</button>
         <button class="btn" type="submit">Kaydet</button>
@@ -175,6 +200,7 @@
   AppCenterApi.protectPage();
 
   const appById = new Map();
+  let appItems = [];
   let pendingDeleteId = 0;
 
   const createModal = document.getElementById('app-create-modal');
@@ -198,14 +224,41 @@
   function openModal(modal) { modal.classList.remove('hidden'); }
   function closeModal(modal) { modal.classList.add('hidden'); }
 
+  function applyAppListFilters(items) {
+    const q = (document.getElementById('apps-search').value || '').toLowerCase().trim();
+    const activeFilter = (document.getElementById('apps-filter-active').value || 'all').toLowerCase();
+    const sortMode = (document.getElementById('apps-sort').value || 'id_desc').toLowerCase();
+
+    let rows = [...items];
+    if (q) {
+      rows = rows.filter((app) => {
+        const name = (app.display_name || '').toLowerCase();
+        const version = (app.version || '').toLowerCase();
+        const category = (app.category || '').toLowerCase();
+        return name.includes(q) || version.includes(q) || category.includes(q);
+      });
+    }
+    if (activeFilter === 'active') rows = rows.filter((app) => !!app.is_active);
+    if (activeFilter === 'inactive') rows = rows.filter((app) => !app.is_active);
+
+    const dir = sortMode.endsWith('_desc') ? -1 : 1;
+    rows.sort((a, b) => {
+      if (sortMode.startsWith('name_')) return (a.display_name || '').localeCompare(b.display_name || '') * dir;
+      if (sortMode.startsWith('version_')) return (a.version || '').localeCompare(b.version || '') * dir;
+      return ((Number(a.id) || 0) - (Number(b.id) || 0)) * dir;
+    });
+    return rows;
+  }
+
   async function loadApps() {
     try {
       const data = await AppCenterApi.req('/applications');
+      appItems = data.items || [];
       const rows = document.getElementById('app-rows');
       rows.innerHTML = '';
       appById.clear();
-      (data.items || []).forEach((app) => {
-        appById.set(Number(app.id), app);
+      appItems.forEach((app) => appById.set(Number(app.id), app));
+      applyAppListFilters(appItems).forEach((app) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${app.id}</td>
@@ -238,6 +291,8 @@
           form.category.value = app.category || '';
           form.is_visible_in_store.checked = !!app.is_visible_in_store;
           form.is_active.checked = !!app.is_active;
+          form.remove_icon.checked = false;
+          if (form.icon) form.icon.value = '';
           openModal(editModal);
         });
       });
@@ -260,6 +315,9 @@
 
   document.getElementById('apps-new-btn').addEventListener('click', () => openModal(createModal));
   document.getElementById('apps-refresh-btn').addEventListener('click', () => loadApps());
+  document.getElementById('apps-search').addEventListener('input', () => loadApps());
+  document.getElementById('apps-filter-active').addEventListener('change', () => loadApps());
+  document.getElementById('apps-sort').addEventListener('change', () => loadApps());
 
   document.getElementById('app-create-cancel-btn').addEventListener('click', () => closeModal(createModal));
   document.getElementById('app-edit-cancel-btn').addEventListener('click', () => closeModal(editModal));
@@ -305,6 +363,20 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+
+      const iconFile = form.get('icon');
+      const removeIcon = form.get('remove_icon') === 'on';
+      if (iconFile && typeof iconFile === 'object' && iconFile.size > 0) {
+        const fd = new FormData();
+        fd.append('icon', iconFile);
+        await AppCenterApi.req(`/applications/${id}/icon`, {
+          method: 'PUT',
+          body: fd,
+        });
+      } else if (removeIcon) {
+        await AppCenterApi.req(`/applications/${id}/icon`, { method: 'DELETE' });
+      }
+
       closeModal(editModal);
       AppCenterApi.toast('Uygulama guncellendi');
       await loadApps();
@@ -315,6 +387,13 @@
 
   document.getElementById('app-delete-confirm-btn').addEventListener('click', async () => {
     if (!pendingDeleteId) return;
+    const app = appById.get(Number(pendingDeleteId));
+    const expected = `SIL ${(app?.display_name || '').trim()}`;
+    const confirmText = prompt(`Silme onayi icin "${expected}" yazin:`, '');
+    if ((confirmText || '').trim() !== expected) {
+      AppCenterApi.toast('Silme onayi iptal edildi');
+      return;
+    }
     try {
       await AppCenterApi.req(`/applications/${pendingDeleteId}`, { method: 'DELETE' });
       pendingDeleteId = 0;

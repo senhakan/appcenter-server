@@ -92,6 +92,19 @@
   </div>
   <div class="group-list-toolbar">
     <input id="group-search-input" class="group-list-search" type="text" placeholder="Grup ara: ad veya aciklama" />
+    <select id="group-active-filter" style="max-width:180px;">
+      <option value="active">Sadece Aktif</option>
+      <option value="all">Tum Gruplar</option>
+      <option value="inactive">Sadece Pasif</option>
+    </select>
+    <select id="group-sort" style="max-width:220px;">
+      <option value="name_asc">Ad (A-Z)</option>
+      <option value="name_desc">Ad (Z-A)</option>
+      <option value="id_desc">ID (Yeni -> Eski)</option>
+      <option value="id_asc">ID (Eski -> Yeni)</option>
+      <option value="count_desc">Ajan Sayisi (Cok -> Az)</option>
+      <option value="count_asc">Ajan Sayisi (Az -> Cok)</option>
+    </select>
   </div>
   <div class="table-wrap">
     <table>
@@ -196,6 +209,8 @@
   const groupCreateModal = document.getElementById('group-create-modal');
   const groupEditModal = document.getElementById('group-edit-modal');
   let groupSearchQuery = '';
+  let groupActiveFilter = 'active';
+  let groupSortMode = 'name_asc';
 
   function toOption(agent, selected = false) {
     const o = document.createElement('option');
@@ -240,31 +255,50 @@
     if (emptyState) emptyState.classList.add('hidden');
 
     const q = groupSearchQuery.trim().toLowerCase();
-    groups
+    let rowsData = groups
       .filter((g) => {
         if (!q) return true;
         const name = (g.name || '').toLowerCase();
         const desc = (g.description || '').toLowerCase();
         return name.includes(q) || desc.includes(q);
       })
-      .forEach((g) => {
+      .filter((g) => {
+        if (groupActiveFilter === 'all') return true;
+        if (groupActiveFilter === 'inactive') return !g.is_active;
+        return !!g.is_active;
+      });
+
+    const dir = groupSortMode.endsWith('_desc') ? -1 : 1;
+    rowsData.sort((a, b) => {
+      if (groupSortMode.startsWith('id_')) return ((Number(a.id) || 0) - (Number(b.id) || 0)) * dir;
+      if (groupSortMode.startsWith('count_')) {
+        const aCount = agents.filter((x) => Array.isArray(x.group_ids) && x.group_ids.includes(a.id)).length;
+        const bCount = agents.filter((x) => Array.isArray(x.group_ids) && x.group_ids.includes(b.id)).length;
+        return (aCount - bCount) * dir;
+      }
+      return (a.name || '').localeCompare(b.name || '') * dir;
+    });
+
+    rowsData.forEach((g) => {
       const count = agents.filter((a) => {
         if (Array.isArray(a.group_ids)) return a.group_ids.includes(g.id);
         return Number(a.group_id || 0) === g.id;
       }).length;
       const tr = document.createElement('tr');
       const isSystem = Boolean(g.is_system);
+      const isActive = !!g.is_active;
       const lockIcon = isSystem ? '<span class="group-lock" title="Sistem grubu">&#128274;</span>' : '';
+      const statusBadge = isActive ? '<span class="badge ok">aktif</span>' : '<span class="badge warn">pasif</span>';
       const editDisabled = isSystem ? 'disabled title="Sistem grubu duzenlenemez"' : '';
-      const deleteDisabled = isSystem ? 'disabled title="Sistem grubu silinemez"' : '';
+      const deleteDisabled = (isSystem || !isActive) ? 'disabled title="Bu grup pasife alinamaz"' : '';
       tr.innerHTML = `
         <td>${g.id}</td>
-        <td><span class="group-name">${g.name}${lockIcon}</span></td>
+        <td><span class="group-name">${g.name}${lockIcon}</span> ${statusBadge}</td>
         <td>${g.description || '-'}</td>
         <td>${count}</td>
         <td class="row">
           <button class="btn secondary" type="button" data-action="edit-group" data-group-id="${g.id}" ${editDisabled}>Duzenle</button>
-          <button class="btn danger" type="button" data-action="delete-group" data-group-id="${g.id}" data-group-name="${(g.name || '').replace(/"/g, '&quot;')}" ${deleteDisabled}>Sil</button>
+          <button class="btn danger" type="button" data-action="delete-group" data-group-id="${g.id}" data-group-name="${(g.name || '').replace(/"/g, '&quot;')}" ${deleteDisabled}>Pasife Al</button>
         </td>
       `;
       rows.appendChild(tr);
@@ -292,13 +326,18 @@
           `'${groupName}' grubunu silmek istiyor musunuz?\n\n` +
           `Etkilenecek ajan sayisi: ${affectedAgentCount}\n` +
           `Bu gruptaki ajanlar gruptan cikarilacak.\n\n` +
-          `Bu islem geri alinamaz.`
+          `Grup pasif duruma alinacak.`
         );
         if (!ok) return;
+        const confirmText = window.prompt(`Pasife alma onayi icin PASIF ${groupId} yazin:`, '');
+        if ((confirmText || '').trim() !== `PASIF ${groupId}`) {
+          AppCenterApi.toast('Pasife alma onayi iptal edildi');
+          return;
+        }
         try {
           await AppCenterApi.req(`/groups/${groupId}`, { method: 'DELETE' });
           await loadData();
-          AppCenterApi.toast('Grup silindi');
+          AppCenterApi.toast('Grup pasife alindi');
         } catch (err) {
           AppCenterApi.toast(err.message);
         }
@@ -310,7 +349,7 @@
     const groupSelect = document.getElementById('assign-group-id');
     const previousSelected = Number(groupSelect.value || 0);
     groupSelect.innerHTML = '';
-    groups.forEach((g) => {
+    groups.filter((g) => !!g.is_active).forEach((g) => {
       const op = document.createElement('option');
       op.value = String(g.id);
       op.textContent = `${g.name} (#${g.id})`;
@@ -339,7 +378,7 @@
 
   async function loadData() {
     const [g, a] = await Promise.all([
-      AppCenterApi.req('/groups'),
+      AppCenterApi.req('/groups?include_inactive=true'),
       AppCenterApi.req('/agents'),
     ]);
     groups = g.items || [];
@@ -381,6 +420,14 @@
   });
   document.getElementById('group-search-input').addEventListener('input', (evt) => {
     groupSearchQuery = (evt.target.value || '').toString();
+    renderGroupsTable();
+  });
+  document.getElementById('group-active-filter').addEventListener('change', (evt) => {
+    groupActiveFilter = (evt.target.value || 'active').toString();
+    renderGroupsTable();
+  });
+  document.getElementById('group-sort').addEventListener('change', (evt) => {
+    groupSortMode = (evt.target.value || 'name_asc').toString();
     renderGroupsTable();
   });
   groupCreateModal.addEventListener('click', (evt) => {

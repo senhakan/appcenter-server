@@ -16,6 +16,8 @@
   - servis: `appcenter` (`127.0.0.1:8000`)
 - Yapilan degisiklikler deploy edilmeden tamamlanmis sayilmaz.
 - Testler ve smoke dogrulamalari bu sunucuda calisan servis uzerinde yapilmalidir.
+- Zorunlu akış: Server tarafinda yapilan her degisiklik ayni oturumda canli ortama uygulanir (`/opt/appcenter/server`), servis restart edilir ve en az health/smoke kontrolu yapilir.
+- Operasyonel kisayol: Kullanici `+1` yazdiginda bu repoda o ana kadarki degisiklikler icin `dokuman guncelle + commit + push + canli deploy + health/smoke` akisi uygulanir.
 
 ## Faz 1 Tamamlananlar
 

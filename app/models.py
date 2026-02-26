@@ -40,6 +40,7 @@ class Group(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     agents: Mapped[list["Agent"]] = relationship(back_populates="group")
@@ -258,6 +259,18 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    action: Mapped[str] = mapped_column(String, nullable=False)
+    resource_type: Mapped[str] = mapped_column(String, nullable=False)
+    resource_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    details_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
 class RemoteSupportSession(Base):
     __tablename__ = "remote_support_sessions"
     __table_args__ = (
@@ -306,6 +319,10 @@ Index("idx_task_app", TaskHistory.app_id)
 Index("idx_task_status", TaskHistory.status)
 Index("idx_task_created", TaskHistory.created_at)
 Index("idx_user_username", User.username)
+Index("idx_audit_user", AuditLog.user_id)
+Index("idx_audit_action", AuditLog.action)
+Index("idx_audit_resource", AuditLog.resource_type, AuditLog.resource_id)
+Index("idx_audit_created", AuditLog.created_at)
 Index("idx_rs_agent", RemoteSupportSession.agent_uuid)
 Index("idx_rs_status", RemoteSupportSession.status)
 Index("idx_rs_requested", RemoteSupportSession.requested_at)

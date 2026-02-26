@@ -172,3 +172,47 @@ def delete_application(db: Session, app_id: int) -> None:
     file_path.unlink(missing_ok=True)
     if icon_path:
         icon_path.unlink(missing_ok=True)
+
+
+async def update_application_icon(
+    db: Session,
+    app_id: int,
+    *,
+    icon_file: UploadFile,
+) -> Application:
+    app = get_application(db, app_id)
+    old_icon_path: Optional[Path] = None
+    if app.icon_url and app.icon_url.startswith("/uploads/icons/"):
+        old_icon_path = Path(settings.upload_dir) / "icons" / Path(app.icon_url).name
+
+    icon_filename, icon_url = await save_icon_file(
+        icon_file=icon_file,
+        upload_dir=settings.upload_dir,
+        max_icon_size=settings.max_icon_size,
+        app_id=app.id,
+    )
+    app.icon_url = icon_url
+    db.add(app)
+    db.commit()
+    db.refresh(app)
+
+    new_icon_path = Path(settings.upload_dir) / "icons" / icon_filename
+    if old_icon_path and old_icon_path != new_icon_path:
+        old_icon_path.unlink(missing_ok=True)
+    return app
+
+
+def remove_application_icon(db: Session, app_id: int) -> Application:
+    app = get_application(db, app_id)
+    old_icon_path: Optional[Path] = None
+    if app.icon_url and app.icon_url.startswith("/uploads/icons/"):
+        old_icon_path = Path(settings.upload_dir) / "icons" / Path(app.icon_url).name
+
+    app.icon_url = None
+    db.add(app)
+    db.commit()
+    db.refresh(app)
+
+    if old_icon_path:
+        old_icon_path.unlink(missing_ok=True)
+    return app

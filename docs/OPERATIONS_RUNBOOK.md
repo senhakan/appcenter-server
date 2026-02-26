@@ -87,6 +87,11 @@ Bu dokuman production ortami icin deploy, smoke ve rollback adimlarini tanimlar.
 
 ## 2. Deploy Adimlari
 
+Zorunlu kural (bu sunucu):
+- Server kodunda yapilan her degisiklik ayni oturumda `/opt/appcenter/server` dizinine uygulanir.
+- Deploy sonrasi `appcenter` servisi restart edilir.
+- En az `GET /health` ve ilgili akis icin smoke kontrolu yapilir.
+
 ### 2.1 Git Pull ile Deploy (opsiyonel)
 
 ```bash

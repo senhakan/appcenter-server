@@ -60,8 +60,11 @@ from app.services.application_service import (
     delete_application,
     get_application,
     list_applications,
+    remove_application_icon,
     update_application,
+    update_application_icon,
 )
+from app.services import audit_service as audit
 from app.services.deployment_service import (
     create_deployment,
     delete_deployment,
@@ -103,7 +106,7 @@ def agents_update_group(
     agent_uuid: str,
     group_id: Optional[int] = Form(None),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> AgentResponse:
     agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
     if not agent:
@@ -117,6 +120,14 @@ def agents_update_group(
     db.add(agent)
     db.commit()
     db.refresh(agent)
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="agent.update_group",
+        resource_type="agent",
+        resource_id=agent_uuid,
+        details={"group_id": group_id},
+    )
     return AgentResponse.model_validate(agent)
 
 
@@ -125,7 +136,7 @@ def agents_update_notes(
     agent_uuid: str,
     payload: AgentNotesUpdateRequest,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> AgentResponse:
     agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
     if not agent:
@@ -139,6 +150,14 @@ def agents_update_notes(
     db.add(agent)
     db.commit()
     db.refresh(agent)
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="agent.update_notes",
+        resource_type="agent",
+        resource_id=agent_uuid,
+        details={"notes_len": len(raw_notes)},
+    )
     return AgentResponse.model_validate(agent)
 
 
@@ -146,7 +165,7 @@ def agents_update_notes(
 def agents_delete(
     agent_uuid: str,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> MessageResponse:
     agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
     if not agent:
@@ -181,15 +200,26 @@ def agents_delete(
 
     db.delete(agent)
     db.commit()
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="agent.delete",
+        resource_type="agent",
+        resource_id=agent_uuid,
+    )
     return MessageResponse(status="success", message="Agent deleted")
 
 
 @router.get("/groups", response_model=GroupListResponse)
 def groups_list(
+    include_inactive: bool = False,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ) -> GroupListResponse:
-    items = db.query(Group).order_by(Group.name.asc()).all()
+    q = db.query(Group)
+    if not include_inactive:
+        q = q.filter(Group.is_active.is_(True))
+    items = q.order_by(Group.name.asc()).all()
     return GroupListResponse(items=items, total=len(items))
 
 
@@ -209,7 +239,7 @@ def groups_detail(
 def groups_create(
     payload: GroupCreateRequest,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> GroupResponse:
     name = payload.name.strip()
     if not name:
@@ -221,6 +251,14 @@ def groups_create(
     db.add(group)
     db.commit()
     db.refresh(group)
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="group.create",
+        resource_type="group",
+        resource_id=str(group.id),
+        details={"name": group.name},
+    )
     return GroupResponse.model_validate(group)
 
 
@@ -229,12 +267,12 @@ def groups_update(
     group_id: int,
     payload: GroupUpdateRequest,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> GroupResponse:
     group = db.query(Group).filter(Group.id == group_id).first()
     if not group:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
-    if group.is_system and (payload.name is not None or payload.description is not None):
+    if group.is_system and (payload.name is not None or payload.description is not None or payload.is_active is False):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="System group cannot be modified",
@@ -254,9 +292,19 @@ def groups_update(
         group.name = name
     if payload.description is not None:
         group.description = payload.description.strip() or None
+    if payload.is_active is not None:
+        group.is_active = bool(payload.is_active)
     db.add(group)
     db.commit()
     db.refresh(group)
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="group.update",
+        resource_type="group",
+        resource_id=str(group.id),
+        details={"name": group.name, "is_active": bool(group.is_active)},
+    )
     return GroupResponse.model_validate(group)
 
 
@@ -265,11 +313,13 @@ def groups_assign_agents(
     group_id: int,
     payload: GroupAssignAgentsRequest,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> MessageResponse:
     group = db.query(Group).filter(Group.id == group_id).first()
     if not group:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+    if not group.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Group is inactive")
 
     target_uuids = {uuid.strip() for uuid in payload.agent_uuids if uuid and uuid.strip()}
     if target_uuids:
@@ -309,6 +359,14 @@ def groups_assign_agents(
             db.add(agent)
 
     db.commit()
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="group.assign_agents",
+        resource_type="group",
+        resource_id=str(group_id),
+        details={"target_count": len(target_uuids)},
+    )
     return MessageResponse(status="success", message="Group agents updated")
 
 
@@ -316,21 +374,32 @@ def groups_assign_agents(
 def groups_delete(
     group_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> MessageResponse:
     group = db.query(Group).filter(Group.id == group_id).first()
     if not group:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
     if is_system_group_name(group.name):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="System group cannot be deleted")
+    if not group.is_active:
+        return MessageResponse(status="success", message="Group already inactive")
 
     # Remove memberships first; keep legacy single-group column consistent.
     db.query(AgentGroup).filter(AgentGroup.group_id == group_id).delete(synchronize_session=False)
     db.query(Agent).filter(Agent.group_id == group_id).update({Agent.group_id: None}, synchronize_session=False)
 
-    db.delete(group)
+    group.is_active = False
+    db.add(group)
     db.commit()
-    return MessageResponse(status="success", message="Group deleted")
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="group.deactivate",
+        resource_type="group",
+        resource_id=str(group_id),
+        details={"name": group.name},
+    )
+    return MessageResponse(status="success", message="Group set to inactive")
 
 
 @router.get("/dashboard/stats", response_model=DashboardStatsResponse)
@@ -568,7 +637,7 @@ async def applications_upload(
     category: Optional[str] = Form(None),
     icon: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> ApplicationResponse:
     app = await create_application(
         db=db,
@@ -582,6 +651,14 @@ async def applications_upload(
         category=category,
         icon_file=icon,
     )
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="application.create",
+        resource_type="application",
+        resource_id=str(app.id),
+        details={"display_name": app.display_name, "version": app.version},
+    )
     return ApplicationResponse.model_validate(app)
 
 
@@ -590,7 +667,7 @@ def applications_update(
     app_id: int,
     payload: ApplicationUpdateRequest,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> ApplicationResponse:
     app = update_application(
         db=db,
@@ -604,6 +681,49 @@ def applications_update(
         category=payload.category,
         is_active=payload.is_active,
     )
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="application.update",
+        resource_type="application",
+        resource_id=str(app.id),
+        details={"display_name": app.display_name, "version": app.version, "is_active": bool(app.is_active)},
+    )
+    return ApplicationResponse.model_validate(app)
+
+
+@router.put("/applications/{app_id}/icon", response_model=ApplicationResponse)
+async def applications_update_icon(
+    app_id: int,
+    icon: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ApplicationResponse:
+    app = await update_application_icon(db=db, app_id=app_id, icon_file=icon)
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="application.update_icon",
+        resource_type="application",
+        resource_id=str(app.id),
+    )
+    return ApplicationResponse.model_validate(app)
+
+
+@router.delete("/applications/{app_id}/icon", response_model=ApplicationResponse)
+def applications_delete_icon(
+    app_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ApplicationResponse:
+    app = remove_application_icon(db=db, app_id=app_id)
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="application.delete_icon",
+        resource_type="application",
+        resource_id=str(app.id),
+    )
     return ApplicationResponse.model_validate(app)
 
 
@@ -611,9 +731,16 @@ def applications_update(
 def applications_delete(
     app_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> MessageResponse:
     delete_application(db, app_id)
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="application.delete",
+        resource_type="application",
+        resource_id=str(app_id),
+    )
     return MessageResponse(status="success", message="Application deleted")
 
 
@@ -643,6 +770,14 @@ def deployments_create(
     user: User = Depends(get_current_user),
 ) -> DeploymentResponse:
     item = create_deployment(db, payload, created_by=user.username)
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="deployment.create",
+        resource_type="deployment",
+        resource_id=str(item.id),
+        details={"app_id": item.app_id, "target_type": item.target_type, "target_id": item.target_id},
+    )
     return DeploymentResponse.model_validate(item)
 
 
@@ -651,9 +786,17 @@ def deployments_update(
     deployment_id: int,
     payload: DeploymentUpdateRequest,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> DeploymentResponse:
     item = update_deployment(db, deployment_id, payload)
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="deployment.update",
+        resource_type="deployment",
+        resource_id=str(item.id),
+        details={"app_id": item.app_id, "target_type": item.target_type, "target_id": item.target_id},
+    )
     return DeploymentResponse.model_validate(item)
 
 
@@ -661,9 +804,16 @@ def deployments_update(
 def deployments_delete(
     deployment_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> MessageResponse:
     delete_deployment(db, deployment_id)
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="deployment.delete",
+        resource_type="deployment",
+        resource_id=str(deployment_id),
+    )
     return MessageResponse(status="success", message="Deployment deleted")
 
 
@@ -681,7 +831,7 @@ def settings_list(
 def settings_update(
     payload: SettingsUpdateRequest,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> SettingsListResponse:
     now = datetime.now(timezone.utc)
     for key, value in payload.values.items():
@@ -727,6 +877,13 @@ def settings_update(
             item.updated_at = now
         db.add(item)
     db.commit()
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="settings.update",
+        resource_type="settings",
+        details={"keys": sorted(list(payload.values.keys()))},
+    )
     return settings_list(db)
 
 
@@ -735,7 +892,7 @@ async def upload_agent_update(
     version: str = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> AgentUpdateUploadResponse:
     updates_dir = str(Path(settings.upload_dir) / "agent_updates")
     temp_path, digest_hex, _, file_type = await save_upload_to_temp(
@@ -764,6 +921,14 @@ async def upload_agent_update(
             item.updated_at = now
         db.add(item)
     db.commit()
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="agent_update.upload",
+        resource_type="agent_update",
+        resource_id=filename,
+        details={"version": version},
+    )
 
     return AgentUpdateUploadResponse(
         status="success",

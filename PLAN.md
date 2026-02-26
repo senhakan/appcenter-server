@@ -20,21 +20,21 @@ Tum temel ozellikler uretim ortaminda calisir durumda:
 ### Faz 6 Kalan Isler
 
 **6.1 Kisa Vade:**
-- [ ] `app/api/v1/web.py`: Deployment listesinde `app_id` yerine uygulama adini goster
-- [ ] `app/api/v1/web.py`: Deployment listesinde hedef grup/agent adini zenginlestir
-- [ ] `app/templates/deployments/list.html`: Yukaridaki degisikliklerin UI yansimasi
-- [ ] `app/templates/*/edit.html`: Form validasyonlarini guclendirme (required, format)
-- [ ] `app/api/v1/web.py`: API hata mesajlarini form alanlarina detayli yansitma
+- [x] `app/templates/deployments/list.html`: Deployment listesinde `app_id` yerine uygulama adini goster
+- [x] `app/templates/deployments/list.html`: Deployment listesinde hedef grup/agent adini zenginlestir
+- [x] `app/templates/deployments/list.html`: Yukaridaki degisikliklerin UI yansimasi
+- [x] `app/templates/*/edit.html`: Form validasyonlarini guclendirme (required, format)
+- [x] `app/templates/*/edit.html`: API hata mesajlarini form alanlarina detayli yansitma
 
 **6.2 Orta Vade:**
-- [ ] Grup silme stratejisi: soft delete (`is_active` flag) + cascade kontrolu
-- [ ] Uygulama ikon degistirme: `PUT /api/v1/applications/{id}` multipart form
-- [ ] Liste ekranlarina arama/filtre: query params (`?search=`, `?status=`, `?sort=`)
+- [x] Grup silme stratejisi: soft delete (`is_active` flag) + membership cleanup
+- [x] Uygulama ikon degistirme/silme: `PUT /api/v1/applications/{id}/icon`, `DELETE /api/v1/applications/{id}/icon`
+- [x] Liste ekranlarina arama/filtre/siralama (UI: agents/applications/deployments/groups)
 
 **6.3 Yonetilebilirlik:**
-- [ ] Audit log tablosu: `audit_logs (id, user_id, action, resource_type, resource_id, details_json, created_at)`
-- [ ] Audit log middleware: her mutating API call'da otomatik kayit
-- [ ] Kritik operasyonlarda UI onay adimi (deployment silme, grup silme vb.)
+- [x] Audit log tablosu: `audit_logs (id, user_id, action, resource_type, resource_id, details_json, created_at)`
+- [ ] Audit log middleware: her mutating API call'da otomatik kayit (su an mutating endpoint seviyesinde kayit aktif)
+- [x] Kritik operasyonlarda UI onay adimi (deployment silme, grup pasife alma, uygulama silme)
 
 **6.4 Tabler UI Gecisi:**
 - 6.1-6.3 tamamlanmadan baslanmaz

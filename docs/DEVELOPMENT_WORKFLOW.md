@@ -14,6 +14,8 @@ pip install -r requirements.txt
 
 - Faz bazli ilerle (1 -> 5).
 - Faz 6 (UI yonetim iyilestirmeleri) aktif olarak faz 5 uzerine iteratif ilerletilir.
+- Bu repoda server degisikligi yapildiginda, degisiklik ayni oturumda canli dizine (`/opt/appcenter/server`) deploy edilmeden is tamamlanmis sayilmaz.
+- Komut kisayolu: Kullanici `+1` yazdiginda o ana kadarki degisiklikler icin sirasiyla `dokuman guncelle -> commit -> push -> canli deploy -> health/smoke` uygulanir.
 - Her faz sonunda:
   - API smoke test
   - `./venv/bin/python -m pytest -q`
