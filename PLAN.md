@@ -1,6 +1,6 @@
 # AppCenter Server - Gelistirme Plani
 
-**Son Guncelleme:** 2026-02-20
+**Son Guncelleme:** 2026-02-26
 **Referans:** `../PLAN.md` (genel), `../REMOTE_SUPPORT_PLAN.md` (uzak destek detay)
 **Canli ortam:** `/opt/appcenter/server` → systemd `appcenter`, nginx reverse proxy
 
@@ -61,6 +61,8 @@ Tum temel ozellikler uretim ortaminda calisir durumda:
 Karar notu (2026-02-20):
 - Bu asamada hedef, remote support modulunu mevcut helper binary ile uctan uca calistirmaktir.
 - UltraVNC rebrand/fork isi server-agent akisindan ayrildi; temel modul stabil olduktan sonra ele alinacak.
+- noVNC viewer + internal WS bridge birincil calisma yoludur.
+- Guacamole kodu alternatif cozum olarak korunur (varsayilan pasif profil).
 
 ### 8.2 Veritabani + API (2 gun)
 
@@ -152,14 +154,15 @@ Sorumluluklar:
   - approved ise VNC bilgilerini dondur
 - `report_ready(session_id, agent_uuid)` → VNC hazir
   - Status gecisi: approved → connecting
-- `mark_active(session_id)` → Guacamole baglantisi kuruldu
+- `mark_active(session_id)` → viewer baglantisi kuruldu
   - Status gecisi: connecting → active
   - `connected_at = now`
 - `end_session(session_id, ended_by)` → oturumu bitir
   - Status gecisi: * → ended
   - `ended_at = now`, `vnc_password = None`
 - `get_pending_for_agent(agent_uuid)` → heartbeat icin bekleyen oturum
-- `generate_guac_token(session_id)` → Encrypted JSON token uret
+- `generate_novnc_ticket(session_id)` → noVNC ticket/token uret (birincil)
+- `generate_guac_token(session_id)` → Encrypted JSON token uret (alternatif)
 - `check_timeouts()` → scheduler icin timeout kontrolu
 - `check_max_durations()` → scheduler icin sure asim kontrolu
 
@@ -203,9 +206,13 @@ async def get_session(session_id: int, user = Depends(get_current_user), db = De
 async def end_session(session_id: int, user = Depends(get_current_user), db = Depends(get_db)):
     """Oturumu sonlandir (admin)."""
 
+@router.get("/remote-support/sessions/{session_id}/novnc-ticket")
+async def get_novnc_ticket(session_id: int, user = Depends(get_current_user), db = Depends(get_db)):
+    """noVNC ticket/token uret (birincil)."""
+
 @router.get("/remote-support/sessions/{session_id}/guac-token")
 async def get_guac_token(session_id: int, user = Depends(get_current_user), db = Depends(get_db)):
-    """Guacamole Encrypted JSON token uret."""
+    """Guacamole Encrypted JSON token uret (alternatif)."""
 
 # ─── Agent Endpoint'leri ───
 
@@ -328,7 +335,7 @@ Server tarafinda modulun aninda devre disi birakilabilmesi icin:
 3. Acik remote support oturumlari tek komutla `ended` durumuna alinabilir.
 4. Bu davranis unit test ile dogrulanir (flag on/off).
 
-### 8.4 Guacamole Entegrasyonu (2 gun)
+### 8.4 Viewer Katmani (noVNC birincil, Guacamole alternatif) (2 gun)
 
 #### 8.4.1 Docker Compose Kurulumu
 
@@ -659,8 +666,17 @@ def test_reject_session(client, auth_headers, agent_headers, session_id):
     }, headers=agent_headers)
     assert resp.status_code == 200
 
+def test_novnc_ticket_generation(client, auth_headers, active_session_id):
+    """noVNC ticket uretimi (birincil)."""
+    resp = client.get(
+        f"/api/v1/remote-support/sessions/{active_session_id}/novnc-ticket",
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    assert "token" in resp.json()
+
 def test_guac_token_generation(client, auth_headers, active_session_id):
-    """Guacamole token uretimi."""
+    """Guacamole token uretimi (alternatif)."""
     resp = client.get(
         f"/api/v1/remote-support/sessions/{active_session_id}/guac-token",
         headers=auth_headers,
@@ -693,12 +709,12 @@ Server degisiklikleri deploy edildiginde:
 1. [ ] `requirements.txt` guncelle (`pycryptodome` eklendi mi?)
 2. [ ] `pip install -r requirements.txt` (canli ortam venv'inde)
 3. [ ] DB migration otomatik calisir (startup migration)
-4. [ ] `.env` dosyasina `GUAC_JSON_SECRET` eklendi mi?
-5. [ ] Docker compose calisir durumda mi?
-6. [ ] Nginx config guncellendi mi? (`sudo nginx -t && sudo systemctl reload nginx`)
-7. [ ] `sudo systemctl restart appcenter`
-8. [ ] Smoke test: `curl http://127.0.0.1:8000/health`
-9. [ ] Smoke test: `curl http://127.0.0.1:8080/guacamole/`
+4. [ ] noVNC birincil profil `.env` ayarlari dogru mu? (`REMOTE_SUPPORT_NOVNC_MODE`, `REMOTE_SUPPORT_WS_MODE`)
+5. [ ] Nginx config guncellendi mi? (`sudo nginx -t && sudo systemctl reload nginx`)
+6. [ ] `sudo systemctl restart appcenter`
+7. [ ] Smoke test: `curl http://127.0.0.1:8000/health`
+8. [ ] Smoke test: noVNC session acilisi + `/novnc-ws` baglanti testi
+9. [ ] (Alternatif) Guacamole profili kullanilacaksa `.env` `GUAC_*` ve Docker compose dogrulandi mi?
 10. [ ] `pytest tests/ -v`
 
 ---
@@ -714,13 +730,13 @@ Server degisiklikleri deploy edildiginde:
 | `app/api/v1/remote_support.py` | YENI | API endpoint'leri |
 | `app/services/remote_support_service.py` | YENI | Is mantigi |
 | `app/services/heartbeat_service.py` | DEGISIKLIK | remote_support_request alanini ekle |
-| `app/utils/guac_token.py` | YENI | Encrypted JSON token uretici |
+| `app/utils/guac_token.py` | YENI | Encrypted JSON token uretici (alternatif profil) |
 | `app/tasks/scheduler.py` | DEGISIKLIK | Timeout job'lari ekle |
 | `app/templates/remote_support/list.html` | YENI | Oturum listesi sayfasi |
 | `app/templates/remote_support/start.html` | YENI | Oturum baslatma sayfasi |
 | `app/templates/remote_support/view.html` | YENI | Uzak masaustu sayfasi |
-| `app/static/js/remote-viewer.js` | YENI | guacamole-common-js wrapper |
-| `app/static/js/vendor/guacamole-common.min.js` | YENI | Guacamole JS kutuphanesi |
+| `app/static/js/remote-viewer.js` | YENI | Viewer wrapper (noVNC birincil, Guacamole alternatif) |
+| `app/static/js/vendor/guacamole-common.min.js` | YENI | Guacamole JS kutuphanesi (alternatif profil) |
 | `app/templates/components/topbar.html` | DEGISIKLIK | Navbar'a "Uzak Destek" ekle |
 | `app/templates/agents/detail.html` | DEGISIKLIK | "Uzak Destek Baslat" butonu |
 | `app/api/v1/web.py` | DEGISIKLIK | Web route'lari ekle |

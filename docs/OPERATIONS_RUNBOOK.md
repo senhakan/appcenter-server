@@ -10,10 +10,10 @@ Bu dokuman production ortami icin deploy, smoke ve rollback adimlarini tanimlar.
 - Service: `appcenter` (systemd)
 - Reverse proxy: nginx
 
-### 1.2 Guacamole Durumu (2026-02-23)
+### 1.2 Guacamole Durumu (2026-02-26)
 
-- Guacamole viewer kod yolu server uygulamasindan cikarilmistir.
-- Guacamole container'lari varsayilan olarak kapalidir.
+- Guacamole viewer kod yolu alternatif cozum olarak korunur.
+- Guacamole container'lari varsayilan olarak kapalidir (pasif profil).
 - Guacamole'yi tekrar devreye almak icin tek referans:
   - `config/guacamole/REENABLE.md`
   - `config/guacamole/docker-compose.guacamole.yml`
@@ -229,7 +229,7 @@ sudo systemctl restart appcenter
 - Hedef: noVNC iframe tabanli mevcut calisan duruma hizli geri donus.
 - Referans git tag: `remote-support-novnc-iframe-baseline-20260223`
 - Baseline kapsam:
-  - Guacamole kod yolu devre disi
+  - Guacamole alternatif kod yolu korunur (runtime'da pasif)
   - noVNC session ekrani aktif
   - Session UI tablo duzeni + baglanti badge/mesaj akisi
 

@@ -206,11 +206,11 @@ Notlar:
 - `docs/TESTING_AND_CI.md`
 - `docs/ROADMAP_AND_THEME.md`
 
-## Remote Support Notu (2026-02-23)
+## Remote Support Notu (2026-02-26)
 
-- Guacamole tabanli viewer akisi aktif kod yolundan cikarildi.
-- Guacamole container'lari devre disi birakildi (stop).
-- noVNC tumlesik (server icinde) akisa gecis planlanmaktadir.
+- noVNC tumlesik (server icinde) akis birincil yol olarak kullanilir.
+- Guacamole tabanli viewer akis kodu alternatif cozum olarak korunur (varsayilan pasif).
+- Guacamole container'lari varsayilan olarak devre disidir (stop).
 - noVNC embedded viewer + internal WS bridge aktif durumdadir.
 - `/novnc-ws` artik dogrudan app (FastAPI) icinde calisir.
 - Harici servisler kapatildi:
@@ -230,7 +230,7 @@ Not:
 - Tabler tabanli UI gecisi planlanmistir ve en son asama (Faz 6.4) olarak konumlandirilmistir.
 - Bu asama icin geri donus referansi (git tag):
   - `remote-support-novnc-iframe-baseline-20260223`
-  - Bu baseline, noVNC iframe akisinin calistigi ve Guacamole'nin devre disi kaldigi noktadir.
+  - Bu baseline, noVNC iframe akisinin calistigi ve Guacamole'nin alternatif/pasif tutuldugu noktadir.
 
 ## Grup/Tray Policy Notu (2026-02-24)
 
