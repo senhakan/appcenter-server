@@ -63,6 +63,18 @@ Bu dokuman production ortami icin deploy, smoke ve rollback adimlarini tanimlar.
     - `Shift+Enter`: yeni satir
     - `Escape`: modal kapat
 
+### 1.6 Dual-Monitor noVNC Davranisi (2026-02-26)
+
+- noVNC ticket endpoint monitor parametresi destekler:
+  - `GET /api/v1/remote-support/sessions/{id}/novnc-ticket?monitor=1` -> `vnc_port=20010`
+  - `GET /api/v1/remote-support/sessions/{id}/novnc-ticket?monitor=2` -> `vnc_port=20011`
+  - `monitor=2` ve ajan `monitor_count < 2` ise `monitor_not_available` doner.
+- Session UI davranisi:
+  - Baglanti baslarken M1 hemen baglanir ve aktif goruntu olarak kalir.
+  - M2, M1 baglandiktan yaklasik 2 sn sonra arka planda preconnect olur.
+  - M2 preconnect asamasinda aktif ekran otomatik degismez (M1 gorunumu sabit kalir).
+  - Monitor degisimi sadece kullanici seciminde olur; M1<->M2 gecis animasyonu iki yonlu calisir.
+
 ### 1.1 Bu Sunucuda Aktif Deployment Profili
 
 - Kaynak repo dizini: `/root/appcenter/server`

@@ -611,6 +611,9 @@
   let currentSession = null;
   let currentRfb = null;
   let currentStage = null;
+  let rfbByMonitor = { 1: null, 2: null };
+  let stageByMonitor = { 1: null, 2: null };
+  let secondaryPreconnectTimer = null;
   let autoConnectAttempted = false;
   let lastSessionStatus = '';
   let closeEndSent = false;
@@ -699,6 +702,62 @@
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
+    }
+  }
+
+  function clearSecondaryPreconnectTimer() {
+    if (secondaryPreconnectTimer) {
+      clearTimeout(secondaryPreconnectTimer);
+      secondaryPreconnectTimer = null;
+    }
+  }
+
+  function setActiveMonitorStage(index, opts) {
+    const options = opts || {};
+    const animate = options.animate !== false;
+    const next = Number(index) === 2 ? 2 : 1;
+    const s1 = stageByMonitor[1];
+    const s2 = stageByMonitor[2];
+    if (s1 && s2) {
+      if (!animate) {
+        s1.style.transition = 'none';
+        s2.style.transition = 'none';
+      } else {
+        s1.style.transition = 'transform 260ms cubic-bezier(0.22, 0.61, 0.36, 1), opacity 180ms ease';
+        s2.style.transition = 'transform 260ms cubic-bezier(0.22, 0.61, 0.36, 1), opacity 180ms ease';
+      }
+      s1.style.transform = next === 1 ? 'translateX(0)' : 'translateX(-100%)';
+      s2.style.transform = next === 2 ? 'translateX(0)' : 'translateX(100%)';
+      s1.style.pointerEvents = next === 1 ? 'auto' : 'none';
+      s2.style.pointerEvents = next === 2 ? 'auto' : 'none';
+      s1.style.opacity = next === 1 ? '1' : '0';
+      s2.style.opacity = next === 2 ? '1' : '0';
+      s1.style.zIndex = next === 1 ? '2' : '1';
+      s2.style.zIndex = next === 2 ? '2' : '1';
+      if (!animate) {
+        requestAnimationFrame(() => {
+          const t = 'transform 260ms cubic-bezier(0.22, 0.61, 0.36, 1), opacity 180ms ease';
+          s1.style.transition = t;
+          s2.style.transition = t;
+        });
+      }
+    }
+    currentRfb = rfbByMonitor[next] || null;
+    currentStage = stageByMonitor[next] || null;
+    syncViewerGeometry();
+    if (currentRfb) {
+      try {
+        if (typeof currentRfb._updateScale === 'function') currentRfb._updateScale();
+        currentRfb.focus();
+      } catch (_) {}
+      // Hidden->visible monitor switches can require one more repaint tick.
+      setTimeout(() => {
+        if (currentRfb !== (rfbByMonitor[next] || null)) return;
+        try {
+          if (typeof currentRfb._updateScale === 'function') currentRfb._updateScale();
+          currentRfb.focus();
+        } catch (_) {}
+      }, 120);
     }
   }
 
@@ -1158,16 +1217,50 @@
 
   function disconnectViewer() {
     clearReconnectTimer();
-    if (currentRfb) {
+    clearSecondaryPreconnectTimer();
+    [1, 2].forEach((monitor) => {
+      const rfb = rfbByMonitor[monitor];
+      if (!rfb) return;
       try {
-        currentRfb.disconnect();
+        rfb.disconnect();
       } catch (_) {}
-      currentRfb = null;
-    }
+      rfbByMonitor[monitor] = null;
+    });
     const host = document.getElementById('viewer-display');
     if (host) host.innerHTML = '';
+    stageByMonitor = { 1: null, 2: null };
+    currentRfb = null;
     currentStage = null;
     syncToolbar();
+  }
+
+  function ensureEmbeddedStages() {
+    const host = document.getElementById('viewer-display');
+    if (!host) return;
+    host.innerHTML = '';
+    host.style.height = '560px';
+    host.style.minHeight = '560px';
+    host.style.position = 'relative';
+    host.style.overflow = 'hidden';
+
+    [1, 2].forEach((monitor) => {
+      const stage = document.createElement('div');
+      stage.style.width = '100%';
+      stage.style.height = '560px';
+      stage.style.minHeight = '520px';
+      stage.style.position = 'absolute';
+      stage.style.left = '0';
+      stage.style.top = '0';
+      stage.style.background = '#0b1020';
+      stage.style.overflow = 'hidden';
+      stage.style.transition = 'transform 260ms cubic-bezier(0.22, 0.61, 0.36, 1), opacity 180ms ease';
+      stage.style.willChange = 'transform';
+      stage.style.opacity = monitor === selectedMonitor ? '1' : '0';
+      stage.tabIndex = 0;
+      host.appendChild(stage);
+      stageByMonitor[monitor] = stage;
+    });
+    setActiveMonitorStage(selectedMonitor, { animate: false });
   }
 
   function syncViewerGeometry() {
@@ -1178,10 +1271,12 @@
     const h = inFs ? `${Math.max(window.innerHeight - 12, 560)}px` : '560px';
     host.style.height = h;
     host.style.minHeight = '560px';
-    if (currentStage) {
-      currentStage.style.height = h;
-      currentStage.style.minHeight = '520px';
-    }
+    [1, 2].forEach((monitor) => {
+      const stage = stageByMonitor[monitor];
+      if (!stage) return;
+      stage.style.height = h;
+      stage.style.minHeight = '520px';
+    });
     if (currentRfb) {
       try {
         if (typeof currentRfb._updateScale === 'function') currentRfb._updateScale();
@@ -1189,23 +1284,22 @@
     }
   }
 
-  async function startViewerEmbedded(ticket, basePath, scheme) {
-    const host = document.getElementById('viewer-display');
-    host.innerHTML = '';
-    host.style.height = '560px';
-    host.style.minHeight = '560px';
-    const stage = document.createElement('div');
-    stage.style.width = '100%';
-    stage.style.height = '560px';
-    stage.style.minHeight = '520px';
-    stage.style.display = 'block';
-    stage.style.position = 'relative';
-    stage.style.background = '#0b1020';
-    stage.style.overflow = 'hidden';
-    stage.tabIndex = 0;
-    host.appendChild(stage);
-    currentStage = stage;
+  async function fetchViewerTicket(monitor) {
+    const mon = Number(monitor) === 2 ? 2 : 1;
+    const data = await AppCenterApi.req(`/remote-support/sessions/${SESSION_ID}/novnc-ticket?monitor=${mon}`);
+    const ticket = data && data.viewer ? data.viewer : null;
+    if (!ticket || !ticket.enabled) {
+      const reason = ticket && ticket.reason ? ticket.reason : 'viewer_disabled';
+      throw new Error(`ticket_error:${reason}`);
+    }
+    return ticket;
+  }
 
+  async function startViewerEmbedded(monitor, ticket, basePath, scheme) {
+    const mon = Number(monitor) === 2 ? 2 : 1;
+    const stage = stageByMonitor[mon];
+    if (!stage) return;
+    stage.innerHTML = '';
     const mod = await import(`/static/novnc-v1/core/rfb.js?v=${encodeURIComponent(NOVNC_ASSET_VERSION)}`);
     const RFB = mod.default;
     const wsUrl = `${scheme}://${window.location.host}/${basePath}?token=${encodeURIComponent(ticket.token || '')}`;
@@ -1215,7 +1309,7 @@
       wsProtocols: ['binary', 'base64'],
       credentials: { password: ticket.password || '' },
     });
-    currentRfb = rfb;
+    rfbByMonitor[mon] = rfb;
     rfb.scaleViewport = true;
     rfb.resizeSession = false;
     rfb.clipViewport = false;
@@ -1225,30 +1319,36 @@
     rfb.compressionLevel = 2;
 
     rfb.addEventListener('connect', () => {
-      liveConnState = 'connected';
-      reconnectAttempt = 0;
-      clearReconnectTimer();
-      setConnBadge('Bagli', 'ok');
-      setViewerStatus('Canli ekran baglantisi aktif.');
-      addConnLog('Embedded noVNC: baglandi', 'ok');
+      addConnLog(`Embedded noVNC M${mon}: baglandi`, 'ok');
+      if (selectedMonitor === mon) {
+        liveConnState = 'connected';
+        reconnectAttempt = 0;
+        clearReconnectTimer();
+        setConnBadge('Bagli', 'ok');
+        setViewerStatus(`Canli ekran baglantisi aktif (Monitör ${mon}).`);
+        // Keep active monitor pinned only for the visible monitor.
+        setActiveMonitorStage(selectedMonitor, { animate: false });
+        try {
+          rfb.focus();
+        } catch (_) {}
+        syncViewerGeometry();
+      }
       syncToolbar();
-      try {
-        rfb.focus();
-      } catch (_) {}
-      syncViewerGeometry();
     });
     rfb.addEventListener('disconnect', (e) => {
       const clean = !!(e && e.detail && e.detail.clean);
-      liveConnState = clean ? 'disconnected' : 'error';
-      setConnBadge(clean ? 'Ayrildi' : 'Baglanti Hatasi', clean ? 'warn' : 'error');
-      setViewerStatus(clean ? 'Baglanti kapandi.' : 'Baglanti beklenmedik sekilde koptu.');
       addConnLog(
-        `Embedded noVNC: ${clean ? 'baglanti kapandi' : 'beklenmedik kopma'}${e && e.detail ? ` (code=${String(e.detail.code || '-')})` : ''}`,
+        `Embedded noVNC M${mon}: ${clean ? 'baglanti kapandi' : 'beklenmedik kopma'}${e && e.detail ? ` (code=${String(e.detail.code || '-')})` : ''}`,
         clean ? 'warn' : 'error'
       );
-      currentRfb = null;
+      rfbByMonitor[mon] = null;
+      if (selectedMonitor === mon) {
+        liveConnState = clean ? 'disconnected' : 'error';
+        setConnBadge(clean ? 'Ayrildi' : 'Baglanti Hatasi', clean ? 'warn' : 'error');
+        setViewerStatus(clean ? 'Baglanti kapandi.' : 'Baglanti beklenmedik sekilde koptu.');
+        scheduleReconnect(clean ? `embedded_disconnected_m${mon}` : `embedded_error_m${mon}`);
+      }
       syncToolbar();
-      scheduleReconnect(clean ? 'embedded_disconnected' : 'embedded_error');
     });
     rfb.addEventListener('credentialsrequired', () => {
       try {
@@ -1256,17 +1356,22 @@
       } catch (_) {}
     });
     rfb.addEventListener('securityfailure', (e) => {
-      liveConnState = 'error';
-      setConnBadge('Kimlik Hatasi', 'error');
       const reason = e && e.detail && e.detail.status ? String(e.detail.status) : 'security_failure';
-      setViewerStatus(`Guvenlik dogrulamasi basarisiz (${reason}).`);
-      addConnLog(`Embedded noVNC guvenlik hatasi: ${reason}`, 'error');
+      addConnLog(`Embedded noVNC M${mon} guvenlik hatasi: ${reason}`, 'error');
+      if (selectedMonitor === mon) {
+        liveConnState = 'error';
+        setConnBadge('Kimlik Hatasi', 'error');
+        setViewerStatus(`Guvenlik dogrulamasi basarisiz (${reason}).`);
+      }
     });
 
-    liveConnState = 'connecting';
-    setConnBadge('Baglaniyor', 'warn');
-    setViewerStatus(`Canli ekran baglantisi aciliyor (${wsUrl})...`);
-    addConnLog(`Embedded noVNC baglanti denemesi: ${wsUrl}`, 'warn');
+    if (selectedMonitor === mon) {
+      liveConnState = 'connecting';
+      setConnBadge('Baglaniyor', 'warn');
+      setViewerStatus(`Canli ekran baglantisi aciliyor (${wsUrl})...`);
+      setActiveMonitorStage(selectedMonitor, { animate: false });
+    }
+    addConnLog(`Embedded noVNC M${mon} baglanti denemesi: ${wsUrl}`, 'warn');
     syncViewerGeometry();
     syncToolbar();
   }
@@ -1364,25 +1469,39 @@
       setConnBadge('Bilet Aliniyor', 'warn');
       setViewerStatus('Canli ekran baglanti bileti aliniyor...');
       addConnLog(`Baglanti baslatildi (kaynak=${trigger})`, 'warn');
-      const data = await AppCenterApi.req(`/remote-support/sessions/${SESSION_ID}/novnc-ticket`);
-      const ticket = data && data.viewer ? data.viewer : null;
-      if (!ticket || !ticket.enabled) {
-        const reason = ticket && ticket.reason ? ticket.reason : 'viewer_disabled';
-        liveConnState = 'error';
-        setConnBadge('Bilet Hatasi', 'error');
-        setViewerStatus(`Goruntu acilamadi (${reason}).`);
-        addConnLog(`Ticket hatasi: ${reason}`, 'error');
-        scheduleReconnect('ticket_error');
-        syncToolbar();
-        return;
-      }
-
       disconnectViewer();
       const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      const basePath = (ticket.ws_path || '/novnc-ws').replace(/^\//, '');
       if (NOVNC_MODE === 'embedded') {
-        await startViewerEmbedded(ticket, basePath, scheme);
+        ensureEmbeddedStages();
+        setSelectedMonitor(1, true);
+        setActiveMonitorStage(1, { animate: false });
+        const ticket1 = await fetchViewerTicket(1);
+        const basePath1 = (ticket1.ws_path || '/novnc-ws').replace(/^\//, '');
+        await startViewerEmbedded(1, ticket1, basePath1, scheme);
+        if (getMonitorCount() >= 2) {
+          clearSecondaryPreconnectTimer();
+          secondaryPreconnectTimer = setTimeout(async () => {
+            secondaryPreconnectTimer = null;
+            if (selectedMonitor !== 1) return;
+            if (rfbByMonitor[2] || !isSessionConnectable()) return;
+            try {
+              const ticket2 = await fetchViewerTicket(2);
+              const basePath2 = (ticket2.ws_path || '/novnc-ws').replace(/^\//, '');
+              await startViewerEmbedded(2, ticket2, basePath2, scheme);
+              // Never auto-switch active monitor during background preconnect.
+              if (selectedMonitor === 1) {
+                setSelectedMonitor(1, true);
+                setActiveMonitorStage(1, { animate: false });
+              }
+              addConnLog('Monitör 2 arka planda hazirlandi.', 'ok');
+            } catch (err2) {
+              addConnLog(`Monitör 2 arka plan baglantisi basarisiz: ${err2 && err2.message ? err2.message : 'bilinmeyen hata'}`, 'warn');
+            }
+          }, 2000);
+        }
       } else {
+        const ticket = await fetchViewerTicket(selectedMonitor);
+        const basePath = (ticket.ws_path || '/novnc-ws').replace(/^\//, '');
         await startViewerIframe(ticket, basePath, scheme);
       }
     } catch (err) {
@@ -1586,21 +1705,49 @@
     }
     const mon1 = document.getElementById('rail-monitor-opt-1');
     if (mon1) {
-      mon1.addEventListener('click', (ev) => {
+      mon1.addEventListener('click', async (ev) => {
         ev.stopPropagation();
         if (mon1.disabled) return;
         setSelectedMonitor(1, false);
         setMonitorMenuOpen(false);
+        if (NOVNC_MODE === 'embedded') {
+          setActiveMonitorStage(1, { animate: true });
+          if (!rfbByMonitor[1] && isSessionConnectable()) {
+            await startViewer('monitor_switch_1');
+            return;
+          }
+          liveConnState = rfbByMonitor[1] ? 'connected' : 'idle';
+          if (rfbByMonitor[1]) setConnBadge('Bagli', 'ok');
+        }
         syncToolbar();
       });
     }
     const mon2 = document.getElementById('rail-monitor-opt-2');
     if (mon2) {
-      mon2.addEventListener('click', (ev) => {
+      mon2.addEventListener('click', async (ev) => {
         ev.stopPropagation();
         if (mon2.disabled) return;
         setSelectedMonitor(2, false);
         setMonitorMenuOpen(false);
+        if (NOVNC_MODE === 'embedded') {
+          setActiveMonitorStage(2, { animate: true });
+          if (!rfbByMonitor[2] && isSessionConnectable()) {
+            try {
+              const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+              const ticket2 = await fetchViewerTicket(2);
+              const basePath2 = (ticket2.ws_path || '/novnc-ws').replace(/^\//, '');
+              await startViewerEmbedded(2, ticket2, basePath2, scheme);
+            } catch (err2) {
+              setConnBadge('Baglanti Hatasi', 'error');
+              setViewerStatus(err2 && err2.message ? err2.message : 'Monitör 2 baglantisi acilamadi');
+              addConnLog(`Monitör 2 baglanti hatasi: ${err2 && err2.message ? err2.message : 'bilinmeyen hata'}`, 'error');
+            }
+          } else if (rfbByMonitor[2]) {
+            liveConnState = 'connected';
+            setConnBadge('Bagli', 'ok');
+            setViewerStatus('Monitör 2 goruntusu aktif.');
+          }
+        }
         syncToolbar();
       });
     }

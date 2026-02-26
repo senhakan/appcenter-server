@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
@@ -131,6 +131,7 @@ def cancel_remote_session(
 @router.get("/remote-support/sessions/{session_id}/novnc-ticket")
 def get_remote_session_novnc_ticket(
     session_id: int,
+    monitor: int = Query(default=1, ge=1, le=2),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -142,14 +143,17 @@ def get_remote_session_novnc_ticket(
         return {"status": "ok", "viewer": {"enabled": False, "reason": f"viewer_not_available_in_state:{s.status}"}}
     if not s.vnc_password:
         return {"status": "ok", "viewer": {"enabled": False, "reason": "missing_vnc_password"}}
+    if monitor == 2 and int(s.monitor_count or 0) < 2:
+        return {"status": "ok", "viewer": {"enabled": False, "reason": "monitor_not_available"}}
 
     agent = db.query(Agent).filter(Agent.uuid == s.agent_uuid).first()
     agent_ip = (agent.ip_address or "").strip() if agent else ""
     if not agent_ip:
         return {"status": "ok", "viewer": {"enabled": False, "reason": "missing_agent_ip"}}
+    vnc_port = 20011 if monitor == 2 else 20010
 
     try:
-        token, ws_path = novnc.build_ticket(agent_ip=agent_ip, vnc_port=20010)
+        token, ws_path = novnc.build_ticket(agent_ip=agent_ip, vnc_port=vnc_port)
         novnc.cleanup_old_tokens()
     except OSError as exc:
         return {"status": "ok", "viewer": {"enabled": False, "reason": f"novnc_token_error:{exc}"}}
@@ -163,6 +167,8 @@ def get_remote_session_novnc_ticket(
             "password": s.vnc_password,
             "session_id": s.id,
             "agent_ip": agent_ip,
+            "monitor": monitor,
+            "vnc_port": vnc_port,
         },
     }
 
