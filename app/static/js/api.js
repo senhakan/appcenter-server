@@ -9,6 +9,9 @@
   let _sessionCountdownValue = SESSION_WARNING_SECONDS;
   let _sessionModalBound = false;
   let _sessionExtending = false;
+  let _currentUser = null;
+  let _currentUserLoading = null;
+  const ROLE_WEIGHTS = { viewer: 10, operator: 20, admin: 30 };
 
   function getToken() {
     return localStorage.getItem("appcenter_token") || "";
@@ -21,6 +24,8 @@
 
   function clearToken() {
     localStorage.removeItem("appcenter_token");
+    _currentUser = null;
+    _currentUserLoading = null;
     clearSessionTimers();
     hideSessionModal();
   }
@@ -230,9 +235,91 @@
     clearSessionTimers();
     hideSessionModal();
     localStorage.removeItem("appcenter_token");
+    _currentUser = null;
+    _currentUserLoading = null;
     if (window.location.pathname !== "/login") {
       window.location.href = "/login";
     }
+  }
+
+  function normalizeRole(raw) {
+    const role = (raw || "").toString().trim().toLowerCase();
+    if (role === "admin" || role === "operator" || role === "viewer") return role;
+    return "viewer";
+  }
+
+  function getCurrentRole() {
+    return normalizeRole(_currentUser && _currentUser.role ? _currentUser.role : "viewer");
+  }
+
+  function roleAllowed(role, allowedCsv) {
+    const allowed = (allowedCsv || "")
+      .toString()
+      .split(",")
+      .map((x) => x.trim().toLowerCase())
+      .filter(Boolean);
+    if (!allowed.length) return true;
+    return allowed.includes(role);
+  }
+
+  function canAny(roles) {
+    const normalized = getCurrentRole();
+    const allowed = Array.isArray(roles) ? roles : [roles];
+    return allowed
+      .map((r) => normalizeRole(r))
+      .some((r) => r === normalized);
+  }
+
+  function canAtLeast(minRole) {
+    const currentWeight = ROLE_WEIGHTS[getCurrentRole()] || 0;
+    const minWeight = ROLE_WEIGHTS[normalizeRole(minRole)] || 0;
+    return currentWeight >= minWeight;
+  }
+
+  function applyNavPermissions(role) {
+    const resolvedRole = normalizeRole(role);
+    document.body.setAttribute("data-user-role", resolvedRole);
+
+    document.querySelectorAll("[data-nav-item]").forEach((el) => {
+      const allowedCsv = el.getAttribute("data-roles") || "";
+      el.hidden = !roleAllowed(resolvedRole, allowedCsv);
+    });
+
+    document.querySelectorAll(".nav-dropdown").forEach((dropdown) => {
+      if (dropdown.hidden) return;
+      const visibleChildren = dropdown.querySelectorAll(".nav-submenu [data-nav-item]:not([hidden])");
+      if (visibleChildren.length === 0) dropdown.hidden = true;
+    });
+  }
+
+  function applyRoleControls(role) {
+    const resolvedRole = normalizeRole(role);
+    document.querySelectorAll("[data-required-roles]").forEach((el) => {
+      const allowedCsv = el.getAttribute("data-required-roles") || "";
+      const visible = roleAllowed(resolvedRole, allowedCsv);
+      el.hidden = !visible;
+      if (!visible && (el instanceof HTMLInputElement || el instanceof HTMLButtonElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement)) {
+        el.disabled = true;
+      }
+    });
+  }
+
+  async function getCurrentUser(force) {
+    if (!getToken()) return null;
+    if (!force && _currentUser) return _currentUser;
+    if (_currentUserLoading) return _currentUserLoading;
+    _currentUserLoading = (async () => {
+      try {
+        const me = await req("/auth/me");
+        _currentUser = me || null;
+      } catch (_) {
+        _currentUser = null;
+      } finally {
+        _currentUserLoading = null;
+      }
+      return _currentUser;
+    })();
+    return _currentUserLoading;
   }
 
   async function extendSession() {
@@ -310,12 +397,20 @@
     }, remainingMs);
   }
 
-  function protectPage() {
+  async function protectPage() {
     if (!getToken()) {
       window.location.href = "/login";
       return;
     }
     scheduleSessionTimers();
+    const me = await getCurrentUser();
+    if (me && me.role) {
+      applyNavPermissions(me.role);
+      applyRoleControls(me.role);
+    } else {
+      applyNavPermissions("viewer");
+      applyRoleControls("viewer");
+    }
   }
 
   window.AppCenterApi = {
@@ -329,6 +424,11 @@
     formatDate,
     relTime,
     toast,
+    getCurrentUser,
+    applyNavPermissions,
+    getCurrentRole,
+    canAny,
+    canAtLeast,
     protectPage,
   };
 })();

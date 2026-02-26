@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
-from app.auth import get_current_user
+from app.auth import require_role
 from app.database import get_db
 from app.models import Agent, User
 from app.schemas import (
@@ -26,7 +26,7 @@ router = APIRouter(tags=["remote-support"])
 @router.post("/remote-support/sessions")
 def create_remote_session(
     body: RemoteSessionCreateRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("operator", "admin")),
     db: Session = Depends(get_db),
 ):
     session = rs.create_session(db, body.agent_uuid, user.id, body.reason, body.max_duration_min)
@@ -59,7 +59,7 @@ def list_remote_sessions(
     status: Optional[str] = None,
     agent_uuid: Optional[str] = None,
     limit: int = 50,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("viewer", "operator", "admin")),
     db: Session = Depends(get_db),
 ):
     _ = user
@@ -90,7 +90,7 @@ def list_remote_sessions(
 @router.get("/remote-support/sessions/{session_id}")
 def get_remote_session(
     session_id: int,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("viewer", "operator", "admin")),
     db: Session = Depends(get_db),
 ):
     _ = user
@@ -119,7 +119,7 @@ def get_remote_session(
 @router.post("/remote-support/sessions/{session_id}/end", response_model=MessageResponse)
 def end_remote_session(
     session_id: int,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("operator", "admin")),
     db: Session = Depends(get_db),
 ):
     _ = user
@@ -138,7 +138,7 @@ def end_remote_session(
 @router.post("/remote-support/sessions/{session_id}/cancel", response_model=MessageResponse)
 def cancel_remote_session(
     session_id: int,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("operator", "admin")),
     db: Session = Depends(get_db),
 ):
     rs.cancel_pending_session(db, session_id, admin_user_id=user.id)
@@ -156,7 +156,7 @@ def cancel_remote_session(
 def get_remote_session_novnc_ticket(
     session_id: int,
     monitor: int = Query(default=1, ge=1, le=2),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("operator", "admin")),
     db: Session = Depends(get_db),
 ):
     _ = user

@@ -66,6 +66,67 @@ body {
   border-color: var(--primary);
 }
 
+.nav-dropdown {
+  position: relative;
+}
+
+.nav-dropdown > summary {
+  list-style: none;
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #fff;
+  cursor: pointer;
+  user-select: none;
+}
+
+.nav-dropdown > summary::-webkit-details-marker {
+  display: none;
+}
+
+.nav-dropdown.open > summary {
+  background: var(--primary);
+  color: var(--primary-ink);
+  border-color: var(--primary);
+}
+
+.nav-submenu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 240px;
+  display: grid;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 10px;
+  z-index: 20;
+}
+
+.nav-submenu a,
+.nav-submenu span.disabled {
+  text-decoration: none;
+  color: var(--ink);
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 0.9rem;
+}
+
+.nav-submenu a.active {
+  background: var(--primary);
+  color: var(--primary-ink);
+  border-color: var(--primary);
+}
+
+.nav-submenu span.disabled {
+  color: var(--muted);
+  background: #f8fafc;
+}
+
 .card {
   background: var(--panel);
   border: 1px solid var(--border);

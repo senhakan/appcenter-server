@@ -35,11 +35,15 @@ pip install -r requirements.txt
 4. Faz 6.4 (en son):
 - Tabler tabanli UI modernizasyonu
 - Not: Bu faza, 6.1-6.3 tamamlanmadan girilmez.
-5. Faz 7 (planli, beklemede):
+5. Faz 7 (aktif):
 - Kullanici yonetimi + RBAC yetkilendirme modulu
 - Roller: `admin`, `operator`, `viewer`
 - Kural: UI gizleme + backend `403` enforcement birlikte uygulanir
-- Not: Bu faz su an sadece backlog/plandir, aktif gelistirme baslamadi.
+- Durum:
+  - `require_role(...)` backend dependency aktif
+  - `/api/v1/users` CRUD (admin-only) aktif
+  - `/api/v1/auth/me` aktif
+  - Web menude role-gore gorunurluk aktif
 
 Detayli yol haritasi ve tema notlari:
 - `docs/ROADMAP_AND_THEME.md`

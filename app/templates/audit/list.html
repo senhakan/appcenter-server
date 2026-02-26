@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+{% block title %}Audit Log{% endblock %}
+{% block content %}
+<div class="card" data-required-roles="admin">
+  <div class="row spread wrap">
+    <h3 style="margin: 0;">Audit Log</h3>
+    <button class="btn secondary" id="audit-refresh-btn" type="button">Yenile</button>
+  </div>
+  <div class="row wrap" style="margin: 10px 0;">
+    <input id="audit-user" placeholder="Kullanici ara" style="max-width:220px;" />
+    <input id="audit-action" placeholder="Action ara" style="max-width:220px;" />
+    <input id="audit-resource" placeholder="Resource ara" style="max-width:220px;" />
+    <button class="btn secondary" id="audit-filter-btn" type="button">Filtrele</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Tarih</th><th>Kullanici</th><th>Action</th><th>Resource</th><th>Resource ID</th><th>Detay</th>
+        </tr>
+      </thead>
+      <tbody id="audit-rows"></tbody>
+    </table>
+  </div>
+  <div class="row spread wrap" style="margin-top:10px;">
+    <div class="muted" id="audit-page-info">-</div>
+    <div class="row">
+      <button id="audit-prev" class="btn secondary" type="button">Onceki</button>
+      <button id="audit-next" class="btn secondary" type="button">Sonraki</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+
+  const LIMIT = 50;
+  let currentOffset = 0;
+  let currentTotal = 0;
+
+  function esc(s) {
+    return (s || '')
+      .toString()
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  function queryString() {
+    const params = new URLSearchParams();
+    params.set('limit', String(LIMIT));
+    params.set('offset', String(currentOffset));
+    const username = (document.getElementById('audit-user').value || '').trim();
+    const action = (document.getElementById('audit-action').value || '').trim();
+    const resource = (document.getElementById('audit-resource').value || '').trim();
+    if (username) params.set('username', username);
+    if (action) params.set('action', action);
+    if (resource) params.set('resource_type', resource);
+    return params.toString();
+  }
+
+  async function loadAudit() {
+    try {
+      const data = await AppCenterApi.req(`/audit/logs?${queryString()}`);
+      const rows = document.getElementById('audit-rows');
+      rows.innerHTML = '';
+      const items = data.items || [];
+      currentTotal = Number(data.total || 0);
+      if (!items.length) {
+        rows.innerHTML = '<tr><td colspan="6" class="muted">Kayit yok</td></tr>';
+      } else {
+        items.forEach((item) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${esc(AppCenterApi.formatDate(item.created_at))}</td>
+            <td>${esc(item.username || '-')}</td>
+            <td>${esc(item.action || '-')}</td>
+            <td>${esc(item.resource_type || '-')}</td>
+            <td>${esc(item.resource_id || '-')}</td>
+            <td><code>${esc(item.details_json || '{}')}</code></td>
+          `;
+          rows.appendChild(tr);
+        });
+      }
+      const from = currentTotal ? currentOffset + 1 : 0;
+      const to = Math.min(currentOffset + LIMIT, currentTotal);
+      document.getElementById('audit-page-info').textContent = `${from}-${to} / ${currentTotal}`;
+      document.getElementById('audit-prev').disabled = currentOffset <= 0;
+      document.getElementById('audit-next').disabled = (currentOffset + LIMIT) >= currentTotal;
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  function resetAndLoad() {
+    currentOffset = 0;
+    loadAudit();
+  }
+
+  document.getElementById('audit-filter-btn').addEventListener('click', resetAndLoad);
+  document.getElementById('audit-refresh-btn').addEventListener('click', loadAudit);
+  document.getElementById('audit-prev').addEventListener('click', () => {
+    currentOffset = Math.max(0, currentOffset - LIMIT);
+    loadAudit();
+  });
+  document.getElementById('audit-next').addEventListener('click', () => {
+    currentOffset += LIMIT;
+    loadAudit();
+  });
+  ['audit-user', 'audit-action', 'audit-resource'].forEach((id) => {
+    document.getElementById(id).addEventListener('keydown', (evt) => {
+      if (evt.key !== 'Enter') return;
+      evt.preventDefault();
+      resetAndLoad();
+    });
+  });
+
+  loadAudit();
+</script>
+{% endblock %}

@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.auth import get_current_user
+from app.auth import require_role
 from app.database import get_db
 from app.services import inventory_service
 from app.services import system_profile_service
@@ -45,7 +45,7 @@ router = APIRouter(tags=["inventory"])
 def get_agent_inventory(
     agent_uuid: str,
     db: Session = Depends(get_db),
-    _user=Depends(get_current_user),
+    _user=Depends(require_role("viewer", "operator", "admin")),
 ):
     items = inventory_service.get_agent_inventory(db, agent_uuid)
     return AgentInventoryListResponse(
@@ -60,7 +60,7 @@ def get_agent_change_history(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    _user=Depends(get_current_user),
+    _user=Depends(require_role("viewer", "operator", "admin")),
 ):
     items, total = inventory_service.get_agent_change_history(db, agent_uuid, limit, offset)
     return AgentChangeHistoryListResponse(
@@ -75,7 +75,7 @@ def get_agent_system_history(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    _user=Depends(get_current_user),
+    _user=Depends(require_role("viewer", "operator", "admin")),
 ):
     items, total = system_profile_service.get_agent_system_history(db, agent_uuid, limit, offset)
     return AgentSystemHistoryListResponse(
@@ -90,7 +90,7 @@ def get_agent_timeline(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    _user=Depends(get_current_user),
+    _user=Depends(require_role("viewer", "operator", "admin")),
 ):
     items, total = timeline_service.get_agent_timeline(db, agent_uuid, limit, offset)
     return AgentTimelineListResponse(
@@ -108,7 +108,7 @@ def get_software_summary(
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
-    _user=Depends(get_current_user),
+    _user=Depends(require_role("viewer", "operator", "admin")),
 ):
     items, total = inventory_service.get_software_summary(db, search, page, per_page)
     return SoftwareSummaryListResponse(
@@ -121,7 +121,7 @@ def get_software_summary(
 def get_software_agents(
     software_name: str,
     db: Session = Depends(get_db),
-    _user=Depends(get_current_user),
+    _user=Depends(require_role("viewer", "operator", "admin")),
 ):
     items = inventory_service.get_software_agents(db, software_name)
     return SoftwareAgentListResponse(
@@ -133,7 +133,7 @@ def get_software_agents(
 @router.get("/inventory/dashboard", response_model=InventoryDashboardResponse)
 def get_inventory_dashboard(
     db: Session = Depends(get_db),
-    _user=Depends(get_current_user),
+    _user=Depends(require_role("viewer", "operator", "admin")),
 ):
     stats = inventory_service.get_inventory_dashboard_stats(db)
     return InventoryDashboardResponse(**stats)
@@ -145,7 +145,7 @@ def get_inventory_dashboard(
 @router.get("/inventory/normalization", response_model=NormalizationRuleListResponse)
 def list_normalization_rules(
     db: Session = Depends(get_db),
-    _user=Depends(get_current_user),
+    _user=Depends(require_role("viewer", "operator", "admin")),
 ):
     items = inventory_service.list_normalization_rules(db)
     return NormalizationRuleListResponse(
@@ -158,7 +158,7 @@ def list_normalization_rules(
 def create_normalization_rule(
     payload: NormalizationRuleCreateRequest,
     db: Session = Depends(get_db),
-    _user=Depends(get_current_user),
+    _user=Depends(require_role("operator", "admin")),
 ):
     rule = inventory_service.create_normalization_rule(
         db, payload.pattern, payload.normalized_name, payload.match_type,
@@ -171,7 +171,7 @@ def update_normalization_rule(
     rule_id: int,
     payload: NormalizationRuleUpdateRequest,
     db: Session = Depends(get_db),
-    _user=Depends(get_current_user),
+    _user=Depends(require_role("operator", "admin")),
 ):
     rule = inventory_service.update_normalization_rule(
         db, rule_id, **payload.model_dump(exclude_unset=True),
@@ -185,7 +185,7 @@ def update_normalization_rule(
 def delete_normalization_rule(
     rule_id: int,
     db: Session = Depends(get_db),
-    _user=Depends(get_current_user),
+    _user=Depends(require_role("operator", "admin")),
 ):
     if not inventory_service.delete_normalization_rule(db, rule_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
@@ -198,7 +198,7 @@ def delete_normalization_rule(
 @router.get("/licenses", response_model=LicenseListResponse)
 def list_licenses(
     db: Session = Depends(get_db),
-    _user=Depends(get_current_user),
+    _user=Depends(require_role("viewer", "operator", "admin")),
 ):
     items = inventory_service.list_licenses(db)
     return LicenseListResponse(
@@ -210,7 +210,7 @@ def list_licenses(
 @router.get("/licenses/report", response_model=LicenseUsageReportResponse)
 def get_license_usage_report(
     db: Session = Depends(get_db),
-    _user=Depends(get_current_user),
+    _user=Depends(require_role("viewer", "operator", "admin")),
 ):
     items = inventory_service.get_license_usage_report(db)
     return LicenseUsageReportResponse(
@@ -223,7 +223,7 @@ def get_license_usage_report(
 def get_license(
     license_id: int,
     db: Session = Depends(get_db),
-    _user=Depends(get_current_user),
+    _user=Depends(require_role("viewer", "operator", "admin")),
 ):
     lic = inventory_service.get_license(db, license_id)
     if not lic:
@@ -235,7 +235,7 @@ def get_license(
 def create_license(
     payload: LicenseCreateRequest,
     db: Session = Depends(get_db),
-    _user=Depends(get_current_user),
+    _user=Depends(require_role("operator", "admin")),
 ):
     lic = inventory_service.create_license(db, **payload.model_dump())
     return LicenseResponse.model_validate(lic)
@@ -246,7 +246,7 @@ def update_license(
     license_id: int,
     payload: LicenseUpdateRequest,
     db: Session = Depends(get_db),
-    _user=Depends(get_current_user),
+    _user=Depends(require_role("operator", "admin")),
 ):
     lic = inventory_service.update_license(db, license_id, **payload.model_dump(exclude_unset=True))
     if not lic:
@@ -258,7 +258,7 @@ def update_license(
 def delete_license(
     license_id: int,
     db: Session = Depends(get_db),
-    _user=Depends(get_current_user),
+    _user=Depends(require_role("operator", "admin")),
 ):
     if not inventory_service.delete_license(db, license_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="License not found")

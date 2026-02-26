@@ -41,7 +41,7 @@
   <div class="row spread wrap">
     <h3 style="margin: 0;">Ajan Detay</h3>
     <div class="row">
-      <button class="btn danger" id="agent-delete-btn" type="button">Ajani Sil</button>
+      <button class="btn danger" id="agent-delete-btn" type="button" data-required-roles="operator,admin">Ajani Sil</button>
       <a class="btn secondary" href="/agents">Listeye Don</a>
     </div>
   </div>
@@ -87,7 +87,7 @@
   </div>
 </div>
 
-<div id="agent-delete-modal" class="agent-delete-modal-backdrop hidden" aria-live="polite">
+<div id="agent-delete-modal" class="agent-delete-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
   <div class="agent-delete-modal">
     <div class="row spread wrap" style="margin-bottom: 10px;">
       <h3 style="margin: 0;">Ajan Silme Onayi</h3>
@@ -160,6 +160,7 @@
 
   async function loadAgentDetail() {
     try {
+      const canWrite = AppCenterApi.canAtLeast('operator');
       await AppCenterApi.initUi();
       const data = await AppCenterApi.req(`/agents/${agentId}`);
       agentHostname = data.hostname || '';
@@ -197,9 +198,9 @@
         <div class="agent-disk-col"><label>Diskler</label><div>${sysDisks}</div></div>
         <div class="agent-note-col" style="grid-column: span 2;">
           <label for="agent-note-input">Not</label>
-          <textarea id="agent-note-input" rows="3" maxlength="2000" placeholder="Ajan ile ilgili not..."></textarea>
-          <div class="agent-note-actions">
-            <button class="btn secondary" id="agent-note-save-btn" type="button" disabled>Kaydet</button>
+          <textarea id="agent-note-input" rows="3" maxlength="2000" placeholder="Ajan ile ilgili not..." ${canWrite ? '' : 'readonly'}></textarea>
+          <div class="agent-note-actions"${canWrite ? '' : ' style="display:none;"'}>
+            <button class="btn secondary" id="agent-note-save-btn" type="button" disabled ${canWrite ? '' : 'hidden'}>Kaydet</button>
           </div>
         </div>
       `;

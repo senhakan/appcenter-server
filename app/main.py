@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 import socket
 import time
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,9 +18,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.api.v1.agent import router as agent_router
+from app.api.v1.audit import router as audit_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.inventory import router as inventory_router
 from app.api.v1.remote_support import router as remote_support_router
+from app.api.v1.users import router as users_router
 from app.api.v1.web import router as web_router
 from app.config import get_settings
 from app.database import init_db, seed_initial_data
@@ -36,6 +39,138 @@ TEMPLATES_DIR = BASE_DIR / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 # Cache-bust static assets to avoid UI breaking after deploys due to stale browser cache.
 templates.env.globals["ASSET_VERSION"] = settings.app_version
+NAV_SCHEMA: list[dict[str, Any]] = [
+    {
+        "key": "dashboard",
+        "title": "Dashboard",
+        "path": "/dashboard",
+        "active_pages": ["dashboard"],
+        "roles": ["admin", "operator", "viewer"],
+        "feature_flag": None,
+    },
+    {
+        "key": "agents",
+        "title": "Ajanlar",
+        "path": "/agents",
+        "active_pages": ["agents"],
+        "roles": ["admin", "operator", "viewer"],
+        "feature_flag": None,
+    },
+    {
+        "key": "groups",
+        "title": "Gruplar",
+        "path": "/groups",
+        "active_pages": ["groups"],
+        "roles": ["admin", "operator", "viewer"],
+        "feature_flag": None,
+    },
+    {
+        "key": "applications",
+        "title": "Uygulamalar",
+        "path": "/applications",
+        "active_pages": ["applications"],
+        "roles": ["admin", "operator", "viewer"],
+        "feature_flag": None,
+    },
+    {
+        "key": "deployments",
+        "title": "Dagitimlar",
+        "path": "/deployments",
+        "active_pages": ["deployments"],
+        "roles": ["admin", "operator", "viewer"],
+        "feature_flag": None,
+    },
+    {
+        "key": "inventory",
+        "title": "Envanter",
+        "path": "/inventory",
+        "active_pages": ["inventory"],
+        "roles": ["admin", "operator", "viewer"],
+        "feature_flag": None,
+    },
+    {
+        "key": "licenses",
+        "title": "Lisanslar",
+        "path": "/licenses",
+        "active_pages": ["licenses"],
+        "roles": ["admin", "operator", "viewer"],
+        "feature_flag": "licenses",
+    },
+    {
+        "key": "management",
+        "title": "Yonetim",
+        "roles": ["admin", "operator", "viewer"],
+        "feature_flag": None,
+        "children": [
+            {
+                "key": "settings",
+                "title": "Ayarlar",
+                "path": "/settings",
+                "active_pages": ["settings"],
+                "roles": ["admin"],
+                "feature_flag": None,
+            },
+            {"key": "users", "title": "Kullanicilar", "path": "/users", "active_pages": ["users"], "roles": ["admin"], "feature_flag": "users"},
+            {"key": "roles", "title": "Roller (Yakinda)", "path": None, "active_pages": [], "roles": ["admin"], "feature_flag": "rbac"},
+        ],
+    },
+    {
+        "key": "infrastructure",
+        "title": "Altyapi",
+        "roles": ["admin", "operator", "viewer"],
+        "feature_flag": None,
+        "children": [
+            {"key": "infra_health", "title": "Sistem Durumu (Yakinda)", "path": None, "active_pages": [], "roles": ["admin"], "feature_flag": "infra"},
+            {"key": "infra_config", "title": "Konfigurasyon (Yakinda)", "path": None, "active_pages": [], "roles": ["admin"], "feature_flag": "infra"},
+            {"key": "infra_integrations", "title": "Entegrasyonlar (Yakinda)", "path": None, "active_pages": [], "roles": ["admin"], "feature_flag": "infra"},
+            {"key": "infra_audit", "title": "Audit Log", "path": "/audit", "active_pages": ["audit"], "roles": ["admin"], "feature_flag": "audit"},
+            {"key": "infra_diag", "title": "Tanilama (Yakinda)", "path": None, "active_pages": [], "roles": ["admin"], "feature_flag": "infra"},
+        ],
+    },
+]
+
+
+def _enabled_menu_features() -> set[str]:
+    features = {"licenses", "infra", "audit", "users", "rbac"}
+    if settings.remote_support_enabled:
+        features.add("remote_support")
+    return features
+
+
+def _item_visible(item: dict[str, Any], role: str, enabled_features: set[str]) -> bool:
+    roles = item.get("roles") or []
+    if roles and role not in roles:
+        return False
+    feature_flag = item.get("feature_flag")
+    if feature_flag and feature_flag not in enabled_features:
+        return False
+    return True
+
+
+def build_nav_menu(role: str = "admin") -> list[dict[str, Any]]:
+    enabled = _enabled_menu_features()
+    out: list[dict[str, Any]] = []
+    for item in NAV_SCHEMA:
+        if not _item_visible(item, role, enabled):
+            continue
+        if item.get("children"):
+            children = [
+                child
+                for child in item["children"]
+                if _item_visible(child, role, enabled)
+            ]
+            if not children:
+                continue
+            item_copy = dict(item)
+            item_copy["children"] = children
+            out.append(item_copy)
+            continue
+        out.append(item)
+    return out
+
+
+templates.env.globals["NAV_ROLE"] = "admin"
+templates.env.globals["NAV_GET_MENU"] = build_nav_menu
 
 
 @asynccontextmanager
@@ -71,6 +206,8 @@ app.include_router(agent_router, prefix=settings.api_v1_prefix)
 app.include_router(web_router, prefix=settings.api_v1_prefix)
 app.include_router(inventory_router, prefix=settings.api_v1_prefix)
 app.include_router(remote_support_router, prefix=settings.api_v1_prefix)
+app.include_router(users_router, prefix=settings.api_v1_prefix)
+app.include_router(audit_router, prefix=settings.api_v1_prefix)
 
 
 @app.exception_handler(HTTPException)
@@ -391,6 +528,16 @@ def licenses_edit_page(request: Request, license_id: int):
 @app.get("/settings")
 def settings_page(request: Request):
     return templates.TemplateResponse("settings.html", {"request": request, "active_page": "settings"})
+
+
+@app.get("/users")
+def users_page(request: Request):
+    return templates.TemplateResponse("users/list.html", {"request": request, "active_page": "users"})
+
+
+@app.get("/audit")
+def audit_page(request: Request):
+    return templates.TemplateResponse("audit/list.html", {"request": request, "active_page": "audit"})
 
 
 @app.get("/groups/{group_id}/edit")

@@ -87,7 +87,7 @@
     <h3>Grup Listesi</h3>
     <div class="group-list-actions">
       <button class="btn secondary" id="groups-refresh-btn" type="button">Yenile</button>
-      <button class="btn" id="groups-new-btn" type="button">Yeni Grup</button>
+      <button class="btn" id="groups-new-btn" type="button" data-required-roles="operator,admin">Yeni Grup</button>
     </div>
   </div>
   <div class="group-list-toolbar">
@@ -121,7 +121,7 @@
   </div>
 </div>
 
-<div class="card" style="margin-top: 16px;">
+<div class="card" style="margin-top: 16px;" data-required-roles="operator,admin">
   <div class="groups-card-head">
     <h3>Gruba Ajan Ata</h3>
   </div>
@@ -153,7 +153,7 @@
   </form>
   </div>
 
-<div id="group-create-modal" class="group-modal-backdrop hidden" aria-live="polite">
+<div id="group-create-modal" class="group-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
   <div class="group-modal">
     <div class="groups-card-head">
       <h3 class="group-modal-title">Yeni Grup</h3>
@@ -176,7 +176,7 @@
   </div>
 </div>
 
-<div id="group-edit-modal" class="group-modal-backdrop hidden" aria-live="polite">
+<div id="group-edit-modal" class="group-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
   <div class="group-modal">
     <div class="groups-card-head">
       <h3 class="group-modal-title">Grup Duzenle</h3>
@@ -245,6 +245,7 @@
     const rows = document.getElementById('group-rows');
     const tableWrap = document.querySelector('.table-wrap');
     const emptyState = document.getElementById('groups-empty-state');
+    const canWrite = AppCenterApi.canAtLeast('operator');
     rows.innerHTML = '';
     if (!Array.isArray(groups) || groups.length === 0) {
       if (tableWrap) tableWrap.classList.add('hidden');
@@ -296,10 +297,10 @@
         <td><span class="group-name">${g.name}${lockIcon}</span> ${statusBadge}</td>
         <td>${g.description || '-'}</td>
         <td>${count}</td>
-        <td class="row">
-          <button class="btn secondary" type="button" data-action="edit-group" data-group-id="${g.id}" ${editDisabled}>Duzenle</button>
-          <button class="btn danger" type="button" data-action="delete-group" data-group-id="${g.id}" data-group-name="${(g.name || '').replace(/"/g, '&quot;')}" ${deleteDisabled}>Pasife Al</button>
-        </td>
+        <td class="row">${canWrite
+          ? `<button class="btn secondary" type="button" data-action="edit-group" data-group-id="${g.id}" ${editDisabled}>Duzenle</button>
+             <button class="btn danger" type="button" data-action="delete-group" data-group-id="${g.id}" data-group-name="${(g.name || '').replace(/"/g, '&quot;')}" ${deleteDisabled}>Pasife Al</button>`
+          : '-'}</td>
       `;
       rows.appendChild(tr);
     });

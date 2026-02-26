@@ -69,7 +69,7 @@
   <div class="row spread wrap">
     <h3 style="margin: 0;">Dagitimlar</h3>
     <div class="row">
-      <button class="btn" id="dep-new-btn" type="button">Yeni Dagitim</button>
+      <button class="btn" id="dep-new-btn" type="button" data-required-roles="operator,admin">Yeni Dagitim</button>
       <button class="btn secondary" id="dep-refresh-btn" type="button">Yenile</button>
     </div>
   </div>
@@ -101,7 +101,7 @@
   </div>
 </div>
 
-<div id="dep-create-modal" class="dep-modal-backdrop hidden" aria-live="polite">
+<div id="dep-create-modal" class="dep-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
   <div class="dep-modal">
     <div class="dep-modal-head">
       <h3>Yeni Dagitim</h3>
@@ -148,7 +148,7 @@
   </div>
 </div>
 
-<div id="dep-edit-modal" class="dep-modal-backdrop hidden" aria-live="polite">
+<div id="dep-edit-modal" class="dep-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
   <div class="dep-modal">
     <div class="dep-modal-head">
       <h3>Dagitim Duzenle</h3>
@@ -305,6 +305,7 @@
   function renderTable() {
     const rows = document.getElementById('dep-rows');
     rows.innerHTML = '';
+    const canWrite = AppCenterApi.canAtLeast('operator');
     const searchQ = (document.getElementById('dep-search').value || '').toLowerCase().trim();
     const activeFilter = (document.getElementById('dep-filter-active').value || 'all').toLowerCase();
     const sortMode = (document.getElementById('dep-sort').value || 'id_desc').toLowerCase();
@@ -350,10 +351,10 @@
         </td>
         <td>${d.priority}</td>
         <td>${d.is_active ? '<span class="badge ok">aktif</span>' : '<span class="badge warn">pasif</span>'}</td>
-        <td class="row">
-          <button class="btn secondary" type="button" data-action="edit" data-id="${d.id}">Duzenle</button>
-          <button class="btn danger" type="button" data-action="delete" data-id="${d.id}">Sil</button>
-        </td>
+        <td class="row">${canWrite
+          ? `<button class="btn secondary" type="button" data-action="edit" data-id="${d.id}">Duzenle</button>
+             <button class="btn danger" type="button" data-action="delete" data-id="${d.id}">Sil</button>`
+          : '-'}</td>
       `;
       rows.appendChild(tr);
     });

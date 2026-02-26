@@ -196,6 +196,45 @@ class UserPublic(BaseModel):
     is_active: bool
 
 
+class UserCreateRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=120)
+    password: str = Field(min_length=6, max_length=256)
+    full_name: Optional[str] = Field(default=None, max_length=200)
+    email: Optional[str] = Field(default=None, max_length=200)
+    role: str = Field(default="viewer")
+    is_active: bool = True
+
+
+class UserUpdateRequest(BaseModel):
+    username: Optional[str] = Field(default=None, min_length=3, max_length=120)
+    password: Optional[str] = Field(default=None, min_length=6, max_length=256)
+    full_name: Optional[str] = Field(default=None, max_length=200)
+    email: Optional[str] = Field(default=None, max_length=200)
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class UserListResponse(BaseModel):
+    items: list[UserPublic]
+    total: int
+
+
+class AuditLogItemResponse(BaseModel):
+    id: int
+    user_id: Optional[int] = None
+    username: Optional[str] = None
+    action: str
+    resource_type: str
+    resource_id: Optional[str] = None
+    details_json: Optional[str] = None
+    created_at: datetime
+
+
+class AuditLogListResponse(BaseModel):
+    items: list[AuditLogItemResponse]
+    total: int
+
+
 class ApplicationResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

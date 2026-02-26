@@ -41,7 +41,7 @@
   <div class="row spread wrap">
     <h3 style="margin: 0;">Uygulamalar</h3>
     <div class="row">
-      <button class="btn" id="apps-new-btn" type="button">Yeni Yukle</button>
+      <button class="btn" id="apps-new-btn" type="button" data-required-roles="operator,admin">Yeni Yukle</button>
       <button class="btn secondary" id="apps-refresh-btn" type="button">Yenile</button>
     </div>
   </div>
@@ -73,7 +73,7 @@
   </div>
 </div>
 
-<div id="app-create-modal" class="apps-modal-backdrop hidden" aria-live="polite">
+<div id="app-create-modal" class="apps-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
   <div class="apps-modal">
     <div class="apps-modal-head">
       <h3>Yeni Uygulama Yukle</h3>
@@ -121,7 +121,7 @@
   </div>
 </div>
 
-<div id="app-edit-modal" class="apps-modal-backdrop hidden" aria-live="polite">
+<div id="app-edit-modal" class="apps-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
   <div class="apps-modal">
     <div class="apps-modal-head">
       <h3>Uygulama Duzenle</h3>
@@ -179,7 +179,7 @@
   </div>
 </div>
 
-<div id="app-delete-modal" class="apps-modal-backdrop hidden" aria-live="polite">
+<div id="app-delete-modal" class="apps-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
   <div class="apps-modal" style="max-width:520px;">
     <div class="apps-modal-head">
       <h3>Silme Onayi</h3>
@@ -252,6 +252,7 @@
 
   async function loadApps() {
     try {
+      const canWrite = AppCenterApi.canAtLeast('operator');
       const data = await AppCenterApi.req('/applications');
       appItems = data.items || [];
       const rows = document.getElementById('app-rows');
@@ -268,10 +269,10 @@
           <td>${esc(app.install_args || '-')}</td>
           <td>${esc(app.file_type)}</td>
           <td>${formatBytes(app.file_size_bytes)}</td>
-          <td class="row">
-            <button class="btn secondary" type="button" data-action="edit" data-id="${app.id}">Duzenle</button>
-            <button class="btn danger" type="button" data-action="delete" data-id="${app.id}">Sil</button>
-          </td>
+          <td class="row">${canWrite
+            ? `<button class="btn secondary" type="button" data-action="edit" data-id="${app.id}">Duzenle</button>
+               <button class="btn danger" type="button" data-action="delete" data-id="${app.id}">Sil</button>`
+            : '-'}</td>
         `;
         rows.appendChild(tr);
       });

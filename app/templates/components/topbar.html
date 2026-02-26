@@ -1,13 +1,44 @@
 <div class="topbar">
   <div class="brand">AppCenter Console</div>
-  <nav class="nav">
-    <a href="/dashboard" class="{% if active_page == 'dashboard' %}active{% endif %}">Dashboard</a>
-    <a href="/agents" class="{% if active_page == 'agents' %}active{% endif %}">Ajanlar</a>
-    <a href="/groups" class="{% if active_page == 'groups' %}active{% endif %}">Gruplar</a>
-    <a href="/applications" class="{% if active_page == 'applications' %}active{% endif %}">Uygulamalar</a>
-    <a href="/deployments" class="{% if active_page == 'deployments' %}active{% endif %}">Dagitimlar</a>
-    <a href="/inventory" class="{% if active_page == 'inventory' %}active{% endif %}">Envanter</a>
-    <a href="/licenses" class="{% if active_page == 'licenses' %}active{% endif %}">Lisanslar</a>
-    <a href="/settings" class="{% if active_page == 'settings' %}active{% endif %}">Ayarlar</a>
+  <nav class="nav" id="main-nav">
+    {% for item in NAV_GET_MENU(NAV_ROLE) %}
+      {% if item.children %}
+        {% set ns = namespace(has_active_child=false) %}
+        {% for child in item.children %}
+          {% if active_page in child.active_pages %}
+            {% set ns.has_active_child = true %}
+          {% endif %}
+        {% endfor %}
+        <details
+          class="nav-dropdown{% if ns.has_active_child %} open{% endif %}"
+          data-nav-item
+          data-roles="{{ (item.roles or [])|join(',') }}"
+          {% if ns.has_active_child %}open{% endif %}
+        >
+          <summary>{{ item.title }}</summary>
+          <div class="nav-submenu">
+            {% for child in item.children %}
+              {% if child.path %}
+                <a
+                  href="{{ child.path }}"
+                  data-nav-item
+                  data-roles="{{ (child.roles or [])|join(',') }}"
+                  class="{% if active_page in child.active_pages %}active{% endif %}"
+                >{{ child.title }}</a>
+              {% else %}
+                <span class="disabled" data-nav-item data-roles="{{ (child.roles or [])|join(',') }}">{{ child.title }}</span>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </details>
+      {% else %}
+        <a
+          href="{{ item.path }}"
+          data-nav-item
+          data-roles="{{ (item.roles or [])|join(',') }}"
+          class="{% if active_page in item.active_pages %}active{% endif %}"
+        >{{ item.title }}</a>
+      {% endif %}
+    {% endfor %}
   </nav>
 </div>

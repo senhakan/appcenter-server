@@ -2,7 +2,7 @@
 {% block title %}Ayarlar{% endblock %}
 {% block content %}
 <div class="grid cols-2">
-  <div class="card">
+  <div class="card" data-required-roles="admin">
     <h3 style="margin-top: 0;">Sistem Ayarlari</h3>
     <form id="settings-form" class="grid">
       <div><label>Bandwidth Limit (KB/s)</label><input id="s-bandwidth" /></div>
@@ -28,7 +28,7 @@
     </form>
   </div>
 
-  <div class="card">
+  <div class="card" data-required-roles="admin">
     <h3 style="margin-top: 0;">Agent Guncelleme Paketi</h3>
     <form id="agent-update-form" class="grid">
       <div><label>Versiyon</label><input name="version" placeholder="1.0.1" required /></div>

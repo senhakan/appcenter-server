@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -16,6 +16,7 @@ from app.models import User
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 settings = get_settings()
+ROLE_LEVELS = {"viewer": 10, "operator": 20, "admin": 30}
 
 
 class TokenPayload(dict):
@@ -85,3 +86,25 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user
+
+
+def require_role(*roles: str) -> Callable[..., User]:
+    allowed = {role.strip().lower() for role in roles if role and role.strip()}
+    if not allowed:
+        raise ValueError("At least one role must be provided")
+
+    def _dependency(user: User = Depends(get_current_user)) -> User:
+        role = (user.role or "").strip().lower()
+        if role not in ROLE_LEVELS:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions",
+            )
+        if role not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions",
+            )
+        return user
+
+    return _dependency

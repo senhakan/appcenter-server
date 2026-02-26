@@ -4,7 +4,7 @@
 <div class="card">
   <div class="row spread wrap">
     <h3 style="margin: 0;">Lisans Tanimlari</h3>
-    <a class="btn" href="/licenses/create">Yeni Lisans</a>
+    <a class="btn" href="/licenses/create" data-required-roles="operator,admin">Yeni Lisans</a>
   </div>
   <table>
     <thead><tr><th>Yazilim Deseni</th><th>Tip</th><th>Toplam Lisans</th><th>Eslestirme</th><th>Islemler</th></tr></thead>
@@ -26,6 +26,7 @@
 
   async function loadLicenses() {
     try {
+      const canWrite = AppCenterApi.canAtLeast('operator');
       const data = await AppCenterApi.req('/licenses');
       const body = document.getElementById('lic-body');
       const items = data.items || [];
@@ -39,10 +40,10 @@
           <td>${typeBadge}</td>
           <td>${i.license_type === 'licensed' ? i.total_licenses : '-'}</td>
           <td>${i.match_type}</td>
-          <td>
-            <a class="btn secondary" href="/licenses/${i.id}/edit">Duzenle</a>
-            <button class="btn secondary" onclick="deleteLicense(${i.id})">Sil</button>
-          </td>
+          <td>${canWrite
+            ? `<a class="btn secondary" href="/licenses/${i.id}/edit">Duzenle</a>
+               <button class="btn secondary" onclick="deleteLicense(${i.id})">Sil</button>`
+            : '-'}</td>
         </tr>`;
       }).join('');
     } catch (err) {

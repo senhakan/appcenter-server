@@ -9,7 +9,7 @@ from app.auth import authenticate_user, create_access_token_with_exp, get_curren
 from app.config import get_settings
 from app.database import get_db
 from app.models import Setting, User
-from app.schemas import LoginRequest, TokenResponse
+from app.schemas import LoginRequest, TokenResponse, UserPublic
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 settings = get_settings()
@@ -67,3 +67,8 @@ def extend_session(
     user: User = Depends(get_current_user),
 ) -> TokenResponse:
     return _issue_token_response(user.username, db)
+
+
+@router.get("/me", response_model=UserPublic)
+def me(user: User = Depends(get_current_user)) -> UserPublic:
+    return UserPublic.model_validate(user)

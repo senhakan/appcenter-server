@@ -179,6 +179,10 @@ Web login ve kritik akislar manuel kontrol edilir:
 - settings update
   - `ui_timezone` (IANA) guncellemesi ve zaman gosterimlerinin dogrulanmasi
 - agent update upload/download
+- RBAC smoke:
+  - viewer: mutating endpointlerde `403` (or: `POST /api/v1/groups`)
+  - operator: operasyon endpointlerinde `200`, settings/users endpointlerinde `403`
+  - admin: users/settings endpointlerinde `200`
 
 Detayli checklist: `docs/SMOKE_CHECKLIST.md`.
 

@@ -6,7 +6,7 @@
     <h3 style="margin: 0;">{% if license_id %}Lisans Duzenle{% else %}Yeni Lisans{% endif %}</h3>
     <a class="btn secondary" href="/licenses">Listeye Don</a>
   </div>
-  <form id="license-form" class="grid" style="max-width: 500px;">
+  <form id="license-form" class="grid" style="max-width: 500px;" data-required-roles="operator,admin">
     <div><label>Yazilim Deseni</label><input id="f-pattern" required /></div>
     <div><label>Eslestirme Tipi</label>
       <select id="f-match">

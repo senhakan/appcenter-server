@@ -1,0 +1,339 @@
+{% extends 'base.html' %}
+{% block title %}Kullanicilar{% endblock %}
+{% block content %}
+<style>
+  .user-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(21, 34, 56, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 998;
+    padding: 16px;
+  }
+  .user-modal-backdrop.hidden {
+    display: none;
+  }
+  .user-modal {
+    width: 100%;
+    max-width: 640px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 18px;
+  }
+</style>
+
+<div class="card">
+  <div class="row spread wrap">
+    <h3 style="margin: 0;">Kullanici Yonetimi</h3>
+    <div class="row">
+      <button class="btn" id="users-new-btn" type="button" data-required-roles="admin">Yeni Kullanici</button>
+      <button class="btn secondary" id="users-refresh-btn" type="button">Yenile</button>
+    </div>
+  </div>
+  <div class="row wrap" style="margin: 10px 0;">
+    <input id="users-search" placeholder="Ara: kullanici / ad / e-posta" style="max-width:280px;" />
+    <select id="users-role-filter" style="max-width:160px;">
+      <option value="all">Tum Roller</option>
+      <option value="admin">admin</option>
+      <option value="operator">operator</option>
+      <option value="viewer">viewer</option>
+    </select>
+    <select id="users-status-filter" style="max-width:160px;">
+      <option value="all">Tum Durumlar</option>
+      <option value="active">Sadece Aktif</option>
+      <option value="inactive">Sadece Pasif</option>
+    </select>
+    <select id="users-sort" style="max-width:220px;">
+      <option value="username_asc">Kullanici (A-Z)</option>
+      <option value="username_desc">Kullanici (Z-A)</option>
+      <option value="id_desc">ID (Yeni -> Eski)</option>
+      <option value="id_asc">ID (Eski -> Yeni)</option>
+      <option value="role_asc">Rol (A-Z)</option>
+    </select>
+  </div>
+  <div class="table-wrap" style="margin-top: 12px;">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>Kullanici</th><th>Ad Soyad</th><th>E-posta</th><th>Rol</th><th>Durum</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="user-rows"></tbody>
+    </table>
+  </div>
+</div>
+
+<div id="user-create-modal" class="user-modal-backdrop hidden" aria-live="polite">
+  <div class="user-modal">
+    <h3 style="margin-top:0;">Yeni Kullanici</h3>
+    <form id="user-create-form" class="grid">
+      <div class="grid cols-2">
+        <div><label>Kullanici Adi</label><input name="username" required /></div>
+        <div><label>Sifre</label><input name="password" type="password" minlength="6" required /></div>
+      </div>
+      <div class="grid cols-2">
+        <div><label>Ad Soyad</label><input name="full_name" /></div>
+        <div><label>E-posta</label><input name="email" /></div>
+      </div>
+      <div class="grid cols-2">
+        <div>
+          <label>Rol</label>
+          <select name="role">
+            <option value="viewer">viewer</option>
+            <option value="operator">operator</option>
+            <option value="admin">admin</option>
+          </select>
+        </div>
+        <div class="row wrap" style="margin-top:26px;">
+          <label><input name="is_active" type="checkbox" checked /> Aktif</label>
+        </div>
+      </div>
+      <div class="row" style="justify-content:flex-end;">
+        <button class="btn secondary" id="user-create-cancel-btn" type="button">Iptal</button>
+        <button class="btn" type="submit">Olustur</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="user-edit-modal" class="user-modal-backdrop hidden" aria-live="polite">
+  <div class="user-modal">
+    <h3 style="margin-top:0;">Kullanici Duzenle</h3>
+    <form id="user-edit-form" class="grid">
+      <input name="id" type="hidden" />
+      <div class="grid cols-2">
+        <div><label>Kullanici Adi</label><input name="username" required /></div>
+        <div><label>Yeni Sifre (opsiyonel)</label><input name="password" type="password" minlength="6" /></div>
+      </div>
+      <div class="grid cols-2">
+        <div><label>Ad Soyad</label><input name="full_name" /></div>
+        <div><label>E-posta</label><input name="email" /></div>
+      </div>
+      <div class="grid cols-2">
+        <div>
+          <label>Rol</label>
+          <select name="role">
+            <option value="viewer">viewer</option>
+            <option value="operator">operator</option>
+            <option value="admin">admin</option>
+          </select>
+        </div>
+        <div class="row wrap" style="margin-top:26px;">
+          <label><input name="is_active" type="checkbox" /> Aktif</label>
+        </div>
+      </div>
+      <div class="row" style="justify-content:flex-end;">
+        <button class="btn secondary" id="user-edit-cancel-btn" type="button">Iptal</button>
+        <button class="btn" type="submit">Kaydet</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+
+  const createModal = document.getElementById('user-create-modal');
+  const editModal = document.getElementById('user-edit-modal');
+  const usersById = new Map();
+  let allUsers = [];
+
+  function openModal(modal) { modal.classList.remove('hidden'); }
+  function closeModal(modal) { modal.classList.add('hidden'); }
+  function esc(s) { return (s || '').toString().replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;'); }
+
+  function validateUserForm(form, isCreate) {
+    const username = (form.elements.username.value || '').trim();
+    const password = (form.elements.password.value || '').trim();
+    const email = (form.elements.email.value || '').trim();
+    const role = (form.elements.role.value || '').trim();
+    if (username.length < 3) return 'Kullanici adi en az 3 karakter olmali';
+    if (!['admin', 'operator', 'viewer'].includes(role)) return 'Gecersiz rol';
+    if (isCreate && password.length < 6) return 'Sifre en az 6 karakter olmali';
+    if (!isCreate && password && password.length < 6) return 'Yeni sifre en az 6 karakter olmali';
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'E-posta formati gecersiz';
+    return '';
+  }
+
+  function applyFilters(items) {
+    const q = (document.getElementById('users-search').value || '').toLowerCase().trim();
+    const roleFilter = (document.getElementById('users-role-filter').value || 'all').toLowerCase();
+    const statusFilter = (document.getElementById('users-status-filter').value || 'all').toLowerCase();
+    const sortMode = (document.getElementById('users-sort').value || 'username_asc').toLowerCase();
+
+    let rows = [...items];
+    if (q) {
+      rows = rows.filter((item) => {
+        const blob = `${item.username || ''} ${item.full_name || ''} ${item.email || ''}`.toLowerCase();
+        return blob.includes(q);
+      });
+    }
+    if (roleFilter !== 'all') rows = rows.filter((item) => (item.role || '').toLowerCase() === roleFilter);
+    if (statusFilter === 'active') rows = rows.filter((item) => !!item.is_active);
+    if (statusFilter === 'inactive') rows = rows.filter((item) => !item.is_active);
+
+    const dir = sortMode.endsWith('_desc') ? -1 : 1;
+    rows.sort((a, b) => {
+      if (sortMode.startsWith('id_')) return ((Number(a.id) || 0) - (Number(b.id) || 0)) * dir;
+      if (sortMode.startsWith('role_')) return (a.role || '').localeCompare(b.role || '') * dir;
+      return (a.username || '').localeCompare(b.username || '') * dir;
+    });
+    return rows;
+  }
+
+  function renderUsers() {
+    const rows = document.getElementById('user-rows');
+    rows.innerHTML = '';
+    usersById.clear();
+    const items = applyFilters(allUsers);
+    if (!items.length) {
+      rows.innerHTML = '<tr><td colspan="7" class="muted">Kayit yok</td></tr>';
+      return;
+    }
+    items.forEach((item) => {
+      usersById.set(Number(item.id), item);
+      const tr = document.createElement('tr');
+      const statusBadge = item.is_active ? '<span class="badge ok">aktif</span>' : '<span class="badge warn">pasif</span>';
+      tr.innerHTML = `
+        <td>${item.id}</td>
+        <td>${esc(item.username || '-')}</td>
+        <td>${esc(item.full_name || '-')}</td>
+        <td>${esc(item.email || '-')}</td>
+        <td><span class="badge">${esc(item.role || '-')}</span></td>
+        <td>${statusBadge}</td>
+        <td class="row" data-required-roles="admin">
+          <button class="btn secondary" type="button" data-action="edit" data-id="${item.id}">Duzenle</button>
+          <button class="btn danger" type="button" data-action="delete" data-id="${item.id}">Sil</button>
+        </td>
+      `;
+      rows.appendChild(tr);
+    });
+
+    rows.querySelectorAll('button[data-action="edit"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = Number(btn.getAttribute('data-id') || '0');
+        const user = usersById.get(id);
+        if (!user) return;
+        const form = document.getElementById('user-edit-form');
+        form.elements.id.value = String(user.id || '');
+        form.elements.username.value = user.username || '';
+        form.elements.password.value = '';
+        form.elements.full_name.value = user.full_name || '';
+        form.elements.email.value = user.email || '';
+        form.elements.role.value = user.role || 'viewer';
+        form.elements.is_active.checked = !!user.is_active;
+        openModal(editModal);
+      });
+    });
+
+    rows.querySelectorAll('button[data-action="delete"]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = Number(btn.getAttribute('data-id') || '0');
+        if (!id) return;
+        const target = usersById.get(id);
+        const expected = `SIL ${id}`;
+        const answer = prompt(`Kullaniciyi silmek icin ${expected} yazin (${target?.username || '-'})`, '');
+        if ((answer || '').trim() !== expected) return;
+        try {
+          await AppCenterApi.req(`/users/${id}`, { method: 'DELETE' });
+          AppCenterApi.toast('Kullanici silindi');
+          await loadUsers();
+        } catch (err) {
+          AppCenterApi.toast(err.message);
+        }
+      });
+    });
+  }
+
+  async function loadUsers() {
+    try {
+      const data = await AppCenterApi.req('/users');
+      allUsers = data.items || [];
+      renderUsers();
+      AppCenterApi.applyNavPermissions(AppCenterApi.getCurrentRole());
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  document.getElementById('users-refresh-btn').addEventListener('click', loadUsers);
+  document.getElementById('users-new-btn').addEventListener('click', () => openModal(createModal));
+  document.getElementById('user-create-cancel-btn').addEventListener('click', () => closeModal(createModal));
+  document.getElementById('user-edit-cancel-btn').addEventListener('click', () => closeModal(editModal));
+  ['users-search', 'users-role-filter', 'users-status-filter', 'users-sort'].forEach((id) => {
+    document.getElementById(id).addEventListener('input', renderUsers);
+    document.getElementById(id).addEventListener('change', renderUsers);
+  });
+
+  document.getElementById('user-create-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const validationError = validateUserForm(form, true);
+    if (validationError) {
+      AppCenterApi.toast(validationError);
+      return;
+    }
+    try {
+      await AppCenterApi.req('/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: form.elements.username.value,
+          password: form.elements.password.value,
+          full_name: form.elements.full_name.value || null,
+          email: form.elements.email.value || null,
+          role: form.elements.role.value,
+          is_active: !!form.elements.is_active.checked,
+        }),
+      });
+      AppCenterApi.toast('Kullanici olusturuldu');
+      closeModal(createModal);
+      form.reset();
+      await loadUsers();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+
+  document.getElementById('user-edit-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const validationError = validateUserForm(form, false);
+    if (validationError) {
+      AppCenterApi.toast(validationError);
+      return;
+    }
+    const id = Number(form.elements.id.value || '0');
+    if (!id) return;
+    const payload = {
+      username: form.elements.username.value,
+      full_name: form.elements.full_name.value || null,
+      email: form.elements.email.value || null,
+      role: form.elements.role.value,
+      is_active: !!form.elements.is_active.checked,
+    };
+    if ((form.elements.password.value || '').trim()) {
+      payload.password = form.elements.password.value;
+    }
+    try {
+      await AppCenterApi.req(`/users/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      AppCenterApi.toast('Kullanici guncellendi');
+      closeModal(editModal);
+      await loadUsers();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+
+  loadUsers();
+</script>
+{% endblock %}

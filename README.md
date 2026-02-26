@@ -130,6 +130,31 @@
   - Birlesik zaman cizelgesi endpoint'i: `GET /api/v1/agents/{agent_uuid}/timeline`
   - Status gecmisi: `agent_status_history` (offline/online gecisleri). Timeline'a dahildir.
 
+## Faz 7 (RBAC + Kullanici Yonetimi)
+
+- Roller:
+  - `admin`
+  - `operator`
+  - `viewer`
+- Backend RBAC:
+  - `app/auth.py` icinde `require_role(...)` dependency aktif
+  - Endpoint bazli `403` enforcement aktif
+    - read: `viewer+`
+    - mutate: `operator+`
+    - settings/users: `admin`
+- Auth endpointleri:
+  - `GET /api/v1/auth/me`
+- Kullanici yonetimi:
+  - `GET /api/v1/users`
+  - `POST /api/v1/users`
+  - `PUT /api/v1/users/{user_id}`
+  - `DELETE /api/v1/users/{user_id}`
+  - Son aktif admin'in silinmesi/pasiflestirilmesi engellenir.
+- Web UI:
+  - `GET /users` sayfasi aktif
+  - `GET /audit` sayfasi aktif (admin)
+  - Menu ve aksiyon butonlari role gore gizlenir.
+
 ## Dashboard Timeline
 
 - Dashboard sag tarafinda "Timeline (Son 10)" karti vardir.

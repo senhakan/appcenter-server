@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
-from app.auth import get_current_user
+from app.auth import require_role
 from app.config import get_settings
 from app.database import get_db
 from app.group_policy import is_system_group_name
@@ -83,7 +83,7 @@ MAX_SESSION_TIMEOUT_MINUTES = 1440
 @router.get("/agents", response_model=AgentListResponse)
 def agents_list(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_role("viewer", "operator", "admin")),
 ) -> AgentListResponse:
     items = db.query(Agent).order_by(Agent.created_at.desc()).all()
     return AgentListResponse(items=items, total=len(items))
@@ -93,7 +93,7 @@ def agents_list(
 def agents_detail(
     agent_uuid: str,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_role("viewer", "operator", "admin")),
 ) -> AgentResponse:
     agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
     if not agent:
@@ -106,7 +106,7 @@ def agents_update_group(
     agent_uuid: str,
     group_id: Optional[int] = Form(None),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("operator", "admin")),
 ) -> AgentResponse:
     agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
     if not agent:
@@ -136,7 +136,7 @@ def agents_update_notes(
     agent_uuid: str,
     payload: AgentNotesUpdateRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("operator", "admin")),
 ) -> AgentResponse:
     agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
     if not agent:
@@ -165,7 +165,7 @@ def agents_update_notes(
 def agents_delete(
     agent_uuid: str,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("operator", "admin")),
 ) -> MessageResponse:
     agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
     if not agent:
@@ -214,7 +214,7 @@ def agents_delete(
 def groups_list(
     include_inactive: bool = False,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_role("viewer", "operator", "admin")),
 ) -> GroupListResponse:
     q = db.query(Group)
     if not include_inactive:
@@ -227,7 +227,7 @@ def groups_list(
 def groups_detail(
     group_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_role("viewer", "operator", "admin")),
 ) -> GroupResponse:
     group = db.query(Group).filter(Group.id == group_id).first()
     if not group:
@@ -239,7 +239,7 @@ def groups_detail(
 def groups_create(
     payload: GroupCreateRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("operator", "admin")),
 ) -> GroupResponse:
     name = payload.name.strip()
     if not name:
@@ -267,7 +267,7 @@ def groups_update(
     group_id: int,
     payload: GroupUpdateRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("operator", "admin")),
 ) -> GroupResponse:
     group = db.query(Group).filter(Group.id == group_id).first()
     if not group:
@@ -313,7 +313,7 @@ def groups_assign_agents(
     group_id: int,
     payload: GroupAssignAgentsRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("operator", "admin")),
 ) -> MessageResponse:
     group = db.query(Group).filter(Group.id == group_id).first()
     if not group:
@@ -374,7 +374,7 @@ def groups_assign_agents(
 def groups_delete(
     group_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("operator", "admin")),
 ) -> MessageResponse:
     group = db.query(Group).filter(Group.id == group_id).first()
     if not group:
@@ -405,7 +405,7 @@ def groups_delete(
 @router.get("/dashboard/stats", response_model=DashboardStatsResponse)
 def dashboard_stats(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_role("viewer", "operator", "admin")),
 ) -> DashboardStatsResponse:
     total_agents = db.query(func.count(Agent.uuid)).scalar() or 0
     online_agents = db.query(func.count(Agent.uuid)).filter(Agent.status == "online").scalar() or 0
@@ -434,7 +434,7 @@ def dashboard_stats(
 @router.get("/dashboard/timeline", response_model=DashboardTimelineListResponse)
 def dashboard_timeline(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_role("viewer", "operator", "admin")),
 ) -> DashboardTimelineListResponse:
     def _as_utc(dt_value):
         # sqlite raw queries can return strings and/or naive datetimes.
@@ -609,7 +609,7 @@ def dashboard_timeline(
 def applications_list(
     only_active: bool = False,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_role("viewer", "operator", "admin")),
 ) -> ApplicationListResponse:
     items = list_applications(db, only_active=only_active)
     return ApplicationListResponse(items=items, total=len(items))
@@ -619,7 +619,7 @@ def applications_list(
 def applications_detail(
     app_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_role("viewer", "operator", "admin")),
 ) -> ApplicationResponse:
     app = get_application(db, app_id)
     return ApplicationResponse.model_validate(app)
@@ -637,7 +637,7 @@ async def applications_upload(
     category: Optional[str] = Form(None),
     icon: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("operator", "admin")),
 ) -> ApplicationResponse:
     app = await create_application(
         db=db,
@@ -667,7 +667,7 @@ def applications_update(
     app_id: int,
     payload: ApplicationUpdateRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("operator", "admin")),
 ) -> ApplicationResponse:
     app = update_application(
         db=db,
@@ -697,7 +697,7 @@ async def applications_update_icon(
     app_id: int,
     icon: UploadFile = File(...),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("operator", "admin")),
 ) -> ApplicationResponse:
     app = await update_application_icon(db=db, app_id=app_id, icon_file=icon)
     audit.record_audit(
@@ -714,7 +714,7 @@ async def applications_update_icon(
 def applications_delete_icon(
     app_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("operator", "admin")),
 ) -> ApplicationResponse:
     app = remove_application_icon(db=db, app_id=app_id)
     audit.record_audit(
@@ -731,7 +731,7 @@ def applications_delete_icon(
 def applications_delete(
     app_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("operator", "admin")),
 ) -> MessageResponse:
     delete_application(db, app_id)
     audit.record_audit(
@@ -747,7 +747,7 @@ def applications_delete(
 @router.get("/deployments", response_model=DeploymentListResponse)
 def deployments_list(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_role("viewer", "operator", "admin")),
 ) -> DeploymentListResponse:
     items = list_deployments(db)
     return DeploymentListResponse(items=items, total=len(items))
@@ -757,7 +757,7 @@ def deployments_list(
 def deployments_detail(
     deployment_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_role("viewer", "operator", "admin")),
 ) -> DeploymentResponse:
     item = get_deployment(db, deployment_id)
     return DeploymentResponse.model_validate(item)
@@ -767,7 +767,7 @@ def deployments_detail(
 def deployments_create(
     payload: DeploymentCreateRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("operator", "admin")),
 ) -> DeploymentResponse:
     item = create_deployment(db, payload, created_by=user.username)
     audit.record_audit(
@@ -786,7 +786,7 @@ def deployments_update(
     deployment_id: int,
     payload: DeploymentUpdateRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("operator", "admin")),
 ) -> DeploymentResponse:
     item = update_deployment(db, deployment_id, payload)
     audit.record_audit(
@@ -804,7 +804,7 @@ def deployments_update(
 def deployments_delete(
     deployment_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("operator", "admin")),
 ) -> MessageResponse:
     delete_deployment(db, deployment_id)
     audit.record_audit(
@@ -820,7 +820,7 @@ def deployments_delete(
 @router.get("/settings", response_model=SettingsListResponse)
 def settings_list(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_role("admin")),
 ) -> SettingsListResponse:
     items = db.query(Setting).order_by(Setting.key.asc()).all()
     mapped = [SettingItem(key=s.key, value=s.value, description=s.description, updated_at=s.updated_at) for s in items]
@@ -831,7 +831,7 @@ def settings_list(
 def settings_update(
     payload: SettingsUpdateRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("admin")),
 ) -> SettingsListResponse:
     now = datetime.now(timezone.utc)
     for key, value in payload.values.items():
@@ -892,7 +892,7 @@ async def upload_agent_update(
     version: str = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_role("admin")),
 ) -> AgentUpdateUploadResponse:
     updates_dir = str(Path(settings.upload_dir) / "agent_updates")
     temp_path, digest_hex, _, file_type = await save_upload_to_temp(
