@@ -487,6 +487,32 @@ class DashboardTrendsResponse(BaseModel):
     task_pending: list[int]
 
 
+class DashboardComplianceClientItemResponse(BaseModel):
+    agent_uuid: str
+    hostname: str
+    status: str
+    licensed_violations: int
+    prohibited_hits: int
+    risk_score: int
+
+
+class DashboardComplianceBreakdownResponse(BaseModel):
+    violation_licensed_rules: int
+    violation_prohibited_rules: int
+    at_risk_agents: int
+    items: list[DashboardComplianceClientItemResponse]
+
+
+class DashboardRemoteMetricsResponse(BaseModel):
+    active_sessions: int
+    sessions_last_7d: int
+    rejected_last_7d: int
+    timeout_last_7d: int
+    error_last_7d: int
+    avg_approval_delay_sec: int
+    avg_session_duration_sec: int
+
+
 class SettingItem(BaseModel):
     key: str
     value: str

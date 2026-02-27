@@ -58,6 +58,9 @@ Current state:
 - Stable page: `/dashboard` (approved production layout).
 - Experiment page: `/dashboard-v2` (new cards/tables/trend-style insights continue here).
 - Added experiment endpoint: `/api/v1/dashboard/trends` (7-day status/task trend series for V2).
+- Added experiment endpoints:
+  - `/api/v1/dashboard/compliance-breakdown` (top risk clients + compliance summary)
+  - `/api/v1/dashboard/remote-metrics` (7-day remote support KPI summary)
 
 ---
 

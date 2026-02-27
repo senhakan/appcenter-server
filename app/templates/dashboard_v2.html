@@ -291,6 +291,33 @@
           </table>
         </div>
         <div class="card">
+          <div class="card-header d-flex align-items-center justify-content-between">
+            <h3 class="card-title">Top Risk Clients</h3>
+            <span class="badge bg-yellow-lt text-yellow" id="risk-total-badge">0</span>
+          </div>
+          <table class="table card-table table-vcenter">
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Lisans</th>
+                <th>Prohibited</th>
+                <th>Skor</th>
+              </tr>
+            </thead>
+            <tbody id="risk-clients-rows">
+              <tr><td colspan="4" class="text-secondary">Yukleniyor...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Remote Support KPI (7 Gun)</h3>
+          </div>
+          <div class="list-group list-group-flush" id="remote-metrics-list">
+            <div class="list-group-item text-secondary">Yukleniyor...</div>
+          </div>
+        </div>
+        <div class="card">
           <div class="card-header">
             <h3 class="card-title">7 Gun Task Kalitesi</h3>
           </div>
@@ -615,6 +642,74 @@
     }
   }
 
+  function fmtDuration(sec) {
+    const s = Math.max(0, Number(sec) || 0);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    if (h > 0) return `${h}s ${m}dk`;
+    return `${m}dk`;
+  }
+
+  async function loadComplianceBreakdown() {
+    try {
+      const data = await AppCenterApi.req('/dashboard/compliance-breakdown');
+      const rows = data.items || [];
+      const el = document.getElementById('risk-clients-rows');
+      const badge = document.getElementById('risk-total-badge');
+      if (badge) badge.textContent = String(data.at_risk_agents || 0);
+      if (!el) return;
+      if (!rows.length) {
+        el.innerHTML = '<tr><td colspan="4" class="text-secondary">Riskli client yok</td></tr>';
+        return;
+      }
+      el.innerHTML = rows.map((item) => {
+        const score = Number(item.risk_score || 0);
+        const scoreClass = score >= 4 ? 'bg-red-lt text-red' : score >= 2 ? 'bg-yellow-lt text-yellow' : 'bg-blue-lt text-blue';
+        return `<tr>
+          <td><a class="text-reset text-decoration-none" href="/agents/${esc(item.agent_uuid)}">${esc(item.hostname || '-')}</a></td>
+          <td>${Number(item.licensed_violations || 0)}</td>
+          <td>${Number(item.prohibited_hits || 0)}</td>
+          <td><span class="badge ${scoreClass}">${score}</span></td>
+        </tr>`;
+      }).join('');
+    } catch (err) {
+      const el = document.getElementById('risk-clients-rows');
+      if (el) el.innerHTML = `<tr><td colspan="4" class="text-danger">${esc(err.message || 'Yuklenemedi')}</td></tr>`;
+    }
+  }
+
+  async function loadRemoteMetrics() {
+    try {
+      const data = await AppCenterApi.req('/dashboard/remote-metrics');
+      const el = document.getElementById('remote-metrics-list');
+      if (!el) return;
+      el.innerHTML = `
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <span class="text-secondary">Aktif Oturum</span>
+          <span class="fw-semibold">${Number(data.active_sessions || 0).toLocaleString('tr-TR')}</span>
+        </div>
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <span class="text-secondary">Toplam Oturum (7g)</span>
+          <span class="fw-semibold">${Number(data.sessions_last_7d || 0).toLocaleString('tr-TR')}</span>
+        </div>
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <span class="text-secondary">Reddedilen / Timeout / Error</span>
+          <span class="fw-semibold text-red">${Number(data.rejected_last_7d || 0)} / ${Number(data.timeout_last_7d || 0)} / ${Number(data.error_last_7d || 0)}</span>
+        </div>
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <span class="text-secondary">Ort. Onay Gecikmesi</span>
+          <span class="fw-semibold">${fmtDuration(data.avg_approval_delay_sec || 0)}</span>
+        </div>
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <span class="text-secondary">Ort. Oturum Suresi</span>
+          <span class="fw-semibold">${fmtDuration(data.avg_session_duration_sec || 0)}</span>
+        </div>`;
+    } catch (err) {
+      const el = document.getElementById('remote-metrics-list');
+      if (el) el.innerHTML = `<div class="list-group-item text-danger">${esc(err.message || 'Yuklenemedi')}</div>`;
+    }
+  }
+
   async function loadDashboard() {
     try {
       const stats = await AppCenterApi.req('/dashboard/stats');
@@ -670,6 +765,8 @@
     await loadTopSoftware();
     await loadOpsInsights();
     await loadTrends();
+    await loadComplianceBreakdown();
+    await loadRemoteMetrics();
   }
 
   (async function () {

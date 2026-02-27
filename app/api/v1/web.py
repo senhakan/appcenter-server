@@ -26,6 +26,7 @@ from app.models import (
     Group,
     RemoteSupportSession,
     Setting,
+    SoftwareLicense,
     SoftwareChangeHistory,
     TaskHistory,
     User,
@@ -44,6 +45,9 @@ from app.schemas import (
     DashboardTimelineItemResponse,
     DashboardTimelineListResponse,
     DashboardTrendsResponse,
+    DashboardComplianceBreakdownResponse,
+    DashboardComplianceClientItemResponse,
+    DashboardRemoteMetricsResponse,
     DeploymentCreateRequest,
     DeploymentListResponse,
     DeploymentResponse,
@@ -717,6 +721,124 @@ def dashboard_trends(
         task_success=[task_success[k] for k in keys],
         task_failed=[task_failed[k] for k in keys],
         task_pending=[task_pending[k] for k in keys],
+    )
+
+
+@router.get("/dashboard/compliance-breakdown", response_model=DashboardComplianceBreakdownResponse)
+def dashboard_compliance_breakdown(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_role("viewer", "operator", "admin")),
+) -> DashboardComplianceBreakdownResponse:
+    licenses = db.query(SoftwareLicense).filter(SoftwareLicense.is_active.is_(True)).all()
+    agents = db.query(Agent.uuid, Agent.hostname, Agent.status).all()
+    risk_map: dict[str, dict] = {
+        str(a.uuid): {
+            "agent_uuid": str(a.uuid),
+            "hostname": a.hostname or "-",
+            "status": (a.status or "offline"),
+            "licensed_violations": 0,
+            "prohibited_hits": 0,
+            "risk_score": 0,
+        }
+        for a in agents
+    }
+
+    name_col = func.coalesce(AgentSoftwareInventory.normalized_name, AgentSoftwareInventory.software_name)
+    violation_licensed_rules = 0
+    violation_prohibited_rules = 0
+
+    for lic in licenses:
+        pattern = (lic.software_name_pattern or "").strip()
+        if not pattern:
+            continue
+        q = db.query(func.distinct(AgentSoftwareInventory.agent_uuid))
+        if lic.match_type == "exact":
+            q = q.filter(name_col == pattern)
+        elif lic.match_type == "starts_with":
+            q = q.filter(name_col.ilike(f"{pattern}%"))
+        else:
+            q = q.filter(name_col.ilike(f"%{pattern}%"))
+        matched = [str(x[0]) for x in q.all() if x and x[0]]
+        usage = len(matched)
+
+        if lic.license_type == "prohibited" and usage > 0:
+            violation_prohibited_rules += 1
+            for agent_uuid in matched:
+                row = risk_map.get(agent_uuid)
+                if not row:
+                    continue
+                row["prohibited_hits"] += 1
+                row["risk_score"] += 3
+            continue
+
+        if lic.license_type == "licensed" and usage > int(lic.total_licenses or 0):
+            violation_licensed_rules += 1
+            for agent_uuid in matched:
+                row = risk_map.get(agent_uuid)
+                if not row:
+                    continue
+                row["licensed_violations"] += 1
+                row["risk_score"] += 1
+
+    at_risk = [v for v in risk_map.values() if int(v["risk_score"]) > 0]
+    at_risk.sort(key=lambda x: (-int(x["risk_score"]), -int(x["prohibited_hits"]), x["hostname"]))
+    items = [
+        DashboardComplianceClientItemResponse(
+            agent_uuid=row["agent_uuid"],
+            hostname=row["hostname"],
+            status=row["status"],
+            licensed_violations=int(row["licensed_violations"]),
+            prohibited_hits=int(row["prohibited_hits"]),
+            risk_score=int(row["risk_score"]),
+        )
+        for row in at_risk[:10]
+    ]
+    return DashboardComplianceBreakdownResponse(
+        violation_licensed_rules=violation_licensed_rules,
+        violation_prohibited_rules=violation_prohibited_rules,
+        at_risk_agents=len(at_risk),
+        items=items,
+    )
+
+
+@router.get("/dashboard/remote-metrics", response_model=DashboardRemoteMetricsResponse)
+def dashboard_remote_metrics(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_role("viewer", "operator", "admin")),
+) -> DashboardRemoteMetricsResponse:
+    now = datetime.now(timezone.utc)
+    start_dt = now - timedelta(days=7)
+    active_sessions = (
+        db.query(func.count(RemoteSupportSession.id))
+        .filter(RemoteSupportSession.status.in_(("pending_approval", "approved", "connecting", "active")))
+        .scalar()
+        or 0
+    )
+    sessions = db.query(RemoteSupportSession).filter(RemoteSupportSession.requested_at >= start_dt).all()
+    sessions_last_7d = len(sessions)
+    rejected_last_7d = sum(1 for s in sessions if (s.status or "").lower() == "rejected")
+    timeout_last_7d = sum(1 for s in sessions if (s.status or "").lower() == "timeout")
+    error_last_7d = sum(1 for s in sessions if (s.status or "").lower() == "error")
+
+    approval_delays = []
+    durations = []
+    for s in sessions:
+        if s.approved_at and s.requested_at:
+            approval_delays.append(max(0, int((_as_utc(s.approved_at) - _as_utc(s.requested_at)).total_seconds())))
+        if s.connected_at and s.ended_at:
+            durations.append(max(0, int((_as_utc(s.ended_at) - _as_utc(s.connected_at)).total_seconds())))
+
+    avg_approval_delay_sec = int(sum(approval_delays) / len(approval_delays)) if approval_delays else 0
+    avg_session_duration_sec = int(sum(durations) / len(durations)) if durations else 0
+
+    return DashboardRemoteMetricsResponse(
+        active_sessions=int(active_sessions),
+        sessions_last_7d=sessions_last_7d,
+        rejected_last_7d=rejected_last_7d,
+        timeout_last_7d=timeout_last_7d,
+        error_last_7d=error_last_7d,
+        avg_approval_delay_sec=avg_approval_delay_sec,
+        avg_session_duration_sec=avg_session_duration_sec,
     )
 
 
