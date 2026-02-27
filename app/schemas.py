@@ -478,6 +478,15 @@ class DashboardTopClientListResponse(BaseModel):
     items: list[DashboardTopClientItemResponse]
 
 
+class DashboardTrendsResponse(BaseModel):
+    labels: list[str]
+    online_transitions: list[int]
+    offline_transitions: list[int]
+    task_success: list[int]
+    task_failed: list[int]
+    task_pending: list[int]
+
+
 class SettingItem(BaseModel):
     key: str
     value: str

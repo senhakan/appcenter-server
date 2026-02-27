@@ -2,9 +2,12 @@
 {% block title %}Dashboard V2{% endblock %}
 {% block page_title %}Dashboard V2{% endblock %}
 {% block page_actions %}
-<button class="btn btn-outline-primary btn-sm" type="button" onclick="loadDashboard()">
-  <i class="ti ti-refresh me-1"></i>Yenile
-</button>
+<div class="btn-list">
+  <a class="btn btn-outline-secondary btn-sm" href="/dashboard"><i class="ti ti-layout-dashboard me-1"></i>Stable Dashboard</a>
+  <button class="btn btn-outline-primary btn-sm" type="button" onclick="loadDashboard()">
+    <i class="ti ti-refresh me-1"></i>Yenile
+  </button>
+</div>
 {% endblock %}
 {% block content %}
 <style>
@@ -64,6 +67,17 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1rem;
   }
+  .dash-extra-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+  .dash-v2-note {
+    margin-top: 0.75rem;
+    color: var(--tblr-yellow, #f59f00);
+    font-size: 0.85rem;
+  }
   @media (max-width: 1199.98px) {
     .dash-layout {
       grid-template-columns: 1fr;
@@ -73,6 +87,9 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .dash-bottom-grid {
+      grid-template-columns: 1fr;
+    }
+    .dash-extra-grid {
       grid-template-columns: 1fr;
     }
   }
@@ -248,6 +265,69 @@
           </table>
         </div>
       </div>
+      <div class="dash-extra-grid">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Operasyon Analizi (V2)</h3>
+          </div>
+          <div class="list-group list-group-flush list-group-hoverable" id="ops-insights-list">
+            <div class="list-group-item text-secondary">Yukleniyor...</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Top Software (Cross-Agent)</h3>
+          </div>
+          <table class="table card-table table-vcenter">
+            <thead>
+              <tr>
+                <th>Yazilim</th>
+                <th colspan="2">Ajan Sayisi</th>
+              </tr>
+            </thead>
+            <tbody id="top-software-rows">
+              <tr><td colspan="3" class="text-secondary">Yukleniyor...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">7 Gun Task Kalitesi</h3>
+          </div>
+          <table class="table card-table table-vcenter">
+            <thead>
+              <tr>
+                <th>Gun</th>
+                <th>Success / Failed / Pending</th>
+                <th class="w-25">Basari Orani</th>
+              </tr>
+            </thead>
+            <tbody id="task-trend-rows">
+              <tr><td colspan="3" class="text-secondary">Yukleniyor...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">7 Gun Status Gecisleri</h3>
+          </div>
+          <table class="table card-table table-vcenter">
+            <thead>
+              <tr>
+                <th>Gun</th>
+                <th>Online / Offline Gecis</th>
+                <th class="w-25">Net Etki</th>
+              </tr>
+            </thead>
+            <tbody id="status-trend-rows">
+              <tr><td colspan="3" class="text-secondary">Yukleniyor...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="dash-v2-note">
+        Bu ekran deneysel yerlesim alanidir. Onaydan sonra stable dashboard'a tasinacaktir.
+      </div>
     </div>
   </div>
 
@@ -399,6 +479,142 @@
     }
   }
 
+  async function loadTopSoftware() {
+    try {
+      const data = await AppCenterApi.req('/inventory/software?page=1&per_page=10');
+      const rows = data.items || [];
+      const el = document.getElementById('top-software-rows');
+      if (!rows.length) {
+        el.innerHTML = '<tr><td colspan="3" class="text-secondary">Kayit yok</td></tr>';
+        return;
+      }
+      const maxAgents = Math.max(...rows.map((x) => Number(x.agent_count || 0)), 1);
+      el.innerHTML = rows.map((item) => {
+        const count = Number(item.agent_count || 0);
+        const ratio = Math.max(0, Math.min(100, Math.round((count / maxAgents) * 10000) / 100));
+        return `<tr>
+          <td>${esc(item.name || '-')}</td>
+          <td>${count.toLocaleString('tr-TR')}</td>
+          <td class="w-50">
+            <div class="progress progress-xs" title="${count}">
+              <div class="progress-bar bg-info" style="width:${ratio}%"></div>
+            </div>
+          </td>
+        </tr>`;
+      }).join('');
+    } catch (err) {
+      const el = document.getElementById('top-software-rows');
+      if (el) el.innerHTML = `<tr><td colspan="3" class="text-danger">${esc(err.message || 'Yuklenemedi')}</td></tr>`;
+    }
+  }
+
+  async function loadOpsInsights() {
+    try {
+      const data = await AppCenterApi.req('/agents');
+      const agents = data.items || [];
+      const now = Date.now();
+      const withSeen = agents
+        .map((a) => ({ ...a, ts: (AppCenterApi.parseDate(a.last_seen) || new Date(0)).getTime() }))
+        .filter((a) => a.ts > 0);
+      const avgLagMs = withSeen.length
+        ? Math.round(withSeen.reduce((acc, a) => acc + Math.max(0, now - a.ts), 0) / withSeen.length)
+        : 0;
+      const avgLagMin = Math.round(avgLagMs / 60000);
+      const offline = agents
+        .filter((a) => (a.status || '').toLowerCase() !== 'online')
+        .sort((a, b) => ((AppCenterApi.parseDate(a.last_seen) || new Date(0)).getTime()) - ((AppCenterApi.parseDate(b.last_seen) || new Date(0)).getTime()))
+        .slice(0, 5);
+      const list = document.getElementById('ops-insights-list');
+      if (!list) return;
+      list.innerHTML = `
+        <div class="list-group-item">
+          <div class="d-flex align-items-center">
+            <div class="text-secondary">Ortalama Son Gorulme Gecikmesi</div>
+            <div class="ms-auto fw-semibold">${avgLagMin.toLocaleString('tr-TR')} dk</div>
+          </div>
+        </div>
+        <div class="list-group-item">
+          <div class="d-flex align-items-center">
+            <div class="text-secondary">Offline Agent (Top 5 Risk)</div>
+            <div class="ms-auto"><span class="badge bg-yellow-lt text-yellow">${offline.length}</span></div>
+          </div>
+          <div class="mt-2">
+            ${offline.length
+              ? offline.map((a) => `<div class="small text-secondary"><a class="text-reset" href="/agents/${esc(a.uuid)}">${esc(a.hostname || a.uuid)}</a> · ${esc(AppCenterApi.relTime(a.last_seen))}</div>`).join('')
+              : '<div class="small text-secondary">Offline risk kaydi yok.</div>'}
+          </div>
+        </div>`;
+    } catch (err) {
+      const list = document.getElementById('ops-insights-list');
+      if (list) list.innerHTML = `<div class="list-group-item text-danger">${esc(err.message || 'Yuklenemedi')}</div>`;
+    }
+  }
+
+  async function loadTrends() {
+    try {
+      const data = await AppCenterApi.req('/dashboard/trends');
+      const labels = data.labels || [];
+      const succ = data.task_success || [];
+      const fail = data.task_failed || [];
+      const pend = data.task_pending || [];
+      const online = data.online_transitions || [];
+      const offline = data.offline_transitions || [];
+
+      const taskRows = document.getElementById('task-trend-rows');
+      const statusRows = document.getElementById('status-trend-rows');
+      if (!taskRows || !statusRows || !labels.length) return;
+
+      taskRows.innerHTML = labels.map((lbl, i) => {
+        const s = Number(succ[i] || 0);
+        const f = Number(fail[i] || 0);
+        const p = Number(pend[i] || 0);
+        const total = Math.max(1, s + f + p);
+        const ratio = Math.round((s / total) * 100);
+        const barClass = ratio >= 70 ? 'bg-green' : ratio >= 40 ? 'bg-yellow' : 'bg-red';
+        return `<tr>
+          <td>${esc(lbl)}</td>
+          <td>
+            <span class="text-green">${s}</span> /
+            <span class="text-red">${f}</span> /
+            <span class="text-yellow">${p}</span>
+          </td>
+          <td>
+            <div class="progress progress-xs" title="${ratio}%">
+              <div class="progress-bar ${barClass}" style="width:${ratio}%"></div>
+            </div>
+          </td>
+        </tr>`;
+      }).join('');
+
+      statusRows.innerHTML = labels.map((lbl, i) => {
+        const on = Number(online[i] || 0);
+        const off = Number(offline[i] || 0);
+        const total = Math.max(1, on + off);
+        const onlineRatio = Math.round((on / total) * 100);
+        const net = on - off;
+        const netClass = net > 0 ? 'text-green' : net < 0 ? 'text-red' : 'text-secondary';
+        const barClass = onlineRatio >= 50 ? 'bg-green' : 'bg-red';
+        return `<tr>
+          <td>${esc(lbl)}</td>
+          <td><span class="text-green">${on}</span> / <span class="text-red">${off}</span></td>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <div class="progress progress-xs flex-grow-1" title="Online oran ${onlineRatio}%">
+                <div class="progress-bar ${barClass}" style="width:${onlineRatio}%"></div>
+              </div>
+              <span class="small ${netClass}">${net > 0 ? '+' : ''}${net}</span>
+            </div>
+          </td>
+        </tr>`;
+      }).join('');
+    } catch (err) {
+      const taskRows = document.getElementById('task-trend-rows');
+      const statusRows = document.getElementById('status-trend-rows');
+      if (taskRows) taskRows.innerHTML = `<tr><td colspan="3" class="text-danger">${esc(err.message || 'Yuklenemedi')}</td></tr>`;
+      if (statusRows) statusRows.innerHTML = `<tr><td colspan="3" class="text-danger">${esc(err.message || 'Yuklenemedi')}</td></tr>`;
+    }
+  }
+
   async function loadDashboard() {
     try {
       const stats = await AppCenterApi.req('/dashboard/stats');
@@ -451,6 +667,9 @@
 
     await loadTimeline();
     await loadTopClients();
+    await loadTopSoftware();
+    await loadOpsInsights();
+    await loadTrends();
   }
 
   (async function () {

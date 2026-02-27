@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -43,6 +43,7 @@ from app.schemas import (
     DashboardTopClientListResponse,
     DashboardTimelineItemResponse,
     DashboardTimelineListResponse,
+    DashboardTrendsResponse,
     DeploymentCreateRequest,
     DeploymentListResponse,
     DeploymentResponse,
@@ -642,6 +643,81 @@ def dashboard_top_clients(
         for r in rows
     ]
     return DashboardTopClientListResponse(items=items)
+
+
+@router.get("/dashboard/trends", response_model=DashboardTrendsResponse)
+def dashboard_trends(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_role("viewer", "operator", "admin")),
+) -> DashboardTrendsResponse:
+    today = datetime.now(timezone.utc).date()
+    days = [today - timedelta(days=i) for i in range(6, -1, -1)]
+    labels = [d.strftime("%d.%m") for d in days]
+
+    def _bucket_map():
+        return {d.isoformat(): 0 for d in days}
+
+    status_online = _bucket_map()
+    status_offline = _bucket_map()
+    task_success = _bucket_map()
+    task_failed = _bucket_map()
+    task_pending = _bucket_map()
+
+    start_dt = datetime.combine(days[0], datetime.min.time(), tzinfo=timezone.utc)
+
+    status_rows = (
+        db.query(
+            func.date(AgentStatusHistory.detected_at).label("day"),
+            AgentStatusHistory.new_status.label("new_status"),
+            func.count(AgentStatusHistory.id).label("cnt"),
+        )
+        .filter(AgentStatusHistory.detected_at >= start_dt)
+        .group_by(func.date(AgentStatusHistory.detected_at), AgentStatusHistory.new_status)
+        .all()
+    )
+    for r in status_rows:
+        day = str(r.day or "")
+        status = (r.new_status or "").lower()
+        cnt = int(r.cnt or 0)
+        if day not in status_online:
+            continue
+        if status == "online":
+            status_online[day] += cnt
+        elif status == "offline":
+            status_offline[day] += cnt
+
+    task_rows = (
+        db.query(
+            func.date(func.coalesce(TaskHistory.completed_at, TaskHistory.created_at)).label("day"),
+            TaskHistory.status.label("status"),
+            func.count(TaskHistory.id).label("cnt"),
+        )
+        .filter(func.coalesce(TaskHistory.completed_at, TaskHistory.created_at) >= start_dt)
+        .group_by(func.date(func.coalesce(TaskHistory.completed_at, TaskHistory.created_at)), TaskHistory.status)
+        .all()
+    )
+    for r in task_rows:
+        day = str(r.day or "")
+        status = (r.status or "").lower()
+        cnt = int(r.cnt or 0)
+        if day not in task_success:
+            continue
+        if status == "success":
+            task_success[day] += cnt
+        elif status in {"failed", "timeout"}:
+            task_failed[day] += cnt
+        elif status == "pending":
+            task_pending[day] += cnt
+
+    keys = [d.isoformat() for d in days]
+    return DashboardTrendsResponse(
+        labels=labels,
+        online_transitions=[status_online[k] for k in keys],
+        offline_transitions=[status_offline[k] for k in keys],
+        task_success=[task_success[k] for k in keys],
+        task_failed=[task_failed[k] for k in keys],
+        task_pending=[task_pending[k] for k in keys],
+    )
 
 
 @router.get("/applications", response_model=ApplicationListResponse)

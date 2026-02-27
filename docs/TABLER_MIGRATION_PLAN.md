@@ -53,6 +53,12 @@ These are permanent implementation standards for ongoing work:
 - Grid/layout experiments and candidate redesigns must be implemented on `/dashboard-v2`.
 - After approval, `/dashboard-v2` changes can be promoted to `/dashboard`.
 
+Current state:
+
+- Stable page: `/dashboard` (approved production layout).
+- Experiment page: `/dashboard-v2` (new cards/tables/trend-style insights continue here).
+- Added experiment endpoint: `/api/v1/dashboard/trends` (7-day status/task trend series for V2).
+
 ---
 
 ## 2. Migration Strategy
