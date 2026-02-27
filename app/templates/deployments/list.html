@@ -1,198 +1,269 @@
 {% extends 'base.html' %}
 {% block title %}Dagitimlar{% endblock %}
+{% block page_title %}Dagitimlar{% endblock %}
+{% block page_actions %}
+<div class="btn-list">
+  <button class="btn btn-primary btn-sm" id="dep-new-btn" type="button" data-required-roles="operator,admin">
+    <i class="ti ti-plus me-1"></i>Yeni Dagitim
+  </button>
+  <button class="btn btn-outline-primary btn-sm" id="dep-refresh-btn" type="button">
+    <i class="ti ti-refresh me-1"></i>Yenile
+  </button>
+</div>
+{% endblock %}
 {% block content %}
 <style>
-  .ellipsis-cell {
+  .dep-toolbar .input-icon-addon .icon {
+    width: 18px;
+    height: 18px;
+  }
+  .dep-app-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    max-width: 320px;
+  }
+  .dep-target-cell {
     max-width: 260px;
+  }
+  .dep-ellipsis {
+    display: inline-block;
+    max-width: 100%;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    display: inline-block;
     vertical-align: middle;
   }
-  .app-cell {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    max-width: 300px;
-  }
-  .app-cell img {
-    width: 24px;
-    height: 24px;
-    border-radius: 6px;
-    object-fit: cover;
-    border: 1px solid #dbe3ef;
-    flex: 0 0 auto;
+  .dep-table .col-actions {
+    width: 1%;
+    white-space: nowrap;
   }
   .dep-modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(21, 34, 56, 0.45);
+    background: rgba(15, 23, 42, 0.48);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 998;
+    z-index: 1050;
     padding: 16px;
   }
   .dep-modal-backdrop.hidden {
     display: none;
   }
-  .dep-modal {
+  .dep-modal-dialog {
     width: 100%;
-    max-width: 900px;
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    box-shadow: var(--shadow);
-    padding: 18px;
-    max-height: 92vh;
+    max-width: 920px;
+    max-height: calc(100vh - 2rem);
     overflow: auto;
   }
-  .dep-modal-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 10px;
-  }
-  .dep-modal-head h3 {
-    margin: 0;
-  }
   .field-error {
-    margin-top: 4px;
-    color: #b42318;
-    font-size: 12px;
+    margin-top: 0.35rem;
+    color: var(--tblr-danger, #d63939);
+    font-size: 0.75rem;
     line-height: 1.3;
-    min-height: 16px;
   }
 </style>
+
 <div class="card">
-  <div class="row spread wrap">
-    <h3 style="margin: 0;">Dagitimlar</h3>
-    <div class="row">
-      <button class="btn" id="dep-new-btn" type="button" data-required-roles="operator,admin">Yeni Dagitim</button>
-      <button class="btn secondary" id="dep-refresh-btn" type="button">Yenile</button>
+  <div class="card-header">
+    <div class="row g-2 w-100 dep-toolbar">
+      <div class="col-12 col-md-5">
+        <div class="input-icon">
+          <span class="input-icon-addon"><i class="ti ti-search icon"></i></span>
+          <input id="dep-search" class="form-control" placeholder="Ara: hedef / uygulama" autocomplete="off" />
+        </div>
+      </div>
+      <div class="col-12 col-md-3">
+        <select id="dep-filter-active" class="form-select">
+          <option value="all">Tum Durumlar</option>
+          <option value="active">Sadece Aktif</option>
+          <option value="inactive">Sadece Pasif</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-4">
+        <select id="dep-sort" class="form-select">
+          <option value="id_desc">ID (Yeni -> Eski)</option>
+          <option value="id_asc">ID (Eski -> Yeni)</option>
+          <option value="priority_desc">Oncelik (Yuksek -> Dusuk)</option>
+          <option value="priority_asc">Oncelik (Dusuk -> Yuksek)</option>
+          <option value="app_asc">Uygulama (A-Z)</option>
+          <option value="app_desc">Uygulama (Z-A)</option>
+        </select>
+      </div>
     </div>
   </div>
-  <div class="row wrap" style="margin:10px 0; gap:10px;">
-    <input id="dep-search" style="max-width:320px;" placeholder="Ara: hedef / uygulama" autocomplete="off" />
-    <select id="dep-filter-active" style="max-width:180px;">
-      <option value="all">Tum Durumlar</option>
-      <option value="active">Sadece Aktif</option>
-      <option value="inactive">Sadece Pasif</option>
-    </select>
-    <select id="dep-sort" style="max-width:220px;">
-      <option value="id_desc">ID (Yeni -> Eski)</option>
-      <option value="id_asc">ID (Eski -> Yeni)</option>
-      <option value="priority_desc">Oncelik (Yuksek -> Dusuk)</option>
-      <option value="priority_asc">Oncelik (Dusuk -> Yuksek)</option>
-      <option value="app_asc">Uygulama (A-Z)</option>
-      <option value="app_desc">Uygulama (Z-A)</option>
-    </select>
-  </div>
-  <div class="table-wrap">
-    <table>
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter dep-table">
       <thead>
         <tr>
-          <th>ID</th><th>Hedef</th><th>Uygulama</th><th>Oncelik</th><th>Aktif</th><th></th>
+          <th>ID</th>
+          <th>Hedef</th>
+          <th>Uygulama</th>
+          <th>Oncelik</th>
+          <th>Durum</th>
+          <th class="col-actions"></th>
         </tr>
       </thead>
-      <tbody id="dep-rows"></tbody>
+      <tbody id="dep-rows">
+        <tr><td colspan="6" class="text-secondary">Yukleniyor...</td></tr>
+      </tbody>
     </table>
   </div>
 </div>
 
 <div id="dep-create-modal" class="dep-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
-  <div class="dep-modal">
-    <div class="dep-modal-head">
-      <h3>Yeni Dagitim</h3>
+  <div class="dep-modal-dialog">
+    <div class="card mb-0 ac-modal-warning">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Yeni Dagitim</h3>
+        <button class="btn btn-outline-secondary btn-sm" id="dep-create-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
+      </div>
+      <div class="card-body">
+        <div class="ac-modal-status-block">
+          <span class="ac-modal-status-icon warning"><i class="ti ti-alert-triangle"></i></span>
+          <div class="text-secondary">Yanlis hedef tipi veya oncelik secimi cok sayida ajani etkileyebilir; kaydetmeden once kontrol edin.</div>
+        </div>
+        <form id="dep-create-form" class="row g-3">
+          <div class="col-12 col-md-8">
+            <label class="form-label">Uygulama</label>
+            <select class="form-select" name="app_id" required></select>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">Oncelik</label>
+            <input class="form-control" name="priority" type="number" min="1" value="5" required />
+          </div>
+
+          <div class="col-12 col-md-4">
+            <label class="form-label">Hedef Tipi</label>
+            <select class="form-select" name="target_type" data-role="target-type">
+              <option value="All">All</option>
+              <option value="Group">Group</option>
+              <option value="Agent">Agent</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-4" data-role="target-group-wrap" style="display:none;">
+            <label class="form-label">Grup</label>
+            <select class="form-select" name="target_group_id"></select>
+          </div>
+          <div class="col-12 col-md-8" data-role="target-agent-wrap" style="display:none;">
+            <label class="form-label">Agent</label>
+            <select class="form-select" name="target_agent_uuid"></select>
+          </div>
+
+          <div class="col-12">
+            <div class="form-selectgroup form-selectgroup-boxes d-flex flex-column flex-md-row gap-2">
+              <label class="form-selectgroup-item flex-fill mb-0">
+                <input type="checkbox" class="form-selectgroup-input" name="is_mandatory" />
+                <span class="form-selectgroup-label d-flex align-items-center p-3">
+                  <span class="me-2"><i class="ti ti-lock icon"></i></span>
+                  <span>Zorunlu</span>
+                </span>
+              </label>
+              <label class="form-selectgroup-item flex-fill mb-0">
+                <input type="checkbox" class="form-selectgroup-input" name="force_update" />
+                <span class="form-selectgroup-label d-flex align-items-center p-3">
+                  <span class="me-2"><i class="ti ti-refresh-alert icon"></i></span>
+                  <span>Force Update</span>
+                </span>
+              </label>
+              <label class="form-selectgroup-item flex-fill mb-0">
+                <input type="checkbox" class="form-selectgroup-input" name="is_active" checked />
+                <span class="form-selectgroup-label d-flex align-items-center p-3">
+                  <span class="me-2"><i class="ti ti-bolt icon"></i></span>
+                  <span>Aktif</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div class="col-12 d-flex justify-content-end">
+            <div class="btn-list">
+              <button class="btn btn-outline-secondary" id="dep-create-cancel-btn-2" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
+              <button class="btn btn-primary" type="submit"><i class="ti ti-plus me-1"></i>Olustur</button>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
-    <form id="dep-create-form" class="grid">
-      <div class="grid cols-2">
-        <div>
-          <label>Uygulama</label>
-          <select name="app_id" required></select>
-        </div>
-        <div>
-          <label>Oncelik</label>
-          <input name="priority" type="number" min="1" value="5" required />
-        </div>
-      </div>
-      <div class="grid cols-2">
-        <div>
-          <label>Hedef Tipi</label>
-          <select name="target_type" data-role="target-type">
-            <option value="All">All</option>
-            <option value="Group">Group</option>
-            <option value="Agent">Agent</option>
-          </select>
-        </div>
-        <div data-role="target-group-wrap" style="display:none;">
-          <label>Grup</label>
-          <select name="target_group_id"></select>
-        </div>
-        <div data-role="target-agent-wrap" style="display:none;">
-          <label>Agent</label>
-          <select name="target_agent_uuid"></select>
-        </div>
-      </div>
-      <div class="row wrap">
-        <label><input type="checkbox" name="is_mandatory" /> Zorunlu</label>
-        <label><input type="checkbox" name="force_update" /> Force Update</label>
-        <label><input type="checkbox" name="is_active" checked /> Aktif</label>
-      </div>
-      <div class="row" style="justify-content:flex-end;">
-        <button class="btn secondary" id="dep-create-cancel-btn" type="button">Iptal</button>
-        <button class="btn" type="submit">Olustur</button>
-      </div>
-    </form>
   </div>
 </div>
 
 <div id="dep-edit-modal" class="dep-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
-  <div class="dep-modal">
-    <div class="dep-modal-head">
-      <h3>Dagitim Duzenle</h3>
+  <div class="dep-modal-dialog">
+    <div class="card mb-0 ac-modal-warning">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Dagitim Duzenle</h3>
+        <button class="btn btn-outline-secondary btn-sm" id="dep-edit-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
+      </div>
+      <div class="card-body">
+        <div class="ac-modal-status-block">
+          <span class="ac-modal-status-icon warning"><i class="ti ti-alert-triangle"></i></span>
+          <div class="text-secondary">Bu dagitim uzerindeki degisiklikler aktif ajanlarda gorev davranisini degistirebilir.</div>
+        </div>
+        <form id="dep-edit-form" class="row g-3">
+          <input type="hidden" name="id" />
+          <div class="col-12 col-md-8">
+            <label class="form-label">Uygulama</label>
+            <select class="form-select" name="app_id" required></select>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">Oncelik</label>
+            <input class="form-control" name="priority" type="number" min="1" value="5" required />
+          </div>
+
+          <div class="col-12 col-md-4">
+            <label class="form-label">Hedef Tipi</label>
+            <select class="form-select" name="target_type" data-role="target-type">
+              <option value="All">All</option>
+              <option value="Group">Group</option>
+              <option value="Agent">Agent</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-4" data-role="target-group-wrap" style="display:none;">
+            <label class="form-label">Grup</label>
+            <select class="form-select" name="target_group_id"></select>
+          </div>
+          <div class="col-12 col-md-8" data-role="target-agent-wrap" style="display:none;">
+            <label class="form-label">Agent</label>
+            <select class="form-select" name="target_agent_uuid"></select>
+          </div>
+
+          <div class="col-12">
+            <div class="form-selectgroup form-selectgroup-boxes d-flex flex-column flex-md-row gap-2">
+              <label class="form-selectgroup-item flex-fill mb-0">
+                <input type="checkbox" class="form-selectgroup-input" name="is_mandatory" />
+                <span class="form-selectgroup-label d-flex align-items-center p-3">
+                  <span class="me-2"><i class="ti ti-lock icon"></i></span>
+                  <span>Zorunlu</span>
+                </span>
+              </label>
+              <label class="form-selectgroup-item flex-fill mb-0">
+                <input type="checkbox" class="form-selectgroup-input" name="force_update" />
+                <span class="form-selectgroup-label d-flex align-items-center p-3">
+                  <span class="me-2"><i class="ti ti-refresh-alert icon"></i></span>
+                  <span>Force Update</span>
+                </span>
+              </label>
+              <label class="form-selectgroup-item flex-fill mb-0">
+                <input type="checkbox" class="form-selectgroup-input" name="is_active" />
+                <span class="form-selectgroup-label d-flex align-items-center p-3">
+                  <span class="me-2"><i class="ti ti-bolt icon"></i></span>
+                  <span>Aktif</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div class="col-12 d-flex justify-content-end">
+            <div class="btn-list">
+              <button class="btn btn-outline-secondary" id="dep-edit-cancel-btn-2" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
+              <button class="btn btn-primary" type="submit"><i class="ti ti-device-floppy me-1"></i>Kaydet</button>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
-    <form id="dep-edit-form" class="grid">
-      <input type="hidden" name="id" />
-      <div class="grid cols-2">
-        <div>
-          <label>Uygulama</label>
-          <select name="app_id" required></select>
-        </div>
-        <div>
-          <label>Oncelik</label>
-          <input name="priority" type="number" min="1" value="5" required />
-        </div>
-      </div>
-      <div class="grid cols-2">
-        <div>
-          <label>Hedef Tipi</label>
-          <select name="target_type" data-role="target-type">
-            <option value="All">All</option>
-            <option value="Group">Group</option>
-            <option value="Agent">Agent</option>
-          </select>
-        </div>
-        <div data-role="target-group-wrap" style="display:none;">
-          <label>Grup</label>
-          <select name="target_group_id"></select>
-        </div>
-        <div data-role="target-agent-wrap" style="display:none;">
-          <label>Agent</label>
-          <select name="target_agent_uuid"></select>
-        </div>
-      </div>
-      <div class="row wrap">
-        <label><input type="checkbox" name="is_mandatory" /> Zorunlu</label>
-        <label><input type="checkbox" name="force_update" /> Force Update</label>
-        <label><input type="checkbox" name="is_active" /> Aktif</label>
-      </div>
-      <div class="row" style="justify-content:flex-end;">
-        <button class="btn secondary" id="dep-edit-cancel-btn" type="button">Iptal</button>
-        <button class="btn" type="submit">Kaydet</button>
-      </div>
-    </form>
   </div>
 </div>
 {% endblock %}
@@ -321,6 +392,7 @@
         return appName.includes(searchQ) || targetText.includes(searchQ);
       });
     }
+
     const dir = sortMode.endsWith('_desc') ? -1 : 1;
     items.sort((a, b) => {
       if (sortMode.startsWith('priority_')) return ((Number(a.priority) || 0) - (Number(b.priority) || 0)) * dir;
@@ -332,29 +404,43 @@
       return ((Number(a.id) || 0) - (Number(b.id) || 0)) * dir;
     });
 
+    if (!items.length) {
+      rows.innerHTML = '<tr><td colspan="6" class="text-secondary">Kayit yok</td></tr>';
+      return;
+    }
+
     items.forEach((d) => {
       const app = appItems.find((a) => Number(a.id) === Number(d.app_id));
       const appName = app?.display_name || `App #${d.app_id}`;
       const appTitle = `${appName} (ID: ${d.app_id})`;
-      const appIcon = app?.icon_url ? `<img src="${esc(app.icon_url)}" alt="icon" />` : '';
+      const appIcon = app?.icon_url
+        ? `<span class="avatar avatar-sm" style="background-image:url('${esc(app.icon_url)}')"></span>`
+        : '<span class="avatar avatar-sm">-</span>';
       const targetText = getTargetText(d);
+      const statusBadge = d.is_active
+        ? '<span class="badge bg-green-lt text-green">aktif</span>'
+        : '<span class="badge bg-secondary-lt text-secondary">pasif</span>';
 
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${d.id}</td>
-        <td><span class="ellipsis-cell" title="${esc(targetText)}">${esc(targetText)}</span></td>
+        <td class="dep-target-cell"><span class="dep-ellipsis" title="${esc(targetText)}">${esc(targetText)}</span></td>
         <td>
-          <span class="app-cell" title="${esc(appTitle)}">
+          <span class="dep-app-cell" title="${esc(appTitle)}">
             ${appIcon}
-            <span class="ellipsis-cell">${esc(appName)}</span>
+            <span class="dep-ellipsis">${esc(appName)}</span>
           </span>
         </td>
-        <td>${d.priority}</td>
-        <td>${d.is_active ? '<span class="badge ok">aktif</span>' : '<span class="badge warn">pasif</span>'}</td>
-        <td class="row">${canWrite
-          ? `<button class="btn secondary" type="button" data-action="edit" data-id="${d.id}">Duzenle</button>
-             <button class="btn danger" type="button" data-action="delete" data-id="${d.id}">Sil</button>`
-          : '-'}</td>
+        <td><span class="badge bg-blue-lt text-blue">${Number(d.priority) || 0}</span></td>
+        <td>${statusBadge}</td>
+        <td class="col-actions">
+          ${canWrite
+            ? `<div class="btn-list flex-nowrap">
+                 <button class="btn btn-outline-secondary btn-sm" type="button" data-action="edit" data-id="${d.id}"><i class="ti ti-edit me-1"></i>Duzenle</button>
+                 <button class="btn btn-outline-danger btn-sm" type="button" data-action="delete" data-id="${d.id}"><i class="ti ti-trash me-1"></i>Sil</button>
+               </div>`
+            : '-'}
+        </td>
       `;
       rows.appendChild(tr);
     });
@@ -487,7 +573,9 @@
   document.getElementById('dep-filter-active').addEventListener('change', renderTable);
   document.getElementById('dep-sort').addEventListener('change', renderTable);
   document.getElementById('dep-create-cancel-btn').addEventListener('click', () => closeModal(createModal));
+  document.getElementById('dep-create-cancel-btn-2').addEventListener('click', () => closeModal(createModal));
   document.getElementById('dep-edit-cancel-btn').addEventListener('click', () => closeModal(editModal));
+  document.getElementById('dep-edit-cancel-btn-2').addEventListener('click', () => closeModal(editModal));
   createModal.addEventListener('click', (e) => { if (e.target === createModal) closeModal(createModal); });
   editModal.addEventListener('click', (e) => { if (e.target === editModal) closeModal(editModal); });
 

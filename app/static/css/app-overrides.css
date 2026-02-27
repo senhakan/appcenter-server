@@ -1,0 +1,257 @@
+/*
+ * AppCenter Tabler Foundation Overrides (Phase A)
+ * Keep legacy pages functional while moving shell/layout to Tabler.
+ */
+
+:root {
+  --tblr-primary: #0f62fe;
+  --tblr-primary-rgb: 15, 98, 254;
+  --tblr-font-sans-serif: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.navbar-brand-autodark .navbar-brand-image {
+  height: 28px;
+  width: auto;
+}
+
+.navbar-vertical .navbar-nav .nav-link.active {
+  font-weight: 600;
+}
+
+.page-header {
+  margin-bottom: 1rem;
+}
+
+body.app-shell {
+  background: var(--tblr-bg-surface-secondary, #f4f6fa);
+}
+
+.app-shell .page {
+  min-height: 100vh;
+}
+
+.app-shell .page-wrapper {
+  padding-bottom: 1rem;
+}
+
+.app-shell .card {
+  padding: 0;
+  box-shadow: none;
+  border-radius: var(--tblr-border-radius-lg, 8px);
+  border: 1px solid var(--tblr-border-color, #e6e7e9);
+}
+
+.app-shell .card + .card {
+  margin-top: 0;
+}
+
+.app-shell .btn {
+  border: var(--tblr-btn-border-width, 1px) solid transparent;
+  border-radius: var(--tblr-border-radius, 6px);
+  padding: var(--tblr-btn-padding-y, 0.4375rem) var(--tblr-btn-padding-x, 0.75rem);
+  font-weight: var(--tblr-btn-font-weight, 500);
+  line-height: var(--tblr-btn-line-height, 1.4285714);
+}
+
+.app-shell .btn.secondary {
+  background: #fff;
+  border: 1px solid var(--tblr-border-color, #dce1e7);
+  color: var(--tblr-body-color, #182433);
+}
+
+.app-main-navbar {
+  border-bottom: 1px solid var(--tblr-border-color, #e6e7e9);
+}
+
+.app-sub-navbar {
+  border-bottom: 1px solid var(--tblr-border-color, #e6e7e9);
+  background: var(--tblr-bg-surface, #fff);
+}
+
+.app-sub-navbar .navbar-nav {
+  gap: 0.125rem;
+}
+
+.app-sub-navbar .nav-link.active,
+.app-sub-navbar .nav-item.active > .nav-link {
+  font-weight: 600;
+}
+
+.app-sub-navbar .dropdown-menu {
+  min-width: 220px;
+}
+
+.app-sub-navbar .dropdown-menu {
+  display: none;
+}
+
+.app-sub-navbar .nav-item.show > .dropdown-menu,
+.app-sub-navbar .dropdown-menu.show {
+  display: block;
+}
+
+.app-page-header {
+  padding-top: 0.75rem;
+}
+
+/* Session timeout modal is app-specific and independent from Tabler modals. */
+.session-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(21, 34, 56, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 16px;
+}
+
+.session-modal.hidden {
+  display: none;
+}
+
+.session-modal-card {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border: 1px solid var(--tblr-border-color, #e6e7e9);
+  border-radius: 8px;
+  box-shadow: 0 14px 32px rgba(21, 34, 56, 0.12);
+  padding: 1.5rem;
+}
+
+.session-modal-card h3 {
+  margin: 0 0 0.5rem;
+}
+
+.session-modal-card p {
+  margin: 0 0 1rem;
+  color: var(--tblr-secondary-color, #626976);
+}
+
+.session-modal-card.critical {
+  border-color: rgba(214, 40, 40, 0.45);
+  box-shadow: 0 14px 32px rgba(214, 40, 40, 0.2);
+}
+
+#session-timeout-countdown.critical {
+  color: var(--tblr-danger, #d63939);
+}
+
+#toast {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  background: #152238;
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: all 0.25s ease;
+  z-index: 1090;
+  max-width: 420px;
+  pointer-events: none;
+}
+
+#toast.show {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* Tabler-like modal visual language for custom backdrops used in list pages. */
+.app-shell [class*="modal-backdrop"] .card,
+.app-shell .session-modal .session-modal-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.app-shell [class*="modal-backdrop"] .card::before,
+.app-shell .session-modal .session-modal-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: var(--tblr-primary, #066fd1);
+}
+
+.app-shell .ac-modal-warning,
+.app-shell .ac-modal-danger,
+.app-shell .ac-modal-success {
+  position: relative;
+  overflow: hidden;
+}
+
+.app-shell .ac-modal-warning::before,
+.app-shell .ac-modal-danger::before,
+.app-shell .ac-modal-success::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+}
+
+.app-shell .ac-modal-warning::before {
+  background: var(--tblr-yellow, #f59f00);
+}
+
+.app-shell .ac-modal-danger::before {
+  background: var(--tblr-danger, #d63939);
+}
+
+.app-shell .ac-modal-success::before {
+  background: var(--tblr-success, #2fb344);
+}
+
+.app-shell [class*="modal-backdrop"] .card.ac-modal-warning::before,
+.app-shell .session-modal .session-modal-card.ac-modal-warning::before {
+  background: var(--tblr-yellow, #f59f00);
+}
+
+.app-shell [class*="modal-backdrop"] .card.ac-modal-danger::before,
+.app-shell .session-modal .session-modal-card.ac-modal-danger::before {
+  background: var(--tblr-danger, #d63939);
+}
+
+.app-shell [class*="modal-backdrop"] .card.ac-modal-success::before,
+.app-shell .session-modal .session-modal-card.ac-modal-success::before {
+  background: var(--tblr-success, #2fb344);
+}
+
+.ac-modal-status-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.ac-modal-status-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.ac-modal-status-icon i {
+  font-size: 1.125rem;
+}
+
+.ac-modal-status-icon.warning {
+  background: var(--tblr-yellow-lt, #fff4d6);
+  color: var(--tblr-yellow, #f59f00);
+}
+
+.ac-modal-status-icon.success {
+  background: var(--tblr-green-lt, #eaf7ee);
+  color: var(--tblr-success, #2fb344);
+}
+
+.ac-modal-status-icon.danger {
+  background: var(--tblr-red-lt, #fde9e9);
+  color: var(--tblr-danger, #d63939);
+}

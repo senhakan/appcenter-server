@@ -1,29 +1,31 @@
 {% extends 'base.html' %}
 {% block title %}Normalizasyon Kurallari{% endblock %}
+{% block page_title %}Normalizasyon Kurallari{% endblock %}
+{% block page_actions %}
+<a class="btn btn-outline-primary btn-sm" href="/inventory"><i class="ti ti-arrow-left me-1"></i>Envantere Don</a>
+{% endblock %}
 {% block content %}
 <div class="card">
-  <div class="row spread wrap">
-    <h3 style="margin: 0;">Normalizasyon Kurallari</h3>
-    <a class="btn secondary" href="/inventory">Envantere Don</a>
+  <div class="card-header" data-required-roles="operator,admin">
+    <form id="add-form" class="row g-2 w-100 align-items-end">
+      <div class="col-12 col-md-4"><label class="form-label">Pattern</label><input id="f-pattern" class="form-control" required /></div>
+      <div class="col-12 col-md-3"><label class="form-label">Normalize Adi</label><input id="f-normalized" class="form-control" required /></div>
+      <div class="col-12 col-md-3"><label class="form-label">Eslestirme</label>
+        <select id="f-match" class="form-select">
+          <option value="contains">Contains</option>
+          <option value="exact">Exact</option>
+          <option value="starts_with">Starts With</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-2 d-grid"><button class="btn btn-primary" type="submit"><i class="ti ti-plus me-1"></i>Ekle</button></div>
+    </form>
   </div>
-
-  <form id="add-form" class="grid cols-4" style="margin: 12px 0; gap: 8px; align-items: end;" data-required-roles="operator,admin">
-    <div><label>Pattern</label><input id="f-pattern" required /></div>
-    <div><label>Normalize Adi</label><input id="f-normalized" required /></div>
-    <div><label>Eslestirme</label>
-      <select id="f-match">
-        <option value="contains">Contains</option>
-        <option value="exact">Exact</option>
-        <option value="starts_with">Starts With</option>
-      </select>
-    </div>
-    <div><button class="btn" type="submit">Ekle</button></div>
-  </form>
-
-  <table>
-    <thead><tr><th>Pattern</th><th>Normalize Adi</th><th>Eslestirme</th><th>Aktif</th><th>Islemler</th></tr></thead>
-    <tbody id="rules-body"></tbody>
-  </table>
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter">
+      <thead><tr><th>Pattern</th><th>Normalize Adi</th><th>Eslestirme</th><th>Aktif</th><th></th></tr></thead>
+      <tbody id="rules-body"><tr><td colspan="5" class="text-secondary">Yukleniyor...</td></tr></tbody>
+    </table>
+  </div>
 </div>
 {% endblock %}
 {% block scripts %}
@@ -36,25 +38,22 @@
       const data = await AppCenterApi.req('/inventory/normalization');
       const body = document.getElementById('rules-body');
       const items = data.items || [];
-      if (!items.length) { body.innerHTML = '<tr><td colspan="5" class="muted">Kural yok</td></tr>'; return; }
+      if (!items.length) { body.innerHTML = '<tr><td colspan="5" class="text-secondary">Kural yok</td></tr>'; return; }
       body.innerHTML = items.map(i => `<tr>
         <td>${i.pattern}</td>
         <td>${i.normalized_name}</td>
-        <td>${i.match_type}</td>
-        <td>${i.is_active ? 'Evet' : 'Hayir'}</td>
-        <td>${canWrite ? `<button class="btn secondary" onclick="deleteRule(${i.id})">Sil</button>` : '-'}</td>
+        <td><span class="badge bg-blue-lt text-blue">${i.match_type}</span></td>
+        <td>${i.is_active ? '<span class="badge bg-green-lt text-green">Evet</span>' : '<span class="badge bg-secondary-lt text-secondary">Hayir</span>'}</td>
+        <td>${canWrite ? `<button class="btn btn-outline-danger btn-sm" onclick="deleteRule(${i.id})"><i class="ti ti-trash me-1"></i>Sil</button>` : '-'}</td>
       </tr>`).join('');
-    } catch (err) {
-      AppCenterApi.toast(err.message);
-    }
+    } catch (err) { AppCenterApi.toast(err.message); }
   }
 
   document.getElementById('add-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
       await AppCenterApi.req('/inventory/normalization', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pattern: document.getElementById('f-pattern').value,
           normalized_name: document.getElementById('f-normalized').value,
@@ -65,9 +64,7 @@
       document.getElementById('f-normalized').value = '';
       AppCenterApi.toast('Kural eklendi');
       loadRules();
-    } catch (err) {
-      AppCenterApi.toast(err.message);
-    }
+    } catch (err) { AppCenterApi.toast(err.message); }
   });
 
   async function deleteRule(id) {
@@ -76,9 +73,7 @@
       await AppCenterApi.req(`/inventory/normalization/${id}`, { method: 'DELETE' });
       AppCenterApi.toast('Kural silindi');
       loadRules();
-    } catch (err) {
-      AppCenterApi.toast(err.message);
-    }
+    } catch (err) { AppCenterApi.toast(err.message); }
   }
 
   loadRules();

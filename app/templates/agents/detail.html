@@ -1,5 +1,12 @@
 {% extends 'base.html' %}
 {% block title %}Ajan Detay{% endblock %}
+{% block page_title %}Ajan Detay{% endblock %}
+{% block page_actions %}
+<div class="btn-list">
+  <button class="btn btn-danger btn-sm" id="agent-delete-btn" type="button" data-required-roles="operator,admin"><i class="ti ti-trash me-1"></i>Ajani Sil</button>
+  <a class="btn btn-outline-primary btn-sm" href="/agents"><i class="ti ti-arrow-left me-1"></i>Listeye Don</a>
+</div>
+{% endblock %}
 {% block content %}
 <style>
   .agent-delete-modal-backdrop {
@@ -38,64 +45,71 @@
   }
 </style>
 <div class="card">
-  <div class="row spread wrap">
-    <h3 style="margin: 0;">Ajan Detay</h3>
-    <div class="row">
-      <button class="btn danger" id="agent-delete-btn" type="button" data-required-roles="operator,admin">Ajani Sil</button>
-      <a class="btn secondary" href="/agents">Listeye Don</a>
-    </div>
+  <div class="card-body">
+    <div id="agent-detail" class="grid cols-2"></div>
   </div>
-  <div id="agent-detail" class="grid cols-2"></div>
 </div>
 
 <div class="card">
-  <div class="row" style="gap: 8px; margin-bottom: 16px;">
-    <button class="btn" id="tab-inventory" onclick="showTab('inventory')">Yuklu Yazilimlar</button>
-    <button class="btn secondary" id="tab-changes" onclick="showTab('changes')">Degisim Gecmisi</button>
-    <button class="btn secondary" id="tab-system" onclick="showTab('system')">Sistem Gecmisi</button>
+  <div class="card-body">
+  <div class="btn-list mb-3">
+    <button class="btn btn-primary" id="tab-inventory" onclick="showTab('inventory')"><i class="ti ti-apps me-1"></i>Yuklu Yazilimlar</button>
+    <button class="btn btn-outline-secondary" id="tab-changes" onclick="showTab('changes')"><i class="ti ti-history me-1"></i>Degisim Gecmisi</button>
+    <button class="btn btn-outline-secondary" id="tab-system" onclick="showTab('system')"><i class="ti ti-cpu me-1"></i>Sistem Gecmisi</button>
   </div>
 
   <div id="panel-inventory">
-    <div class="row spread" style="margin-bottom: 8px;">
-      <input id="inv-search" type="text" placeholder="Yazilim ara..." oninput="filterInventory()" style="max-width:300px;" />
-      <span class="muted" id="inv-updated"></span>
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <input id="inv-search" class="form-control" type="text" placeholder="Yazilim ara..." oninput="filterInventory()" style="max-width:300px;" />
+      <span class="text-secondary" id="inv-updated"></span>
     </div>
-    <table>
+    <div class="table-responsive">
+    <table class="table card-table table-vcenter">
       <thead><tr><th>Yazilim Adi</th><th>Versiyon</th><th>Yayinci</th><th>Boyut (KB)</th><th>Mimari</th></tr></thead>
       <tbody id="inv-body"></tbody>
     </table>
+    </div>
   </div>
 
   <div id="panel-changes" style="display:none;">
-    <table>
-      <thead><tr><th>Tarih</th><th>Yazilim</th><th>Islem</th><th>Detay</th></tr></thead>
+    <div class="table-responsive">
+    <table class="table card-table table-vcenter">
+      <thead><tr><th>Tarih</th><th>Yazilim</th><th>Islem</th><th><i class="ti ti-eye me-1"></i>Detay</th></tr></thead>
       <tbody id="changes-body"></tbody>
     </table>
-    <div class="row spread" style="margin-top: 8px;">
-      <button class="btn secondary" id="changes-more" onclick="loadMoreChanges()">Daha Fazla</button>
+    </div>
+    <div class="d-flex justify-content-end mt-2">
+      <button class="btn btn-outline-secondary btn-sm" id="changes-more" onclick="loadMoreChanges()"><i class="ti ti-chevron-down me-1"></i>Daha Fazla</button>
     </div>
   </div>
 
   <div id="panel-system" style="display:none;">
-    <table>
+    <div class="table-responsive">
+    <table class="table card-table table-vcenter">
       <thead><tr><th>Tarih</th><th>Degisen Bilgiler</th></tr></thead>
       <tbody id="sys-body"></tbody>
     </table>
-    <div class="row spread" style="margin-top: 8px;">
-      <button class="btn secondary" id="sys-more" onclick="loadMoreSystem()">Daha Fazla</button>
     </div>
+    <div class="d-flex justify-content-end mt-2">
+      <button class="btn btn-outline-secondary btn-sm" id="sys-more" onclick="loadMoreSystem()"><i class="ti ti-chevron-down me-1"></i>Daha Fazla</button>
+    </div>
+  </div>
   </div>
 </div>
 
 <div id="agent-delete-modal" class="agent-delete-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
-  <div class="agent-delete-modal">
-    <div class="row spread wrap" style="margin-bottom: 10px;">
-      <h3 style="margin: 0;">Ajan Silme Onayi</h3>
+  <div class="agent-delete-modal ac-modal-danger">
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <h3 class="card-title mb-0">Ajan Silme Onayi</h3>
     </div>
-    <div id="agent-delete-message" class="muted" style="margin-bottom: 14px;"></div>
-    <div class="row" style="justify-content:flex-end;">
-      <button class="btn secondary" id="agent-delete-cancel-btn" type="button">Iptal</button>
-      <button class="btn danger" id="agent-delete-confirm-btn" type="button">Sil</button>
+    <div class="ac-modal-status-block">
+      <span class="ac-modal-status-icon danger"><i class="ti ti-alert-triangle"></i></span>
+      <div class="text-secondary">Ajan silme islemi kayit ve iliskili gecmis verilerini etkileyebilir. Bu adim geri alinamaz.</div>
+    </div>
+    <div id="agent-delete-message" class="text-secondary" style="margin-bottom: 14px;"></div>
+    <div class="d-flex justify-content-end gap-2">
+      <button class="btn btn-outline-secondary" id="agent-delete-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
+      <button class="btn btn-danger" id="agent-delete-confirm-btn" type="button"><i class="ti ti-trash me-1"></i>Sil</button>
     </div>
   </div>
 </div>
@@ -125,9 +139,9 @@
     document.getElementById('panel-inventory').style.display = tab === 'inventory' ? '' : 'none';
     document.getElementById('panel-changes').style.display = tab === 'changes' ? '' : 'none';
     document.getElementById('panel-system').style.display = tab === 'system' ? '' : 'none';
-    document.getElementById('tab-inventory').className = tab === 'inventory' ? 'btn' : 'btn secondary';
-    document.getElementById('tab-changes').className = tab === 'changes' ? 'btn' : 'btn secondary';
-    document.getElementById('tab-system').className = tab === 'system' ? 'btn' : 'btn secondary';
+    document.getElementById('tab-inventory').className = tab === 'inventory' ? 'btn btn-primary' : 'btn btn-outline-secondary';
+    document.getElementById('tab-changes').className = tab === 'changes' ? 'btn btn-primary' : 'btn btn-outline-secondary';
+    document.getElementById('tab-system').className = tab === 'system' ? 'btn btn-primary' : 'btn btn-outline-secondary';
   }
 
   function syncNoteSaveButton() {
@@ -136,7 +150,7 @@
     const current = (noteInput.value || '').trim();
     const dirty = current !== savedNote;
     noteSaveBtn.disabled = !dirty;
-    noteSaveBtn.className = dirty ? 'btn' : 'btn secondary';
+    noteSaveBtn.className = dirty ? 'btn btn-primary' : 'btn btn-outline-secondary';
   }
 
   async function saveNote() {
@@ -200,7 +214,7 @@
           <label for="agent-note-input">Not</label>
           <textarea id="agent-note-input" rows="3" maxlength="2000" placeholder="Ajan ile ilgili not..." ${canWrite ? '' : 'readonly'}></textarea>
           <div class="agent-note-actions"${canWrite ? '' : ' style="display:none;"'}>
-            <button class="btn secondary" id="agent-note-save-btn" type="button" disabled ${canWrite ? '' : 'hidden'}>Kaydet</button>
+            <button class="btn btn-outline-secondary" id="agent-note-save-btn" type="button" disabled ${canWrite ? '' : 'hidden'}><i class="ti ti-device-floppy me-1"></i>Kaydet</button>
           </div>
         </div>
       `;
@@ -227,7 +241,7 @@
 
   function renderInventory(items) {
     const body = document.getElementById('inv-body');
-    if (!items.length) { body.innerHTML = '<tr><td colspan="5" class="muted">Envanter verisi yok</td></tr>'; return; }
+    if (!items.length) { body.innerHTML = '<tr><td colspan="5" class="text-secondary">Envanter verisi yok</td></tr>'; return; }
     body.innerHTML = items.map(i => `<tr>
       <td>${i.software_name}</td>
       <td>${i.software_version || '-'}</td>
@@ -310,7 +324,7 @@
             const summary = `${p.os_full_name || '-'} | ${(p.manufacturer || '-') + ' ' + (p.model || '')} | ${p.cpu_model || '-'} | ${p.total_memory_gb != null ? (p.total_memory_gb + ' GB') : '-'}`;
             details = `<div><b>initial</b>: ${summary}</div>`;
           } else if (!fields.length) {
-            details = `<div class="muted">-</div>`;
+            details = `<div class="text-secondary">-</div>`;
           } else {
             const diff = (i.diff || []);
             if (!diff.length) {

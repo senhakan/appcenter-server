@@ -1,40 +1,104 @@
 {% extends 'base.html' %}
 {% block title %}Ayarlar{% endblock %}
+{% block page_title %}Ayarlar{% endblock %}
 {% block content %}
-<div class="grid cols-2">
-  <div class="card" data-required-roles="admin">
-    <h3 style="margin-top: 0;">Sistem Ayarlari</h3>
-    <form id="settings-form" class="grid">
-      <div><label>Bandwidth Limit (KB/s)</label><input id="s-bandwidth" /></div>
-      <div><label>Heartbeat Interval (sn)</label><input id="s-heartbeat" /></div>
-      <div><label>Agent Timeout (sn)</label><input id="s-agent-timeout" /></div>
-      <div><label>Log Retention (gun)</label><input id="s-log-retention" /></div>
-      <div>
-        <label>Web Session Timeout (dk)</label>
-        <input id="s-session-timeout" type="number" min="1" max="1440" />
-        <div class="muted" style="margin-top:6px;">Session bitimine 30 sn kala kullaniciya "Devam et" uyarisi gosterilir.</div>
+<div class="row row-cards">
+  <div class="col-12 col-xl-8" data-required-roles="admin">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Sistem Ayarlari</h3>
       </div>
-      <div>
-        <label>UI Timezone (IANA)</label>
-        <input id="s-ui-tz" placeholder="Europe/Istanbul" />
-        <div class="muted" style="margin-top:6px;">UI'daki tum tarih/saat gosterimleri bu timezone'a gore donusturulur.</div>
+      <div class="card-body">
+        <form id="settings-form" class="row g-3">
+          <div class="col-12">
+            <div class="subheader mb-2">Agent ve Sistem</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Bandwidth Limit (KB/s)</label>
+            <input class="form-control" id="s-bandwidth" />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Heartbeat Interval (sn)</label>
+            <input class="form-control" id="s-heartbeat" />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Agent Timeout (sn)</label>
+            <input class="form-control" id="s-agent-timeout" />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Log Retention (gun)</label>
+            <input class="form-control" id="s-log-retention" />
+          </div>
+
+          <div class="col-12"><hr class="my-2" /></div>
+          <div class="col-12">
+            <div class="subheader mb-2">Web UI ve Session</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Web Session Timeout (dk)</label>
+            <input class="form-control" id="s-session-timeout" type="number" min="1" max="1440" />
+            <div class="form-hint">Session bitimine 30 sn kala kullaniciya "Devam et" uyarisi gosterilir.</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">UI Timezone (IANA)</label>
+            <input class="form-control" id="s-ui-tz" placeholder="Europe/Istanbul" />
+            <div class="form-hint">UI'daki tum tarih/saat gosterimleri bu timezone'a gore donusturulur.</div>
+          </div>
+
+          <div class="col-12"><hr class="my-2" /></div>
+          <div class="col-12">
+            <div class="subheader mb-2">Envanter ve Runtime</div>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">Envanter Tarama Araligi (dk)</label>
+            <input class="form-control" id="s-inv-interval" />
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">Envanter Gecmis Saklama (gun)</label>
+            <input class="form-control" id="s-inv-retention" />
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">Sistem Gecmisi Saklama (gun)</label>
+            <input class="form-control" id="s-system-retention" />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Runtime Update Interval (dk)</label>
+            <input class="form-control" id="s-runtime-interval" type="number" min="0" />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Runtime Update Jitter (sn)</label>
+            <input class="form-control" id="s-runtime-jitter" type="number" min="0" />
+          </div>
+
+          <div class="col-12 d-flex justify-content-end">
+            <button class="btn btn-primary" type="submit"><i class="ti ti-device-floppy me-1"></i>Ayarlari Kaydet</button>
+          </div>
+        </form>
       </div>
-      <div><label>Envanter Tarama Araligi (dk)</label><input id="s-inv-interval" /></div>
-      <div><label>Envanter Gecmis Saklama (gun)</label><input id="s-inv-retention" /></div>
-      <div><label>Sistem Gecmisi Saklama (gun)</label><input id="s-system-retention" /></div>
-      <div><label>Runtime Update Interval (dk)</label><input id="s-runtime-interval" type="number" min="0" /></div>
-      <div><label>Runtime Update Jitter (sn)</label><input id="s-runtime-jitter" type="number" min="0" /></div>
-      <button class="btn" type="submit">Ayarlari Kaydet</button>
-    </form>
+    </div>
   </div>
 
-  <div class="card" data-required-roles="admin">
-    <h3 style="margin-top: 0;">Agent Guncelleme Paketi</h3>
-    <form id="agent-update-form" class="grid">
-      <div><label>Versiyon</label><input name="version" placeholder="1.0.1" required /></div>
-      <div><label>Paket (.exe / .msi)</label><input name="file" type="file" accept=".exe,.msi" required /></div>
-      <button class="btn" type="submit">Paketi Yukle</button>
-    </form>
+  <div class="col-12 col-xl-4" data-required-roles="admin">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Agent Guncelleme Paketi</h3>
+      </div>
+      <div class="card-body">
+        <form id="agent-update-form" class="row g-3">
+          <div class="col-12">
+            <label class="form-label">Versiyon</label>
+            <input class="form-control" name="version" placeholder="1.0.1" required />
+          </div>
+          <div class="col-12">
+            <label class="form-label">Paket (.exe / .msi)</label>
+            <input class="form-control" name="file" type="file" accept=".exe,.msi" required />
+          </div>
+          <div class="col-12 d-flex justify-content-end">
+            <button class="btn btn-primary" type="submit"><i class="ti ti-package-import me-1"></i>Paketi Yukle</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}

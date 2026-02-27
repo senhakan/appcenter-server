@@ -1,44 +1,150 @@
-<div class="topbar">
-  <div class="brand">AppCenter Console</div>
-  <nav class="nav" id="main-nav">
-    {% for item in NAV_GET_MENU(NAV_ROLE) %}
-      {% if item.children %}
-        {% set ns = namespace(has_active_child=false) %}
-        {% for child in item.children %}
-          {% if active_page in child.active_pages %}
-            {% set ns.has_active_child = true %}
-          {% endif %}
-        {% endfor %}
-        <details
-          class="nav-dropdown{% if ns.has_active_child %} open{% endif %}"
-          data-nav-item
-          data-roles="{{ (item.roles or [])|join(',') }}"
-          {% if ns.has_active_child %}open{% endif %}
-        >
-          <summary>{{ item.title }}</summary>
-          <div class="nav-submenu">
-            {% for child in item.children %}
-              {% if child.path %}
-                <a
-                  href="{{ child.path }}"
-                  data-nav-item
-                  data-roles="{{ (child.roles or [])|join(',') }}"
-                  class="{% if active_page in child.active_pages %}active{% endif %}"
-                >{{ child.title }}</a>
-              {% else %}
-                <span class="disabled" data-nav-item data-roles="{{ (child.roles or [])|join(',') }}">{{ child.title }}</span>
-              {% endif %}
-            {% endfor %}
-          </div>
-        </details>
-      {% else %}
+<header class="navbar navbar-expand-md d-print-none app-main-navbar">
+  <div class="container-xl">
+    <button
+      class="navbar-toggler"
+      type="button"
+      data-bs-toggle="collapse"
+      data-bs-target="#navbar-menu"
+      aria-controls="navbar-menu"
+      aria-expanded="false"
+      aria-label="Toggle navigation"
+    >
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <h1 class="navbar-brand navbar-brand-autodark pe-0 pe-md-3 m-0">
+      <a href="/dashboard" class="text-decoration-none text-reset d-flex align-items-center">
+        <img src="/static/img/opview_logo.png?v={{ ASSET_VERSION }}" alt="AppCenter" class="navbar-brand-image me-2" />
+        <span>AppCenter</span>
+      </a>
+    </h1>
+    <div class="navbar-nav flex-row order-md-last">
+      <div class="nav-item d-none d-md-flex me-1">
+        <a href="?theme=dark" class="nav-link px-0 hide-theme-dark" title="Koyu tema">
+          <i class="ti ti-moon icon icon-1"></i>
+        </a>
+        <a href="?theme=light" class="nav-link px-0 hide-theme-light" title="Acik tema">
+          <i class="ti ti-sun icon icon-1"></i>
+        </a>
+      </div>
+      <div class="nav-item dropdown d-none d-md-flex me-3">
         <a
-          href="{{ item.path }}"
-          data-nav-item
-          data-roles="{{ (item.roles or [])|join(',') }}"
-          class="{% if active_page in item.active_pages %}active{% endif %}"
-        >{{ item.title }}</a>
-      {% endif %}
-    {% endfor %}
-  </nav>
-</div>
+          href="#"
+          class="nav-link px-0"
+          data-bs-toggle="dropdown"
+          tabindex="-1"
+          aria-label="Bildirimler"
+          data-bs-auto-close="outside"
+          aria-expanded="false"
+        >
+          <i class="ti ti-bell icon icon-1"></i>
+          <span class="badge bg-red"></span>
+        </a>
+        <div class="dropdown-menu dropdown-menu-arrow dropdown-menu-end dropdown-menu-card">
+          <div class="card">
+            <div class="card-header d-flex">
+              <h3 class="card-title">Bildirimler</h3>
+              <button class="btn-close ms-auto" type="button" data-bs-dismiss="dropdown" aria-label="Kapat"></button>
+            </div>
+            <div class="list-group list-group-flush list-group-hoverable">
+              <div class="list-group-item">
+                <div class="row align-items-center">
+                  <div class="col-auto"><span class="status-dot status-dot-animated bg-yellow d-block"></span></div>
+                  <div class="col text-truncate">
+                    <a href="/dashboard" class="text-body d-block">Dashboard otomatik yenileniyor</a>
+                    <div class="d-block text-secondary text-truncate mt-n1">Veriler 10 saniyede bir guncellenir.</div>
+                  </div>
+                </div>
+              </div>
+              <div class="list-group-item">
+                <div class="row align-items-center">
+                  <div class="col-auto"><span class="status-dot bg-blue d-block"></span></div>
+                  <div class="col text-truncate">
+                    <a href="/agents" class="text-body d-block">Ajan durumlarini kontrol edin</a>
+                    <div class="d-block text-secondary text-truncate mt-n1">Online/Offline degisiklikleri ajan ekraninda gorulebilir.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="nav-item dropdown">
+        <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown" aria-label="User menu">
+          <span class="avatar avatar-sm">AC</span>
+          <div class="d-none d-xl-block ps-2">
+            <div>AppCenter</div>
+            <div class="mt-1 small text-secondary">Admin</div>
+          </div>
+        </a>
+        <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
+          <a href="/login" class="dropdown-item" onclick="localStorage.removeItem('appcenter_token');"><i class="ti ti-logout me-1"></i>Cikis Yap</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+<header class="navbar-expand-md app-sub-navbar d-print-none">
+  <div class="collapse navbar-collapse" id="navbar-menu">
+    <div class="navbar">
+      <div class="container-xl">
+        <ul class="navbar-nav">
+          {% for item in NAV_GET_MENU(NAV_ROLE) %}
+            {% if item.children %}
+              {% set ns = namespace(has_active_child=false) %}
+              {% for child in item.children %}
+                {% if active_page in child.active_pages %}
+                  {% set ns.has_active_child = true %}
+                {% endif %}
+              {% endfor %}
+              <li class="nav-item dropdown nav-dropdown{% if ns.has_active_child %} active{% endif %}" data-nav-item data-roles="{{ (item.roles or [])|join(',') }}">
+                <a class="nav-link dropdown-toggle{% if ns.has_active_child %} active{% endif %}" href="#nav-{{ item.key }}" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
+                  <span class="nav-link-icon d-md-none d-lg-inline-block">
+                    {% if item.key == 'management' %}<i class="ti ti-settings icon"></i>
+                    {% elif item.key == 'infrastructure' %}<i class="ti ti-building icon"></i>
+                    {% else %}<i class="ti ti-folder icon"></i>{% endif %}
+                  </span>
+                  <span class="nav-link-title">{{ item.title }}</span>
+                </a>
+                <div class="dropdown-menu">
+                  {% for child in item.children %}
+                    {% if child.path %}
+                      <a class="dropdown-item{% if active_page in child.active_pages %} active{% endif %}" href="{{ child.path }}" data-nav-item data-roles="{{ (child.roles or [])|join(',') }}">
+                        <span class="me-1">
+                          {% if child.key == 'settings' %}<i class="ti ti-adjustments"></i>
+                          {% elif child.key == 'users' %}<i class="ti ti-users"></i>
+                          {% elif child.key == 'infra_audit' %}<i class="ti ti-file-search"></i>
+                          {% else %}<i class="ti ti-point"></i>{% endif %}
+                        </span>
+                        {{ child.title }}
+                      </a>
+                    {% else %}
+                      <span class="dropdown-item disabled" data-nav-item data-roles="{{ (child.roles or [])|join(',') }}">
+                        <span class="me-1"><i class="ti ti-point"></i></span>{{ child.title }}
+                      </span>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </li>
+            {% else %}
+              <li class="nav-item{% if active_page in item.active_pages %} active{% endif %}" data-nav-item data-roles="{{ (item.roles or [])|join(',') }}">
+                <a class="nav-link{% if active_page in item.active_pages %} active{% endif %}" href="{{ item.path }}">
+                  <span class="nav-link-icon d-md-none d-lg-inline-block">
+                    {% if item.key == 'dashboard' %}<i class="ti ti-dashboard icon"></i>
+                    {% elif item.key == 'agents' %}<i class="ti ti-devices icon"></i>
+                    {% elif item.key == 'groups' %}<i class="ti ti-users-group icon"></i>
+                    {% elif item.key == 'applications' %}<i class="ti ti-apps icon"></i>
+                    {% elif item.key == 'deployments' %}<i class="ti ti-rocket icon"></i>
+                    {% elif item.key == 'inventory' %}<i class="ti ti-list-details icon"></i>
+                    {% elif item.key == 'licenses' %}<i class="ti ti-license icon"></i>
+                    {% else %}<i class="ti ti-circle icon"></i>{% endif %}
+                  </span>
+                  <span class="nav-link-title">{{ item.title }}</span>
+                </a>
+              </li>
+            {% endif %}
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</header>

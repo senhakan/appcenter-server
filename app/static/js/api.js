@@ -8,6 +8,7 @@
   let _sessionCountdownTimer = null;
   let _sessionCountdownValue = SESSION_WARNING_SECONDS;
   let _sessionModalBound = false;
+  let _globalModalHotkeysBound = false;
   let _sessionExtending = false;
   let _currentUser = null;
   let _currentUserLoading = null;
@@ -287,7 +288,7 @@
 
     document.querySelectorAll(".nav-dropdown").forEach((dropdown) => {
       if (dropdown.hidden) return;
-      const visibleChildren = dropdown.querySelectorAll(".nav-submenu [data-nav-item]:not([hidden])");
+      const visibleChildren = dropdown.querySelectorAll(".dropdown-menu [data-nav-item]:not([hidden]), .nav-submenu [data-nav-item]:not([hidden])");
       if (visibleChildren.length === 0) dropdown.hidden = true;
     });
   }
@@ -388,6 +389,79 @@
     _sessionModalBound = true;
   }
 
+  function getVisibleCustomModal() {
+    const open = Array.from(document.querySelectorAll(
+      ".session-modal:not(.hidden), [class*='modal-backdrop']:not(.hidden), .rs-modal-backdrop.show"
+    )).filter((el) => {
+      if (el.closest(".hidden")) return false;
+      const cs = window.getComputedStyle(el);
+      if (!cs) return false;
+      if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") return false;
+      return true;
+    });
+    if (!open.length) return null;
+    return open[open.length - 1];
+  }
+
+  function findModalCloseAction(modal) {
+    if (!modal) return null;
+    return modal.querySelector(
+      "[data-modal-close], .btn-close, button[id*='close'], button[id*='cancel'], .rs-info-close, #rs-rejected-ok"
+    );
+  }
+
+  function closeCustomModal(modal) {
+    const target = modal || getVisibleCustomModal();
+    if (!target) return;
+    const closeAction = findModalCloseAction(target);
+    if (closeAction && typeof closeAction.click === "function") {
+      closeAction.click();
+      return;
+    }
+    if (target.classList.contains("show")) {
+      target.classList.remove("show");
+      return;
+    }
+    target.classList.add("hidden");
+  }
+
+  function findModalPrimaryAction(modal) {
+    if (!modal) return null;
+    return modal.querySelector(
+      "[data-modal-primary], button[type='submit']:not([disabled]), .btn.btn-primary:not([disabled]), .btn.btn-danger:not([disabled])"
+    );
+  }
+
+  function triggerCustomModalPrimary(modal) {
+    const target = modal || getVisibleCustomModal();
+    if (!target) return;
+    const primary = findModalPrimaryAction(target);
+    if (primary && typeof primary.click === "function") primary.click();
+  }
+
+  function bindGlobalModalHotkeysOnce() {
+    if (_globalModalHotkeysBound) return;
+    document.addEventListener("keydown", (evt) => {
+      const modal = getVisibleCustomModal();
+      if (!modal) return;
+
+      if (evt.key === "Escape") {
+        evt.preventDefault();
+        closeCustomModal(modal);
+        return;
+      }
+
+      if (evt.key !== "Enter") return;
+      const tag = (evt.target && evt.target.tagName ? evt.target.tagName : "").toUpperCase();
+      if (tag === "TEXTAREA" || tag === "SELECT") return;
+      if (tag === "INPUT") return; // native form submit should stay untouched
+      if (evt.target && evt.target.isContentEditable) return;
+      evt.preventDefault();
+      triggerCustomModalPrimary(modal);
+    });
+    _globalModalHotkeysBound = true;
+  }
+
   function scheduleSessionTimers() {
     clearSessionTimers();
     bindSessionModalOnce();
@@ -425,6 +499,7 @@
       return;
     }
     scheduleSessionTimers();
+    bindGlobalModalHotkeysOnce();
     const me = await getCurrentUser();
     if (me && me.role) {
       applyNavPermissions(me.role);
@@ -450,6 +525,8 @@
     formatDate,
     relTime,
     toast,
+    closeCustomModal,
+    triggerCustomModalPrimary,
     getCurrentUser,
     applyNavPermissions,
     getCurrentRole,

@@ -1,23 +1,58 @@
 {% extends 'base.html' %}
 {% block title %}Envanter{% endblock %}
+{% block page_title %}Yazilim Envanteri{% endblock %}
+{% block page_actions %}
+<div class="btn-list">
+  <a class="btn btn-outline-primary btn-sm" href="/inventory/normalization">
+    <i class="ti ti-adjustments me-1"></i>Normalizasyon Kurallari
+  </a>
+</div>
+{% endblock %}
 {% block content %}
+<style>
+  .inventory-toolbar .input-icon-addon .icon {
+    width: 18px;
+    height: 18px;
+  }
+  .inventory-table tbody tr {
+    cursor: pointer;
+  }
+</style>
+
 <div class="card">
-  <div class="row spread wrap">
-    <h3 style="margin: 0;">Yazilim Envanteri</h3>
-    <a class="btn secondary" href="/inventory/normalization">Normalizasyon Kurallari</a>
+  <div class="card-header">
+    <div class="row g-2 w-100 inventory-toolbar">
+      <div class="col-12 col-md-6">
+        <div class="input-icon">
+          <span class="input-icon-addon"><i class="ti ti-search icon"></i></span>
+          <input id="search" class="form-control" type="text" placeholder="Yazilim ara..." />
+        </div>
+      </div>
+      <div class="col-12 col-md-2">
+        <button class="btn btn-outline-primary w-100" id="search-btn" type="button"><i class="ti ti-search me-1"></i>Ara</button>
+      </div>
+    </div>
   </div>
-  <div style="margin: 12px 0;">
-    <input id="search" type="text" placeholder="Yazilim ara..." style="max-width:300px;" />
-    <button class="btn secondary" onclick="loadSoftware()">Ara</button>
+
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter inventory-table">
+      <thead>
+        <tr>
+          <th>Yazilim Adi</th>
+          <th>Ajan Sayisi</th>
+          <th>Versiyonlar</th>
+        </tr>
+      </thead>
+      <tbody id="sw-body">
+        <tr><td colspan="3" class="text-secondary">Yukleniyor...</td></tr>
+      </tbody>
+    </table>
   </div>
-  <table>
-    <thead><tr><th>Yazilim Adi</th><th>Ajan Sayisi</th><th>Versiyonlar</th></tr></thead>
-    <tbody id="sw-body"></tbody>
-  </table>
-  <div class="row spread" style="margin-top: 8px;">
-    <button class="btn secondary" id="prev-btn" onclick="changePage(-1)" disabled>Onceki</button>
-    <span id="page-info" class="muted"></span>
-    <button class="btn secondary" id="next-btn" onclick="changePage(1)">Sonraki</button>
+
+  <div class="card-footer d-flex align-items-center justify-content-between">
+    <button class="btn btn-outline-secondary btn-sm" id="prev-btn" type="button" disabled><i class="ti ti-chevron-left me-1"></i>Onceki</button>
+    <span id="page-info" class="text-secondary"></span>
+    <button class="btn btn-outline-secondary btn-sm" id="next-btn" type="button"><i class="ti ti-chevron-right me-1"></i>Sonraki</button>
   </div>
 </div>
 {% endblock %}
@@ -27,18 +62,45 @@
   let currentPage = 1;
   const perPage = 50;
 
+  function esc(s) {
+    return (s || '')
+      .toString()
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
   async function loadSoftware() {
     const search = document.getElementById('search').value;
     try {
       const data = await AppCenterApi.req(`/inventory/software?search=${encodeURIComponent(search)}&page=${currentPage}&per_page=${perPage}`);
       const body = document.getElementById('sw-body');
       const items = data.items || [];
-      if (!items.length) { body.innerHTML = '<tr><td colspan="3" class="muted">Kayit bulunamadi</td></tr>'; return; }
-      body.innerHTML = items.map(i => `<tr style="cursor:pointer" onclick="location.href='/inventory/software/${encodeURIComponent(i.name)}/agents'">
-        <td>${i.name}</td>
-        <td>${i.agent_count}</td>
-        <td>${(i.versions || []).join(', ') || '-'}</td>
-      </tr>`).join('');
+      if (!items.length) {
+        body.innerHTML = '<tr><td colspan="3" class="text-secondary">Kayit bulunamadi</td></tr>';
+        document.getElementById('page-info').textContent = `Sayfa ${currentPage}`;
+        document.getElementById('prev-btn').disabled = currentPage <= 1;
+        document.getElementById('next-btn').disabled = true;
+        return;
+      }
+
+      body.innerHTML = items.map((i) => `
+        <tr data-software-name="${esc(i.name)}">
+          <td class="fw-medium">${esc(i.name)}</td>
+          <td><span class="badge bg-blue-lt text-blue">${Number(i.agent_count || 0)}</span></td>
+          <td class="text-secondary">${esc((i.versions || []).join(', ') || '-')}</td>
+        </tr>
+      `).join('');
+
+      body.querySelectorAll('tr[data-software-name]').forEach((row) => {
+        row.addEventListener('click', () => {
+          const name = row.getAttribute('data-software-name') || '';
+          location.href = `/inventory/software/${encodeURIComponent(name)}/agents`;
+        });
+      });
+
       document.getElementById('page-info').textContent = `Sayfa ${currentPage}`;
       document.getElementById('prev-btn').disabled = currentPage <= 1;
       document.getElementById('next-btn').disabled = items.length < perPage;
@@ -47,9 +109,24 @@
     }
   }
 
-  function changePage(d) { currentPage = Math.max(1, currentPage + d); loadSoftware(); }
+  function changePage(d) {
+    currentPage = Math.max(1, currentPage + d);
+    loadSoftware();
+  }
 
-  document.getElementById('search').addEventListener('keydown', e => { if (e.key === 'Enter') { currentPage = 1; loadSoftware(); } });
+  document.getElementById('search-btn').addEventListener('click', () => {
+    currentPage = 1;
+    loadSoftware();
+  });
+  document.getElementById('prev-btn').addEventListener('click', () => changePage(-1));
+  document.getElementById('next-btn').addEventListener('click', () => changePage(1));
+  document.getElementById('search').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      currentPage = 1;
+      loadSoftware();
+    }
+  });
+
   loadSoftware();
 </script>
 {% endblock %}

@@ -1,195 +1,241 @@
 {% extends 'base.html' %}
 {% block title %}Uygulamalar{% endblock %}
+{% block page_title %}Uygulamalar{% endblock %}
+{% block page_actions %}
+<div class="btn-list">
+  <button class="btn btn-primary btn-sm" id="apps-new-btn" type="button" data-required-roles="operator,admin">
+    <i class="ti ti-upload me-1"></i>Yeni Yukle
+  </button>
+  <button class="btn btn-outline-primary btn-sm" id="apps-refresh-btn" type="button">
+    <i class="ti ti-refresh me-1"></i>Yenile
+  </button>
+</div>
+{% endblock %}
 {% block content %}
 <style>
+  .apps-toolbar .input-icon-addon .icon {
+    width: 18px;
+    height: 18px;
+  }
   .apps-modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(21, 34, 56, 0.45);
+    background: rgba(15, 23, 42, 0.48);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 998;
+    z-index: 1050;
     padding: 16px;
   }
   .apps-modal-backdrop.hidden {
     display: none;
   }
-  .apps-modal {
+  .apps-modal-dialog {
     width: 100%;
-    max-width: 860px;
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    box-shadow: var(--shadow);
-    padding: 18px;
-    max-height: 92vh;
+    max-width: 900px;
+    max-height: calc(100vh - 2rem);
     overflow: auto;
   }
-  .apps-modal-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 10px;
+  .apps-modal-dialog.narrow {
+    max-width: 560px;
   }
-  .apps-modal-head h3 {
-    margin: 0;
+  .apps-table .col-actions {
+    width: 1%;
+    white-space: nowrap;
   }
 </style>
 
 <div class="card">
-  <div class="row spread wrap">
-    <h3 style="margin: 0;">Uygulamalar</h3>
-    <div class="row">
-      <button class="btn" id="apps-new-btn" type="button" data-required-roles="operator,admin">Yeni Yukle</button>
-      <button class="btn secondary" id="apps-refresh-btn" type="button">Yenile</button>
+  <div class="card-header">
+    <div class="row g-2 w-100 apps-toolbar">
+      <div class="col-12 col-md-5">
+        <div class="input-icon">
+          <span class="input-icon-addon"><i class="ti ti-search icon"></i></span>
+          <input id="apps-search" class="form-control" placeholder="Ara: ad / versiyon / kategori" autocomplete="off" />
+        </div>
+      </div>
+      <div class="col-12 col-md-3">
+        <select id="apps-filter-active" class="form-select">
+          <option value="all">Tum Durumlar</option>
+          <option value="active">Sadece Aktif</option>
+          <option value="inactive">Sadece Pasif</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-4">
+        <select id="apps-sort" class="form-select">
+          <option value="id_desc">ID (Yeni -> Eski)</option>
+          <option value="id_asc">ID (Eski -> Yeni)</option>
+          <option value="name_asc">Ad (A-Z)</option>
+          <option value="name_desc">Ad (Z-A)</option>
+          <option value="version_asc">Versiyon (A-Z)</option>
+          <option value="version_desc">Versiyon (Z-A)</option>
+        </select>
+      </div>
     </div>
   </div>
-  <div class="row wrap" style="margin:10px 0; gap:10px;">
-    <input id="apps-search" style="max-width:320px;" placeholder="Ara: ad / versiyon / kategori" autocomplete="off" />
-    <select id="apps-filter-active" style="max-width:180px;">
-      <option value="all">Tum Durumlar</option>
-      <option value="active">Sadece Aktif</option>
-      <option value="inactive">Sadece Pasif</option>
-    </select>
-    <select id="apps-sort" style="max-width:220px;">
-      <option value="id_desc">ID (Yeni -> Eski)</option>
-      <option value="id_asc">ID (Eski -> Yeni)</option>
-      <option value="name_asc">Ad (A-Z)</option>
-      <option value="name_desc">Ad (Z-A)</option>
-      <option value="version_asc">Versiyon (A-Z)</option>
-      <option value="version_desc">Versiyon (Z-A)</option>
-    </select>
-  </div>
-  <div class="table-wrap">
-    <table>
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter apps-table">
       <thead>
         <tr>
-          <th>ID</th><th>Ikon</th><th>Ad</th><th>Versiyon</th><th>Param.</th><th>Tip</th><th>Boyut</th><th></th>
+          <th>ID</th>
+          <th>Ikon</th>
+          <th>Ad</th>
+          <th>Versiyon</th>
+          <th>Param.</th>
+          <th>Tip</th>
+          <th>Boyut</th>
+          <th class="col-actions"></th>
         </tr>
       </thead>
-      <tbody id="app-rows"></tbody>
+      <tbody id="app-rows">
+        <tr><td colspan="8" class="text-secondary">Yukleniyor...</td></tr>
+      </tbody>
     </table>
   </div>
 </div>
 
 <div id="app-create-modal" class="apps-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
-  <div class="apps-modal">
-    <div class="apps-modal-head">
-      <h3>Yeni Uygulama Yukle</h3>
+  <div class="apps-modal-dialog">
+    <div class="card mb-0 ac-modal-success">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Yeni Uygulama Yukle</h3>
+        <button class="btn btn-outline-secondary btn-sm" id="app-create-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
+      </div>
+      <div class="card-body">
+        <div class="ac-modal-status-block">
+          <span class="ac-modal-status-icon success"><i class="ti ti-upload"></i></span>
+          <div class="text-secondary">Kurulum dosyasi ve metadata bilgilerini girerek yeni uygulama paketini sisteme ekleyin.</div>
+        </div>
+        <form id="app-create-form" class="row g-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label">Gorunen Ad</label>
+            <input class="form-control" name="display_name" required />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Versiyon</label>
+            <input class="form-control" name="version" required />
+          </div>
+          <div class="col-12">
+            <label class="form-label">Aciklama</label>
+            <textarea class="form-control" name="description" rows="2"></textarea>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Parametreler</label>
+            <input class="form-control" name="install_args" placeholder="/S /qn" />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Kaldirma Parametreleri</label>
+            <input class="form-control" name="uninstall_args" placeholder="/uninstall /quiet" />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Uygulama Ikonu (opsiyonel)</label>
+            <input class="form-control" name="icon" type="file" accept=".png,.jpg,.jpeg,.webp,.svg" />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Kurulum Dosyasi (.msi / .exe)</label>
+            <input class="form-control" name="file" type="file" accept=".msi,.exe" required />
+          </div>
+          <div class="col-12 d-flex justify-content-end">
+            <div class="btn-list">
+              <button class="btn btn-outline-secondary" type="button" id="app-create-cancel-btn-2"><i class="ti ti-x me-1"></i>Iptal</button>
+              <button class="btn btn-primary" type="submit"><i class="ti ti-upload me-1"></i>Yukle</button>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
-    <form id="app-create-form" class="grid">
-      <div class="grid cols-2">
-        <div>
-          <label>Gorunen Ad</label>
-          <input name="display_name" required />
-        </div>
-        <div>
-          <label>Versiyon</label>
-          <input name="version" required />
-        </div>
-      </div>
-      <div>
-        <label>Aciklama</label>
-        <textarea name="description"></textarea>
-      </div>
-      <div class="grid cols-2">
-        <div>
-          <label>Parametreler</label>
-          <input name="install_args" placeholder="/S /qn" />
-        </div>
-        <div>
-          <label>Kaldirma Parametreleri</label>
-          <input name="uninstall_args" placeholder="/uninstall /quiet" />
-        </div>
-      </div>
-      <div class="grid cols-2">
-        <div>
-          <label>Uygulama Ikonu (opsiyonel)</label>
-          <input name="icon" type="file" accept=".png,.jpg,.jpeg,.webp,.svg" />
-        </div>
-        <div>
-          <label>Kurulum Dosyasi (.msi / .exe)</label>
-          <input name="file" type="file" accept=".msi,.exe" required />
-        </div>
-      </div>
-      <div class="row" style="justify-content:flex-end;">
-        <button class="btn secondary" id="app-create-cancel-btn" type="button">Iptal</button>
-        <button class="btn" type="submit">Yukle</button>
-      </div>
-    </form>
   </div>
 </div>
 
 <div id="app-edit-modal" class="apps-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
-  <div class="apps-modal">
-    <div class="apps-modal-head">
-      <h3>Uygulama Duzenle</h3>
+  <div class="apps-modal-dialog">
+    <div class="card mb-0 ac-modal-warning">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Uygulama Duzenle</h3>
+        <button class="btn btn-outline-secondary btn-sm" id="app-edit-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
+      </div>
+      <div class="card-body">
+        <div class="ac-modal-status-block">
+          <span class="ac-modal-status-icon warning"><i class="ti ti-alert-triangle"></i></span>
+          <div class="text-secondary">Versiyon, parametre veya gorunurluk degisiklikleri dagitim ve store davranisini etkileyebilir.</div>
+        </div>
+        <form id="app-edit-form" class="row g-3">
+          <input type="hidden" name="id" />
+          <div class="col-12 col-md-6">
+            <label class="form-label">Gorunen Ad</label>
+            <input class="form-control" name="display_name" required />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Versiyon</label>
+            <input class="form-control" name="version" required />
+          </div>
+          <div class="col-12">
+            <label class="form-label">Aciklama</label>
+            <textarea class="form-control" name="description" rows="2"></textarea>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Parametreler</label>
+            <input class="form-control" name="install_args" placeholder="/S /qn" />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Kaldirma Parametreleri</label>
+            <input class="form-control" name="uninstall_args" placeholder="/uninstall /quiet" />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Kategori</label>
+            <input class="form-control" name="category" />
+          </div>
+          <div class="col-12 col-md-6 d-flex align-items-end">
+            <div class="form-check me-3">
+              <input class="form-check-input" type="checkbox" name="is_visible_in_store" id="is_visible_in_store" />
+              <label class="form-check-label" for="is_visible_in_store">Store'da gorunsun</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="is_active" id="is_active" />
+              <label class="form-check-label" for="is_active">Aktif</label>
+            </div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Ikon Degistir (opsiyonel)</label>
+            <input class="form-control" name="icon" type="file" accept=".png,.jpg,.jpeg,.webp,.svg" />
+          </div>
+          <div class="col-12 col-md-6 d-flex align-items-end">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="remove_icon" id="remove_icon" />
+              <label class="form-check-label" for="remove_icon">Ikonu kaldir</label>
+            </div>
+          </div>
+          <div class="col-12 d-flex justify-content-end">
+            <div class="btn-list">
+              <button class="btn btn-outline-secondary" type="button" id="app-edit-cancel-btn-2"><i class="ti ti-x me-1"></i>Iptal</button>
+              <button class="btn btn-primary" type="submit"><i class="ti ti-device-floppy me-1"></i>Kaydet</button>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
-    <form id="app-edit-form" class="grid">
-      <input type="hidden" name="id" />
-      <div class="grid cols-2">
-        <div>
-          <label>Gorunen Ad</label>
-          <input name="display_name" required />
-        </div>
-        <div>
-          <label>Versiyon</label>
-          <input name="version" required />
-        </div>
-      </div>
-      <div>
-        <label>Aciklama</label>
-        <textarea name="description"></textarea>
-      </div>
-      <div class="grid cols-2">
-        <div>
-          <label>Parametreler</label>
-          <input name="install_args" placeholder="/S /qn" />
-        </div>
-        <div>
-          <label>Kaldirma Parametreleri</label>
-          <input name="uninstall_args" placeholder="/uninstall /quiet" />
-        </div>
-      </div>
-      <div class="grid cols-2">
-        <div>
-          <label>Kategori</label>
-          <input name="category" />
-        </div>
-        <div class="row wrap" style="margin-top: 26px;">
-          <label><input type="checkbox" name="is_visible_in_store" /> Store'da gorunsun</label>
-          <label><input type="checkbox" name="is_active" /> Aktif</label>
-        </div>
-      </div>
-      <div class="grid cols-2">
-        <div>
-          <label>Ikon Degistir (opsiyonel)</label>
-          <input name="icon" type="file" accept=".png,.jpg,.jpeg,.webp,.svg" />
-        </div>
-        <div class="row wrap" style="margin-top:26px;">
-          <label><input type="checkbox" name="remove_icon" /> Ikonu kaldir</label>
-        </div>
-      </div>
-      <div class="row" style="justify-content:flex-end;">
-        <button class="btn secondary" id="app-edit-cancel-btn" type="button">Iptal</button>
-        <button class="btn" type="submit">Kaydet</button>
-      </div>
-    </form>
   </div>
 </div>
 
 <div id="app-delete-modal" class="apps-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
-  <div class="apps-modal" style="max-width:520px;">
-    <div class="apps-modal-head">
-      <h3>Silme Onayi</h3>
-      <button class="btn secondary" id="app-delete-close-btn" type="button">Kapat</button>
-    </div>
-    <div class="grid">
-      <div id="app-delete-message" class="muted"></div>
-      <div class="row" style="justify-content:flex-end;">
-        <button class="btn secondary" id="app-delete-cancel-btn" type="button">Iptal</button>
-        <button class="btn danger" id="app-delete-confirm-btn" type="button">Sil</button>
+  <div class="apps-modal-dialog narrow">
+    <div class="card mb-0 ac-modal-warning">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Silme Onayi</h3>
+        <button class="btn btn-outline-secondary btn-sm" id="app-delete-close-btn" type="button"><i class="ti ti-x me-1"></i>Kapat</button>
+      </div>
+      <div class="card-body">
+        <div class="ac-modal-status-block">
+          <span class="ac-modal-status-icon warning"><i class="ti ti-alert-triangle"></i></span>
+          <div class="text-secondary">Bu islem geri alinamaz. Silmeden once uygulamanin aktif dagitimda olmadigini kontrol edin.</div>
+        </div>
+        <p id="app-delete-message" class="text-secondary mb-4"></p>
+        <div class="d-flex justify-content-end">
+          <div class="btn-list">
+            <button class="btn btn-outline-secondary" id="app-delete-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
+            <button class="btn btn-danger" id="app-delete-confirm-btn" type="button"><i class="ti ti-trash me-1"></i>Sil</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -259,20 +305,42 @@
       rows.innerHTML = '';
       appById.clear();
       appItems.forEach((app) => appById.set(Number(app.id), app));
-      applyAppListFilters(appItems).forEach((app) => {
+
+      const filtered = applyAppListFilters(appItems);
+      if (!filtered.length) {
+        rows.innerHTML = '<tr><td colspan="8" class="text-secondary">Kayit yok</td></tr>';
+        return;
+      }
+
+      filtered.forEach((app) => {
         const tr = document.createElement('tr');
+        const stateBadge = app.is_active
+          ? '<span class="badge bg-green-lt text-green">aktif</span>'
+          : '<span class="badge bg-secondary-lt text-secondary">pasif</span>';
         tr.innerHTML = `
           <td>${app.id}</td>
-          <td>${app.icon_url ? `<img src="${esc(app.icon_url)}" alt="icon" style="width:42px;height:42px;border-radius:6px;object-fit:cover;border:1px solid #dbe3ef;" />` : '-'}</td>
-          <td>${esc(app.display_name)}</td>
+          <td>${app.icon_url
+            ? `<span class="avatar avatar-sm" style="background-image:url('${esc(app.icon_url)}')"></span>`
+            : '<span class="avatar avatar-sm">-</span>'}</td>
+          <td>
+            <div class="fw-medium">${esc(app.display_name)}</div>
+            <div class="text-secondary">${esc(app.category || 'kategori yok')}</div>
+          </td>
           <td>${esc(app.version)}</td>
-          <td>${esc(app.install_args || '-')}</td>
-          <td>${esc(app.file_type)}</td>
+          <td class="text-secondary">${esc(app.install_args || '-')}</td>
+          <td>
+            <div>${esc(app.file_type || '-')}</div>
+            <div class="mt-1">${stateBadge}</div>
+          </td>
           <td>${formatBytes(app.file_size_bytes)}</td>
-          <td class="row">${canWrite
-            ? `<button class="btn secondary" type="button" data-action="edit" data-id="${app.id}">Duzenle</button>
-               <button class="btn danger" type="button" data-action="delete" data-id="${app.id}">Sil</button>`
-            : '-'}</td>
+          <td class="col-actions">
+            ${canWrite
+              ? `<div class="btn-list flex-nowrap">
+                   <button class="btn btn-outline-secondary btn-sm" type="button" data-action="edit" data-id="${app.id}"><i class="ti ti-edit me-1"></i>Duzenle</button>
+                   <button class="btn btn-outline-danger btn-sm" type="button" data-action="delete" data-id="${app.id}"><i class="ti ti-trash me-1"></i>Sil</button>
+                 </div>`
+              : '-'}
+          </td>
         `;
         rows.appendChild(tr);
       });
@@ -321,7 +389,9 @@
   document.getElementById('apps-sort').addEventListener('change', () => loadApps());
 
   document.getElementById('app-create-cancel-btn').addEventListener('click', () => closeModal(createModal));
+  document.getElementById('app-create-cancel-btn-2').addEventListener('click', () => closeModal(createModal));
   document.getElementById('app-edit-cancel-btn').addEventListener('click', () => closeModal(editModal));
+  document.getElementById('app-edit-cancel-btn-2').addEventListener('click', () => closeModal(editModal));
   document.getElementById('app-delete-close-btn').addEventListener('click', () => closeModal(deleteModal));
   document.getElementById('app-delete-cancel-btn').addEventListener('click', () => closeModal(deleteModal));
 

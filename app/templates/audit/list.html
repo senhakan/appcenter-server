@@ -1,36 +1,84 @@
 {% extends 'base.html' %}
 {% block title %}Audit Log{% endblock %}
+{% block page_title %}Audit Log{% endblock %}
+{% block page_actions %}
+<div class="btn-list" data-required-roles="admin">
+  <button class="btn btn-outline-primary btn-sm" id="audit-refresh-btn" type="button">
+    <i class="ti ti-refresh me-1"></i>Yenile
+  </button>
+</div>
+{% endblock %}
 {% block content %}
+<style>
+  .audit-toolbar .input-icon-addon .icon {
+    width: 18px;
+    height: 18px;
+  }
+  .audit-detail-pre {
+    max-width: 460px;
+    max-height: 180px;
+    overflow: auto;
+    margin: 0;
+    white-space: pre-wrap;
+  }
+</style>
+
 <div class="card" data-required-roles="admin">
-  <div class="row spread wrap">
-    <h3 style="margin: 0;">Audit Log</h3>
-    <button class="btn secondary" id="audit-refresh-btn" type="button">Yenile</button>
+  <div class="card-header">
+    <div class="row g-2 w-100 audit-toolbar">
+      <div class="col-12 col-md-3">
+        <div class="input-icon">
+          <span class="input-icon-addon"><i class="ti ti-user icon"></i></span>
+          <input id="audit-user" class="form-control" placeholder="Kullanici ara" />
+        </div>
+      </div>
+      <div class="col-12 col-md-3">
+        <div class="input-icon">
+          <span class="input-icon-addon"><i class="ti ti-bolt icon"></i></span>
+          <input id="audit-action" class="form-control" placeholder="Action ara" />
+        </div>
+      </div>
+      <div class="col-12 col-md-3">
+        <div class="input-icon">
+          <span class="input-icon-addon"><i class="ti ti-database icon"></i></span>
+          <input id="audit-resource" class="form-control" placeholder="Resource ara" />
+        </div>
+      </div>
+      <div class="col-6 col-md-1">
+        <input id="audit-created-from" class="form-control" type="date" title="Baslangic" />
+      </div>
+      <div class="col-6 col-md-1">
+        <input id="audit-created-to" class="form-control" type="date" title="Bitis" />
+      </div>
+      <div class="col-12 col-md-1 d-grid">
+        <button class="btn btn-outline-primary" id="audit-filter-btn" type="button"><i class="ti ti-filter me-1"></i>Filtrele</button>
+      </div>
+    </div>
   </div>
-  <div class="row wrap" style="margin: 10px 0;">
-    <input id="audit-user" placeholder="Kullanici ara" style="max-width:220px;" />
-    <input id="audit-action" placeholder="Action ara" style="max-width:220px;" />
-    <input id="audit-resource" placeholder="Resource ara" style="max-width:220px;" />
-    <label for="audit-created-from" class="muted">Baslangic</label>
-    <input id="audit-created-from" type="date" style="max-width:170px;" />
-    <label for="audit-created-to" class="muted">Bitis</label>
-    <input id="audit-created-to" type="date" style="max-width:170px;" />
-    <button class="btn secondary" id="audit-filter-btn" type="button">Filtrele</button>
-  </div>
-  <div class="table-wrap">
-    <table>
+
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter">
       <thead>
         <tr>
-          <th>Tarih</th><th>Kullanici</th><th>Action</th><th>Resource</th><th>Resource ID</th><th>Detay</th>
+          <th>Tarih</th>
+          <th>Kullanici</th>
+          <th>Action</th>
+          <th>Resource</th>
+          <th>Resource ID</th>
+          <th><i class="ti ti-eye me-1"></i>Detay</th>
         </tr>
       </thead>
-      <tbody id="audit-rows"></tbody>
+      <tbody id="audit-rows">
+        <tr><td colspan="6" class="text-secondary">Yukleniyor...</td></tr>
+      </tbody>
     </table>
   </div>
-  <div class="row spread wrap" style="margin-top:10px;">
-    <div class="muted" id="audit-page-info">-</div>
-    <div class="row">
-      <button id="audit-prev" class="btn secondary" type="button">Onceki</button>
-      <button id="audit-next" class="btn secondary" type="button">Sonraki</button>
+
+  <div class="card-footer d-flex align-items-center justify-content-between">
+    <div class="text-secondary" id="audit-page-info">-</div>
+    <div class="btn-list">
+      <button id="audit-prev" class="btn btn-outline-secondary btn-sm" type="button"><i class="ti ti-chevron-left me-1"></i>Onceki</button>
+      <button id="audit-next" class="btn btn-outline-secondary btn-sm" type="button"><i class="ti ti-chevron-right me-1"></i>Sonraki</button>
     </div>
   </div>
 </div>
@@ -79,16 +127,17 @@
     } catch (_) {
       parsed = null;
     }
+
     const shortText = parsed
       ? JSON.stringify(parsed).slice(0, 120)
       : (detailsJson || '{}').toString().slice(0, 120);
-    const btnLabel = 'Detay';
+
     return `
-      <button class="btn secondary" type="button" data-audit-toggle="${rowId}">${btnLabel}</button>
-      <div id="audit-detail-${rowId}" class="hidden" style="margin-top:6px;">
-        <pre style="max-width:420px; max-height:160px; overflow:auto; margin:0; white-space:pre-wrap;">${esc(pretty || detailsJson || '{}')}</pre>
+      <button class="btn btn-outline-secondary btn-sm" type="button" data-audit-toggle="${rowId}"><i class="ti ti-eye me-1"></i>Detay</button>
+      <div id="audit-detail-${rowId}" class="d-none mt-2">
+        <pre class="audit-detail-pre">${esc(pretty || detailsJson || '{}')}</pre>
       </div>
-      <div class="muted" style="margin-top:4px;">${esc(shortText)}${(shortText.length >= 120 ? '...' : '')}</div>
+      <div class="text-secondary mt-1">${esc(shortText)}${(shortText.length >= 120 ? '...' : '')}</div>
     `;
   }
 
@@ -99,8 +148,9 @@
       rows.innerHTML = '';
       const items = data.items || [];
       currentTotal = Number(data.total || 0);
+
       if (!items.length) {
-        rows.innerHTML = '<tr><td colspan="6" class="muted">Kayit yok</td></tr>';
+        rows.innerHTML = '<tr><td colspan="6" class="text-secondary">Kayit yok</td></tr>';
       } else {
         items.forEach((item) => {
           const tr = document.createElement('tr');
@@ -115,15 +165,17 @@
           `;
           rows.appendChild(tr);
         });
+
         rows.querySelectorAll('[data-audit-toggle]').forEach((btn) => {
           btn.addEventListener('click', () => {
             const rowId = btn.getAttribute('data-audit-toggle') || '';
             const detail = document.getElementById(`audit-detail-${rowId}`);
             if (!detail) return;
-            detail.classList.toggle('hidden');
+            detail.classList.toggle('d-none');
           });
         });
       }
+
       const from = currentTotal ? currentOffset + 1 : 0;
       const to = Math.min(currentOffset + LIMIT, currentTotal);
       document.getElementById('audit-page-info').textContent = `${from}-${to} / ${currentTotal}`;
@@ -149,6 +201,7 @@
     currentOffset += LIMIT;
     loadAudit();
   });
+
   ['audit-user', 'audit-action', 'audit-resource', 'audit-created-from', 'audit-created-to'].forEach((id) => {
     document.getElementById(id).addEventListener('keydown', (evt) => {
       if (evt.key !== 'Enter') return;

@@ -1,10 +1,13 @@
 {% extends 'base.html' %}
 {% block title %}Ajanlar{% endblock %}
+{% block page_title %}Ajanlar{% endblock %}
+{% block page_actions %}
+<button class="btn btn-outline-primary btn-sm" type="button" onclick="loadAgents()">
+  <i class="ti ti-refresh me-1"></i>Yenile
+</button>
+{% endblock %}
 {% block content %}
 <style>
-  #agent-rows tr:hover {
-    background: rgba(15, 98, 254, 0.08);
-  }
   .agent-host-wrap {
     display: inline-flex;
     align-items: center;
@@ -50,11 +53,27 @@
   .note-chip:hover::after {
     opacity: 1;
   }
-  .agents-table .col-remote,
-  #agent-rows .js-col-remote {
-    min-width: 130px;
-    width: 130px;
+  .agents-toolbar .form-control,
+  .agents-toolbar .form-select {
+    min-height: 2rem;
+  }
+  .agents-toolbar-row {
+    flex-wrap: nowrap;
+  }
+  @media (max-width: 991.98px) {
+    .agents-toolbar-row {
+      flex-wrap: wrap;
+    }
+  }
+  .agents-table .col-remote {
+    min-width: 120px;
     white-space: nowrap;
+  }
+  .agents-table .col-actions {
+    min-width: 180px;
+  }
+  .agents-table tbody tr:hover {
+    background: var(--tblr-bg-surface-secondary, #f6f8fb);
   }
   .rs-request-modal-backdrop {
     position: fixed;
@@ -83,61 +102,74 @@
   }
 </style>
 <div class="card">
-  <div class="row spread wrap">
-    <h3 style="margin: 0;">Ajan Listesi</h3>
-    <button class="btn secondary" onclick="loadAgents()">Yenile</button>
-  </div>
-  <div class="row wrap" style="margin:10px 0;">
-    <input
-      id="agent-search"
-      style="max-width:420px;"
-      placeholder="Ara: hostname / login kullanici / IP"
-      autocomplete="off"
-    />
-    <select id="agent-status-filter" style="max-width:180px;">
+  <div class="card-header">
+    <div class="row g-2 align-items-center w-100 agents-toolbar agents-toolbar-row">
+      <div class="col-12 col-lg-6">
+        <div class="input-icon">
+          <span class="input-icon-addon"><i class="ti ti-search"></i></span>
+          <input
+            id="agent-search"
+            class="form-control"
+            placeholder="Ara: hostname / login kullanici / IP"
+            autocomplete="off"
+          />
+        </div>
+      </div>
+      <div class="col-12 col-lg-3">
+        <select id="agent-status-filter" class="form-select">
       <option value="all">Tum Durumlar</option>
       <option value="online">Sadece Online</option>
       <option value="offline">Sadece Offline</option>
     </select>
-    <select id="agent-sort" style="max-width:220px;">
+      </div>
+      <div class="col-12 col-lg-3">
+        <select id="agent-sort" class="form-select">
+      <option value="hostname_asc" selected>Hostname (A-Z)</option>
+      <option value="hostname_desc">Hostname (Z-A)</option>
       <option value="last_seen_desc">Son Gorulme (Yeni -> Eski)</option>
       <option value="last_seen_asc">Son Gorulme (Eski -> Yeni)</option>
-      <option value="hostname_asc">Hostname (A-Z)</option>
-      <option value="hostname_desc">Hostname (Z-A)</option>
     </select>
+      </div>
+    </div>
   </div>
-  <div class="table-wrap">
-    <table class="agents-table">
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter agents-table">
       <thead>
         <tr>
-          <th>Hostname</th><th>Login Kullanici</th><th>IP</th><th>Durum</th><th class="col-remote">Remote</th><th>Helper</th><th>Version</th><th></th>
+          <th>Hostname</th><th>Login Kullanici</th><th>IP</th><th>Durum</th><th class="col-remote">Remote</th><th>Helper</th><th>Version</th><th class="col-actions"></th>
         </tr>
       </thead>
       <tbody id="agent-rows"></tbody>
     </table>
   </div>
-  <div class="row spread wrap" style="margin-top:10px;">
-    <div class="muted" id="agent-page-info">-</div>
-    <div class="row">
-      <button id="agent-prev" class="btn secondary" type="button">Onceki</button>
-      <button id="agent-next" class="btn secondary" type="button">Sonraki</button>
+  <div class="card-footer d-flex align-items-center justify-content-between">
+    <div class="text-secondary" id="agent-page-info">-</div>
+    <div class="btn-list">
+      <button id="agent-prev" class="btn btn-outline-secondary btn-sm" type="button"><i class="ti ti-chevron-left me-1"></i>Onceki</button>
+      <button id="agent-next" class="btn btn-outline-secondary btn-sm" type="button"><i class="ti ti-chevron-right me-1"></i>Sonraki</button>
     </div>
   </div>
 </div>
 
 <div id="rs-request-modal" class="rs-request-modal-backdrop hidden" aria-live="polite">
-  <div class="rs-request-modal">
-    <div class="row spread wrap" style="margin-bottom:10px;">
-      <h3 style="margin:0;">Baglanti Talebi</h3>
+  <div class="rs-request-modal ac-modal-warning">
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <h3 class="card-title mb-0">Baglanti Talebi</h3>
     </div>
-    <div id="rs-request-target" class="muted" style="margin-bottom:10px;">-</div>
+    <div class="ac-modal-status-block">
+      <span class="ac-modal-status-icon warning"><i class="ti ti-alert-triangle"></i></span>
+      <div class="text-secondary">Kullaniciya baglanti onayi bildirimi gidecek. Aciklama alani zorunlu olarak doldurulmalidir.</div>
+    </div>
+    <div id="rs-request-target" class="text-secondary mb-2">-</div>
     <div>
-      <label for="rs-request-reason">Baglanti talebi icin aciklama giriniz.</label>
-      <textarea id="rs-request-reason" maxlength="500" placeholder="Ornek: Kullanici talebi ile uzaktan destek"></textarea>
+      <label class="form-label" for="rs-request-reason">Baglanti talebi icin aciklama giriniz.</label>
+      <textarea class="form-control" id="rs-request-reason" maxlength="500" placeholder="Ornek: Kullanici talebi ile uzaktan destek"></textarea>
     </div>
-    <div class="row" style="justify-content:flex-end; margin-top:12px; gap:8px;">
-      <button class="btn secondary" id="rs-request-cancel-btn" type="button">Iptal</button>
-      <button class="btn" id="rs-request-send-btn" type="button">Talep Gonder</button>
+    <div class="d-flex justify-content-end mt-3">
+      <div class="btn-list">
+        <button class="btn btn-outline-secondary" id="rs-request-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
+        <button class="btn btn-primary" id="rs-request-send-btn" type="button"><i class="ti ti-send me-1"></i>Talep Gonder</button>
+      </div>
     </div>
   </div>
 </div>
@@ -183,7 +215,7 @@
   function applyFilter() {
     const q = (document.getElementById('agent-search').value || '').toLowerCase().trim();
     const statusFilter = (document.getElementById('agent-status-filter').value || 'all').toLowerCase();
-    const sortMode = (document.getElementById('agent-sort').value || 'last_seen_desc').toLowerCase();
+    const sortMode = (document.getElementById('agent-sort').value || 'hostname_asc').toLowerCase();
     filteredAgents = allAgents.filter((agent) => {
       const hostname = (agent.hostname || '').toLowerCase();
       const ip = (agent.ip_address || '').toLowerCase();
@@ -276,8 +308,8 @@
       const rsState = agent.remote_support_state || '-';
       const rsUpdated = agent.remote_support_updated_at ? AppCenterApi.formatDate(agent.remote_support_updated_at) : '-';
       const helperHtml = agent.remote_support_helper_running
-        ? '<span class="badge ok">ok</span>'
-        : '-';
+        ? '<span class="badge bg-green-lt text-green">ok</span>'
+        : '<span class="badge bg-secondary-lt text-secondary">-</span>';
       const connectState = connectButtonState(agent);
       tr.innerHTML = `
         <td class="js-col-host">
@@ -288,15 +320,15 @@
         </td>
         <td class="js-col-login">${esc(getLoginUsers(agent))}</td>
         <td class="js-col-ip">${esc(agent.ip_address || '-')}</td>
-        <td class="js-col-status"><span class="badge ${agent.status === 'online' ? 'ok' : 'warn'}" title="${esc(seenRel)}" style="cursor: help;">${esc(agent.status || '-')}</span></td>
-        <td class="js-col-remote" title="${esc(rsUpdated)}" style="cursor: help;">${esc(rsState)}</td>
+        <td class="js-col-status"><span class="badge ${agent.status === 'online' ? 'bg-green-lt text-green' : 'bg-red-lt text-red'}" title="${esc(seenRel)}" style="cursor: help;">${esc(agent.status || '-')}</span></td>
+        <td class="js-col-remote" title="${esc(rsUpdated)}" style="cursor: help;"><span class="badge bg-blue-lt text-blue">${esc(rsState)}</span></td>
         <td class="js-col-helper">${helperHtml}</td>
         <td class="js-col-version">${esc(agent.version || '-')}</td>
         <td>
-          <div class="row" style="gap:6px; flex-wrap:nowrap;">
-            <a class="btn secondary" href="/agents/${encodeURIComponent(agent.uuid)}">Detay</a>
+          <div class="btn-list flex-nowrap">
+            <a class="btn btn-outline-secondary btn-sm" href="/agents/${encodeURIComponent(agent.uuid)}"><i class="ti ti-eye me-1"></i>Detay</a>
             ${canRemote ? `<button
-              class="${connectState.enabled ? 'btn' : 'btn secondary'} js-connect-remote"
+              class="${connectState.enabled ? 'btn btn-primary btn-sm' : 'btn btn-outline-secondary btn-sm'} js-connect-remote"
               type="button"
               data-agent-uuid="${esc(agent.uuid || '')}"
               data-agent-hostname="${esc(agent.hostname || '')}"
@@ -304,7 +336,7 @@
               data-connect-enabled="${connectState.enabled ? '1' : '0'}"
               ${connectState.title ? `title="${esc(connectState.title)}"` : ''}
               ${connectState.enabled ? '' : 'disabled'}
-            >Baglan</button>` : ''}
+            ><i class="ti ti-plug-connected me-1"></i>Baglan</button>` : ''}
           </div>
         </td>
       `;
@@ -312,7 +344,7 @@
     });
 
     if (!pageItems.length) {
-      rows.innerHTML = '<tr><td colspan="8" class="muted">Kayit yok</td></tr>';
+      rows.innerHTML = '<tr><td colspan="8" class="text-secondary">Kayit yok</td></tr>';
     }
 
     const from = total ? (start + 1) : 0;
@@ -349,16 +381,16 @@
       const rsState = agent.remote_support_state || '-';
       const rsUpdated = agent.remote_support_updated_at ? AppCenterApi.formatDate(agent.remote_support_updated_at) : '-';
       const helperHtml = agent.remote_support_helper_running
-        ? '<span class="badge ok">ok</span>'
-        : '-';
+        ? '<span class="badge bg-green-lt text-green">ok</span>'
+        : '<span class="badge bg-secondary-lt text-secondary">-</span>';
 
       const statusCol = row.querySelector('.js-col-status');
       if (statusCol) {
-        statusCol.innerHTML = `<span class="badge ${agent.status === 'online' ? 'ok' : 'warn'}" title="${esc(seenRel)}" style="cursor: help;">${esc(agent.status || '-')}</span>`;
+        statusCol.innerHTML = `<span class="badge ${agent.status === 'online' ? 'bg-green-lt text-green' : 'bg-red-lt text-red'}" title="${esc(seenRel)}" style="cursor: help;">${esc(agent.status || '-')}</span>`;
       }
       const remoteCol = row.querySelector('.js-col-remote');
       if (remoteCol) {
-        remoteCol.textContent = rsState;
+        remoteCol.innerHTML = `<span class="badge bg-blue-lt text-blue">${esc(rsState)}</span>`;
         remoteCol.title = rsUpdated;
       }
       const helperCol = row.querySelector('.js-col-helper');
@@ -372,7 +404,7 @@
       const btn = row.querySelector('.js-connect-remote');
       if (btn) {
         const connectState = connectButtonState(agent);
-        btn.className = `${connectState.enabled ? 'btn' : 'btn secondary'} js-connect-remote`;
+        btn.className = `${connectState.enabled ? 'btn btn-primary btn-sm' : 'btn btn-outline-secondary btn-sm'} js-connect-remote`;
         btn.setAttribute('data-agent-status', agent.status || '');
         btn.setAttribute('data-connect-enabled', connectState.enabled ? '1' : '0');
         if (connectState.title) btn.setAttribute('title', connectState.title);

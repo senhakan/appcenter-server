@@ -1,0 +1,64 @@
+<aside class="navbar navbar-vertical navbar-expand-md navbar-dark" data-bs-theme="dark">
+  <div class="container-fluid">
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <h1 class="navbar-brand navbar-brand-autodark">
+      <a href="/dashboard" class="text-decoration-none text-reset d-flex align-items-center">
+        <img src="/static/img/opview_logo.png?v={{ ASSET_VERSION }}" alt="AppCenter" class="navbar-brand-image me-2" />
+        <span>AppCenter</span>
+      </a>
+    </h1>
+    <div class="collapse navbar-collapse" id="sidebar-menu">
+      <ul class="navbar-nav pt-lg-3">
+        {% for item in NAV_GET_MENU(NAV_ROLE) %}
+          {% if item.children %}
+            {% set ns = namespace(has_active_child=false) %}
+            {% for child in item.children %}
+              {% if active_page in child.active_pages %}
+                {% set ns.has_active_child = true %}
+              {% endif %}
+            {% endfor %}
+            <li class="nav-item dropdown" data-nav-item data-roles="{{ (item.roles or [])|join(',') }}">
+              <a class="nav-link dropdown-toggle{% if ns.has_active_child %} show{% endif %}" href="#nav-{{ item.key }}" data-bs-toggle="dropdown" data-bs-auto-close="false" role="button" aria-expanded="{{ 'true' if ns.has_active_child else 'false' }}">
+                <span class="nav-link-icon">
+                  {% if item.key == 'management' %}<i class="ti ti-settings"></i>
+                  {% elif item.key == 'infrastructure' %}<i class="ti ti-building"></i>
+                  {% else %}<i class="ti ti-folder"></i>{% endif %}
+                </span>
+                <span class="nav-link-title">{{ item.title }}</span>
+              </a>
+              <div class="dropdown-menu{% if ns.has_active_child %} show{% endif %}">
+                {% for child in item.children %}
+                  {% if child.path %}
+                    <a class="dropdown-item{% if active_page in child.active_pages %} active{% endif %}" href="{{ child.path }}" data-nav-item data-roles="{{ (child.roles or [])|join(',') }}">
+                      {{ child.title }}
+                    </a>
+                  {% else %}
+                    <span class="dropdown-item disabled" data-nav-item data-roles="{{ (child.roles or [])|join(',') }}">{{ child.title }}</span>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </li>
+          {% else %}
+            <li class="nav-item" data-nav-item data-roles="{{ (item.roles or [])|join(',') }}">
+              <a class="nav-link{% if active_page in item.active_pages %} active{% endif %}" href="{{ item.path }}">
+                <span class="nav-link-icon">
+                  {% if item.key == 'dashboard' %}<i class="ti ti-dashboard"></i>
+                  {% elif item.key == 'agents' %}<i class="ti ti-devices"></i>
+                  {% elif item.key == 'groups' %}<i class="ti ti-users-group"></i>
+                  {% elif item.key == 'applications' %}<i class="ti ti-apps"></i>
+                  {% elif item.key == 'deployments' %}<i class="ti ti-rocket"></i>
+                  {% elif item.key == 'inventory' %}<i class="ti ti-list-details"></i>
+                  {% elif item.key == 'licenses' %}<i class="ti ti-license"></i>
+                  {% else %}<i class="ti ti-circle"></i>{% endif %}
+                </span>
+                <span class="nav-link-title">{{ item.title }}</span>
+              </a>
+            </li>
+          {% endif %}
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</aside>

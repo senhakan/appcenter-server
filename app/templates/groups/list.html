@@ -1,202 +1,216 @@
 {% extends 'base.html' %}
 {% block title %}Gruplar{% endblock %}
+{% block page_title %}Gruplar{% endblock %}
+{% block page_actions %}
+<div class="btn-list">
+  <button class="btn btn-outline-primary btn-sm" id="groups-refresh-btn" type="button">
+    <i class="ti ti-refresh me-1"></i>Yenile
+  </button>
+  <button class="btn btn-primary btn-sm" id="groups-new-btn" type="button" data-required-roles="operator,admin">
+    <i class="ti ti-plus me-1"></i>Yeni Grup
+  </button>
+</div>
+{% endblock %}
 {% block content %}
 <style>
-  .groups-card-head {
-    min-height: 38px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
-  }
-  .groups-card-head h3 {
-    margin: 0;
-  }
-  .groups-actions {
-    display: flex;
-    justify-content: flex-end;
-  }
-  .groups-hint {
-    font-size: 0.85rem;
-    color: var(--muted);
-  }
-  .transfer {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    gap: 12px;
-    align-items: center;
-  }
-  .transfer-actions {
-    display: grid;
-    gap: 8px;
-  }
-  .transfer select {
-    min-height: 260px;
-  }
-  .group-list-actions {
-    display: flex;
-    gap: 8px;
-  }
-  .group-list-toolbar {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    margin: 10px 0 12px;
-  }
-  .group-list-search {
-    max-width: 340px;
+  .groups-toolbar .input-icon-addon .icon {
+    width: 18px;
+    height: 18px;
   }
   .group-name {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 0.35rem;
   }
   .group-lock {
-    color: #8a6d1f;
-    font-size: 0.9rem;
+    color: var(--tblr-yellow, #f59f00);
+    font-size: 0.85rem;
+  }
+  .groups-table .col-actions {
+    width: 1%;
+    white-space: nowrap;
+  }
+  .transfer {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 0.75rem;
+    align-items: center;
+  }
+  .transfer-actions {
+    display: grid;
+    gap: 0.5rem;
+  }
+  .transfer select {
+    min-height: 280px;
   }
   .group-modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(21, 34, 56, 0.45);
+    background: rgba(15, 23, 42, 0.48);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 998;
+    z-index: 1050;
     padding: 16px;
   }
   .group-modal-backdrop.hidden {
     display: none;
   }
-  .group-modal {
+  .group-modal-dialog {
     width: 100%;
-    max-width: 520px;
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    box-shadow: var(--shadow);
-    padding: 18px;
-  }
-  .group-modal-title {
-    margin: 0 0 12px;
+    max-width: 560px;
   }
 </style>
 
 <div class="card">
-  <div class="groups-card-head">
-    <h3>Grup Listesi</h3>
-    <div class="group-list-actions">
-      <button class="btn secondary" id="groups-refresh-btn" type="button">Yenile</button>
-      <button class="btn" id="groups-new-btn" type="button" data-required-roles="operator,admin">Yeni Grup</button>
+  <div class="card-header">
+    <div class="row g-2 w-100 groups-toolbar">
+      <div class="col-12 col-md-5">
+        <div class="input-icon">
+          <span class="input-icon-addon"><i class="ti ti-search icon"></i></span>
+          <input id="group-search-input" class="form-control" type="text" placeholder="Grup ara: ad veya aciklama" />
+        </div>
+      </div>
+      <div class="col-12 col-md-3">
+        <select id="group-active-filter" class="form-select">
+          <option value="active">Sadece Aktif</option>
+          <option value="all">Tum Gruplar</option>
+          <option value="inactive">Sadece Pasif</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-4">
+        <select id="group-sort" class="form-select">
+          <option value="name_asc">Ad (A-Z)</option>
+          <option value="name_desc">Ad (Z-A)</option>
+          <option value="id_desc">ID (Yeni -> Eski)</option>
+          <option value="id_asc">ID (Eski -> Yeni)</option>
+          <option value="count_desc">Ajan Sayisi (Cok -> Az)</option>
+          <option value="count_asc">Ajan Sayisi (Az -> Cok)</option>
+        </select>
+      </div>
     </div>
   </div>
-  <div class="group-list-toolbar">
-    <input id="group-search-input" class="group-list-search" type="text" placeholder="Grup ara: ad veya aciklama" />
-    <select id="group-active-filter" style="max-width:180px;">
-      <option value="active">Sadece Aktif</option>
-      <option value="all">Tum Gruplar</option>
-      <option value="inactive">Sadece Pasif</option>
-    </select>
-    <select id="group-sort" style="max-width:220px;">
-      <option value="name_asc">Ad (A-Z)</option>
-      <option value="name_desc">Ad (Z-A)</option>
-      <option value="id_desc">ID (Yeni -> Eski)</option>
-      <option value="id_asc">ID (Eski -> Yeni)</option>
-      <option value="count_desc">Ajan Sayisi (Cok -> Az)</option>
-      <option value="count_asc">Ajan Sayisi (Az -> Cok)</option>
-    </select>
-  </div>
-  <div class="table-wrap">
-    <table>
+  <div id="group-table-wrap" class="table-responsive">
+    <table class="table card-table table-vcenter groups-table">
       <thead>
         <tr>
-          <th>ID</th><th>Grup Adi</th><th>Aciklama</th><th>Ajan Sayisi</th><th></th>
+          <th>ID</th>
+          <th>Grup Adi</th>
+          <th>Aciklama</th>
+          <th>Ajan Sayisi</th>
+          <th class="col-actions"></th>
         </tr>
       </thead>
-      <tbody id="group-rows"></tbody>
+      <tbody id="group-rows">
+        <tr><td colspan="5" class="text-secondary">Yukleniyor...</td></tr>
+      </tbody>
     </table>
   </div>
-  <div id="groups-empty-state" class="card hidden" style="margin-top: 12px;">
-    <div class="muted">Henuz grup yok, Yeni Grup ile baslayin.</div>
+  <div id="groups-empty-state" class="card-body text-secondary d-none">
+    Henuz grup yok, Yeni Grup ile baslayin.
   </div>
 </div>
 
-<div class="card" style="margin-top: 16px;" data-required-roles="operator,admin">
-  <div class="groups-card-head">
-    <h3>Gruba Ajan Ata</h3>
+<div class="card mt-3" data-required-roles="operator,admin">
+  <div class="card-header">
+    <h3 class="card-title mb-0">Gruba Ajan Ata</h3>
   </div>
-  <form id="group-assign-form" class="grid">
-    <div>
-      <label>Grup</label>
-      <select id="assign-group-id" required></select>
-    </div>
-    <div class="transfer">
-      <div>
-        <label>Atanmamis Ajanlar</label>
-        <select id="available-agent-uuids" multiple></select>
+  <div class="card-body">
+    <form id="group-assign-form" class="row g-3">
+      <div class="col-12 col-lg-4">
+        <label class="form-label">Grup</label>
+        <select id="assign-group-id" class="form-select" required></select>
       </div>
-      <div class="transfer-actions">
-        <button class="btn secondary" type="button" id="move-right-all">>></button>
-        <button class="btn secondary" type="button" id="move-right">></button>
-        <button class="btn secondary" type="button" id="move-left"><</button>
-        <button class="btn secondary" type="button" id="move-left-all"><<</button>
+      <div class="col-12">
+        <div class="transfer">
+          <div>
+            <label class="form-label">Atanmamis Ajanlar</label>
+            <select id="available-agent-uuids" class="form-select" multiple></select>
+          </div>
+          <div class="transfer-actions">
+            <button class="btn btn-outline-secondary btn-sm" type="button" id="move-right-all" title="Tumunu Ekle"><i class="ti ti-chevrons-right"></i></button>
+            <button class="btn btn-outline-secondary btn-sm" type="button" id="move-right" title="Secileni Ekle"><i class="ti ti-chevron-right"></i></button>
+            <button class="btn btn-outline-secondary btn-sm" type="button" id="move-left" title="Secileni Cikar"><i class="ti ti-chevron-left"></i></button>
+            <button class="btn btn-outline-secondary btn-sm" type="button" id="move-left-all" title="Tumunu Cikar"><i class="ti ti-chevrons-left"></i></button>
+          </div>
+          <div>
+            <label class="form-label">Gruptaki Ajanlar</label>
+            <select id="assigned-agent-uuids" class="form-select" multiple></select>
+          </div>
+        </div>
       </div>
-      <div>
-        <label>Gruptaki Ajanlar</label>
-        <select id="assigned-agent-uuids" multiple></select>
-      </div>
-    </div>
-    <div class="groups-hint" id="assign-summary"></div>
-    <div class="groups-actions">
-      <button class="btn" type="submit">Atamalari Kaydet</button>
-    </div>
-  </form>
-  </div>
-
-<div id="group-create-modal" class="group-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
-  <div class="group-modal">
-    <div class="groups-card-head">
-      <h3 class="group-modal-title">Yeni Grup</h3>
-      <button class="btn secondary" id="group-modal-close-btn" type="button">Kapat</button>
-    </div>
-    <form id="group-create-form" class="grid">
-      <div>
-        <label>Grup Adi</label>
-        <input name="name" required />
-      </div>
-      <div>
-        <label>Aciklama</label>
-        <input name="description" />
-      </div>
-      <div class="groups-actions">
-        <button class="btn secondary" id="group-modal-cancel-btn" type="button">Iptal</button>
-        <button class="btn" type="submit">Olustur</button>
+      <div class="col-12 text-secondary" id="assign-summary"></div>
+      <div class="col-12 d-flex justify-content-end">
+        <button class="btn btn-primary" type="submit"><i class="ti ti-device-floppy me-1"></i>Atamalari Kaydet</button>
       </div>
     </form>
+  </div>
+</div>
+
+<div id="group-create-modal" class="group-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
+  <div class="group-modal-dialog">
+    <div class="card mb-0 ac-modal-success">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Yeni Grup</h3>
+        <button class="btn btn-outline-secondary btn-sm" id="group-modal-close-btn" type="button"><i class="ti ti-x me-1"></i>Kapat</button>
+      </div>
+      <div class="card-body">
+        <div class="ac-modal-status-block">
+          <span class="ac-modal-status-icon success"><i class="ti ti-users-group"></i></span>
+          <div class="text-secondary">Grup olusturduktan sonra ajan atamalari yaparak hedef dagitimlari yonetebilirsiniz.</div>
+        </div>
+        <form id="group-create-form" class="row g-3">
+          <div class="col-12">
+            <label class="form-label">Grup Adi</label>
+            <input class="form-control" name="name" required />
+          </div>
+          <div class="col-12">
+            <label class="form-label">Aciklama</label>
+            <input class="form-control" name="description" />
+          </div>
+          <div class="col-12 d-flex justify-content-end">
+            <div class="btn-list">
+              <button class="btn btn-outline-secondary" id="group-modal-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
+              <button class="btn btn-primary" type="submit"><i class="ti ti-plus me-1"></i>Olustur</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 
 <div id="group-edit-modal" class="group-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
-  <div class="group-modal">
-    <div class="groups-card-head">
-      <h3 class="group-modal-title">Grup Duzenle</h3>
-      <button class="btn secondary" id="group-edit-modal-close-btn" type="button">Kapat</button>
+  <div class="group-modal-dialog">
+    <div class="card mb-0 ac-modal-warning">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Grup Duzenle</h3>
+        <button class="btn btn-outline-secondary btn-sm" id="group-edit-modal-close-btn" type="button"><i class="ti ti-x me-1"></i>Kapat</button>
+      </div>
+      <div class="card-body">
+        <div class="ac-modal-status-block">
+          <span class="ac-modal-status-icon warning"><i class="ti ti-alert-triangle"></i></span>
+          <div class="text-secondary">Grup adi ve aciklama guncellemeleri raporlama ve hedef secim ekranlarini etkileyebilir.</div>
+        </div>
+        <form id="group-edit-form" class="row g-3">
+          <input type="hidden" name="group_id" />
+          <div class="col-12">
+            <label class="form-label">Grup Adi</label>
+            <input class="form-control" name="name" required />
+          </div>
+          <div class="col-12">
+            <label class="form-label">Aciklama</label>
+            <input class="form-control" name="description" />
+          </div>
+          <div class="col-12 d-flex justify-content-end">
+            <div class="btn-list">
+              <button class="btn btn-outline-secondary" id="group-edit-modal-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
+              <button class="btn btn-primary" type="submit"><i class="ti ti-device-floppy me-1"></i>Kaydet</button>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
-    <form id="group-edit-form" class="grid">
-      <input type="hidden" name="group_id" />
-      <div>
-        <label>Grup Adi</label>
-        <input name="name" required />
-      </div>
-      <div>
-        <label>Aciklama</label>
-        <input name="description" />
-      </div>
-      <div class="groups-actions">
-        <button class="btn secondary" id="group-edit-modal-cancel-btn" type="button">Iptal</button>
-        <button class="btn" type="submit">Kaydet</button>
-      </div>
-    </form>
   </div>
 </div>
 {% endblock %}
@@ -243,17 +257,19 @@
 
   function renderGroupsTable() {
     const rows = document.getElementById('group-rows');
-    const tableWrap = document.querySelector('.table-wrap');
+    const tableWrap = document.getElementById('group-table-wrap');
     const emptyState = document.getElementById('groups-empty-state');
     const canWrite = AppCenterApi.canAtLeast('operator');
     rows.innerHTML = '';
+
     if (!Array.isArray(groups) || groups.length === 0) {
-      if (tableWrap) tableWrap.classList.add('hidden');
-      if (emptyState) emptyState.classList.remove('hidden');
+      if (tableWrap) tableWrap.classList.add('d-none');
+      if (emptyState) emptyState.classList.remove('d-none');
       return;
     }
-    if (tableWrap) tableWrap.classList.remove('hidden');
-    if (emptyState) emptyState.classList.add('hidden');
+
+    if (tableWrap) tableWrap.classList.remove('d-none');
+    if (emptyState) emptyState.classList.add('d-none');
 
     const q = groupSearchQuery.trim().toLowerCase();
     let rowsData = groups
@@ -280,27 +296,40 @@
       return (a.name || '').localeCompare(b.name || '') * dir;
     });
 
+    if (!rowsData.length) {
+      rows.innerHTML = '<tr><td colspan="5" class="text-secondary">Filtreye uygun kayit yok</td></tr>';
+      return;
+    }
+
     rowsData.forEach((g) => {
       const count = agents.filter((a) => {
         if (Array.isArray(a.group_ids)) return a.group_ids.includes(g.id);
         return Number(a.group_id || 0) === g.id;
       }).length;
+
       const tr = document.createElement('tr');
       const isSystem = Boolean(g.is_system);
       const isActive = !!g.is_active;
       const lockIcon = isSystem ? '<span class="group-lock" title="Sistem grubu">&#128274;</span>' : '';
-      const statusBadge = isActive ? '<span class="badge ok">aktif</span>' : '<span class="badge warn">pasif</span>';
+      const statusBadge = isActive
+        ? '<span class="badge bg-green-lt text-green ms-1">aktif</span>'
+        : '<span class="badge bg-secondary-lt text-secondary ms-1">pasif</span>';
       const editDisabled = isSystem ? 'disabled title="Sistem grubu duzenlenemez"' : '';
       const deleteDisabled = (isSystem || !isActive) ? 'disabled title="Bu grup pasife alinamaz"' : '';
+
       tr.innerHTML = `
         <td>${g.id}</td>
-        <td><span class="group-name">${g.name}${lockIcon}</span> ${statusBadge}</td>
-        <td>${g.description || '-'}</td>
-        <td>${count}</td>
-        <td class="row">${canWrite
-          ? `<button class="btn secondary" type="button" data-action="edit-group" data-group-id="${g.id}" ${editDisabled}>Duzenle</button>
-             <button class="btn danger" type="button" data-action="delete-group" data-group-id="${g.id}" data-group-name="${(g.name || '').replace(/"/g, '&quot;')}" ${deleteDisabled}>Pasife Al</button>`
-          : '-'}</td>
+        <td><span class="group-name">${g.name}${lockIcon}</span>${statusBadge}</td>
+        <td class="text-secondary">${g.description || '-'}</td>
+        <td><span class="badge bg-blue-lt text-blue">${count}</span></td>
+        <td class="col-actions">
+          ${canWrite
+            ? `<div class="btn-list flex-nowrap">
+                 <button class="btn btn-outline-secondary btn-sm" type="button" data-action="edit-group" data-group-id="${g.id}" ${editDisabled}><i class="ti ti-edit me-1"></i>Duzenle</button>
+                 <button class="btn btn-outline-danger btn-sm" type="button" data-action="delete-group" data-group-id="${g.id}" data-group-name="${(g.name || '').replace(/"/g, '&quot;')}" ${deleteDisabled}><i class="ti ti-player-stop me-1"></i>Pasife Al</button>
+               </div>`
+            : '-'}
+        </td>
       `;
       rows.appendChild(tr);
     });
@@ -323,6 +352,7 @@
           if (Array.isArray(a.group_ids)) return a.group_ids.includes(groupId);
           return Number(a.group_id || 0) === groupId;
         }).length;
+
         const ok = window.confirm(
           `'${groupName}' grubunu silmek istiyor musunuz?\n\n` +
           `Etkilenecek ajan sayisi: ${affectedAgentCount}\n` +
@@ -330,11 +360,13 @@
           `Grup pasif duruma alinacak.`
         );
         if (!ok) return;
+
         const confirmText = window.prompt(`Pasife alma onayi icin PASIF ${groupId} yazin:`, '');
         if ((confirmText || '').trim() !== `PASIF ${groupId}`) {
           AppCenterApi.toast('Pasife alma onayi iptal edildi');
           return;
         }
+
         try {
           await AppCenterApi.req(`/groups/${groupId}`, { method: 'DELETE' });
           await loadData();

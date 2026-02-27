@@ -21,6 +21,40 @@ These decisions are confirmed and should be treated as baseline requirements:
 
 ---
 
+## 1.1 UI/UX Standards (Locked)
+
+These are permanent implementation standards for ongoing work:
+
+- Template reference priority: when a Tabler example exists, use its structure and behavior as close as possible (not a lookalike rewrite).
+- Base layout: `layout-condensed.html` visual model is default.
+  - Content must be centered in a constrained container (`container-xl`), not full-width stretched.
+  - Sidebar/topbar spacing and active-link affordances should stay consistent with Tabler defaults.
+- Buttons:
+  - Use function-based color semantics (`btn-primary` for primary actions, `btn-outline-secondary` for cancel/secondary, `btn-danger` or `btn-outline-danger` for destructive).
+  - Use Tabler icons in actionable buttons by default.
+  - Keep button density and spacing aligned with Tabler `btn-list` usage.
+- Modals:
+  - Follow Tabler `modals.html` tone model (status stripe + semantic warning/success/danger visuals where relevant).
+  - Destructive or risky actions must include warning/danger iconography and color cues.
+  - Modal keyboard behavior is mandatory: `Esc` closes topmost open modal, `Enter` triggers primary modal action (except text-entry controls where native behavior should continue).
+- Dashboard composition:
+  - Keep condensed 4-column mental model.
+  - Timeline sits on the right in a 2-column area; cards/stats occupy the left 2-column area.
+  - Card/table/timeline widgets should reuse Tabler components directly where possible.
+- Data widgets:
+  - Prefer Tabler-native card/table/list objects (including `layout-condensed` examples) and adapt data bindings to our domain rather than inventing new component patterns.
+- Consistency:
+  - New or updated pages must not introduce legacy button/badge class patterns.
+  - Icon set is Tabler Icons only.
+
+### Dashboard Change Control
+
+- `/dashboard` is the approved/stable dashboard surface and should stay unchanged unless explicitly approved.
+- Grid/layout experiments and candidate redesigns must be implemented on `/dashboard-v2`.
+- After approval, `/dashboard-v2` changes can be promoted to `/dashboard`.
+
+---
+
 ## 2. Migration Strategy
 
 ### 2.1 Core Principle
@@ -74,7 +108,7 @@ Tasks:
 - [ ] Table pattern: toolbar + filters + density + action column + empty/loading states.
 - [ ] Card/stat pattern: KPI cards + trend/meta rows.
 - [ ] Form pattern: grouped sections, helper text, validation slots.
-- [ ] Modal/offcanvas pattern: confirmations and quick-edit flows.
+- [x] Modal/offcanvas pattern: confirmations and quick-edit flows.
 - [ ] Badge/state pattern: status consistency (online/offline, active/inactive, ok/warn/danger).
 - [ ] Timeline/list-item visual pattern (for dashboard/audit).
 
@@ -89,15 +123,15 @@ Goal: validate overall UX direction and condensed behavior.
 
 Tasks:
 
-- [ ] Dashboard:
-  - [ ] Stats cards to Tabler card blocks
-  - [ ] Timeline to richer Tabler list/timeline visual
-  - [ ] Better spacing hierarchy and headings
-- [ ] Agents:
-  - [ ] Condensed data table layout
-  - [ ] Action buttons grouped (detail/connect)
-  - [ ] Remote/helper badges visually improved
-  - [ ] Filter row upgraded with Tabler controls
+- [x] Dashboard:
+  - [x] Stats cards to Tabler card blocks
+  - [x] Timeline to richer Tabler list/timeline visual
+  - [x] Better spacing hierarchy and headings
+- [x] Agents:
+  - [x] Condensed data table layout
+  - [x] Action buttons grouped (detail/connect)
+  - [x] Remote/helper badges visually improved
+  - [x] Filter row upgraded with Tabler controls
 
 Exit Criteria:
 
@@ -122,6 +156,29 @@ Tasks:
 - [ ] Move create/edit flows to unified modal/form treatment where appropriate.
 - [ ] Improve icon/media handling visuals (apps).
 - [ ] Improve multi-action controls in deployments/groups.
+
+Current progress:
+
+- [x] Applications list migrated to Tabler table/toolbar pattern.
+- [x] Applications create/edit/delete dialogs visually moved to Tabler card/form language.
+- [x] Applications icon/media row visuals improved with avatar + status badges.
+- [x] Deployments list migrated to Tabler table/toolbar pattern.
+- [x] Deployments create/edit dialogs migrated to Tabler form-layout style with selectgroup controls.
+- [x] Deployments table status/priority/actions aligned with condensed badges + grouped buttons.
+- [x] Groups list migrated to Tabler table/toolbar pattern.
+- [x] Groups create/edit dialogs migrated to Tabler card/form modal style.
+- [x] Group-agent assignment area aligned with Tabler form and action controls.
+- [x] Users list migrated to Tabler table/toolbar pattern.
+- [x] Users create/edit dialogs migrated to Tabler card/form modal style.
+- [x] Users role/status visuals aligned with semantic Tabler badges.
+- [x] Inventory software list migrated to Tabler table/toolbar/pagination pattern.
+- [x] Inventory list navigation and row interactions aligned with condensed table behavior.
+- [x] Settings page migrated to Tabler form-layout sections with improved field hierarchy.
+- [x] Audit page migrated to Tabler filter toolbar + condensed table + expandable detail pattern.
+- [x] Inventory normalization + software detail pages aligned to Tabler table/form patterns.
+- [x] Licenses list/form pages aligned to Tabler table/form patterns.
+- [x] Standalone create/edit forms (applications, deployments, groups) aligned to Tabler card/form language.
+- [x] Legacy agent/remote support action controls moved to Tabler button/badge semantic classes.
 
 ## Phase E - Management Pages
 
@@ -150,6 +207,12 @@ Tasks:
 - [ ] Mobile read-mostly pass.
 - [ ] Final regression smoke checklist pass.
 - [ ] Documentation final sync.
+
+Current progress:
+
+- [x] Remaining non-migrated operational/admin sub-pages aligned to Tabler card/table/form patterns.
+- [x] Legacy button/badge/muted class usage removed from migrated templates in favor of Tabler semantic classes.
+- [x] Core list/detail/form pages now share a consistent toolbar/table/action language.
 
 ---
 
@@ -231,4 +294,3 @@ Definition of done for tomorrow:
 
 - Foundation merged and deployed without functional regression.
 - Pilot phase (Dashboard/Agents) ready to begin immediately next session.
-

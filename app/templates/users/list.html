@@ -1,136 +1,210 @@
 {% extends 'base.html' %}
 {% block title %}Kullanicilar{% endblock %}
+{% block page_title %}Kullanici Yonetimi{% endblock %}
+{% block page_actions %}
+<div class="btn-list">
+  <button class="btn btn-outline-primary btn-sm" id="users-refresh-btn" type="button">
+    <i class="ti ti-refresh me-1"></i>Yenile
+  </button>
+  <button class="btn btn-primary btn-sm" id="users-new-btn" type="button" data-required-roles="admin">
+    <i class="ti ti-user-plus me-1"></i>Yeni Kullanici
+  </button>
+</div>
+{% endblock %}
 {% block content %}
 <style>
+  .users-toolbar .input-icon-addon .icon {
+    width: 18px;
+    height: 18px;
+  }
+  .users-table .col-actions {
+    width: 1%;
+    white-space: nowrap;
+  }
   .user-modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(21, 34, 56, 0.45);
+    background: rgba(15, 23, 42, 0.48);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 998;
+    z-index: 1050;
     padding: 16px;
   }
   .user-modal-backdrop.hidden {
     display: none;
   }
-  .user-modal {
+  .user-modal-dialog {
     width: 100%;
-    max-width: 640px;
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    box-shadow: var(--shadow);
-    padding: 18px;
+    max-width: 700px;
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
   }
 </style>
 
 <div class="card">
-  <div class="row spread wrap">
-    <h3 style="margin: 0;">Kullanici Yonetimi</h3>
-    <div class="row">
-      <button class="btn" id="users-new-btn" type="button" data-required-roles="admin">Yeni Kullanici</button>
-      <button class="btn secondary" id="users-refresh-btn" type="button">Yenile</button>
+  <div class="card-header">
+    <div class="row g-2 w-100 users-toolbar">
+      <div class="col-12 col-md-4">
+        <div class="input-icon">
+          <span class="input-icon-addon"><i class="ti ti-search icon"></i></span>
+          <input id="users-search" class="form-control" placeholder="Ara: kullanici / ad / e-posta" />
+        </div>
+      </div>
+      <div class="col-12 col-md-2">
+        <select id="users-role-filter" class="form-select">
+          <option value="all">Tum Roller</option>
+          <option value="admin">admin</option>
+          <option value="operator">operator</option>
+          <option value="viewer">viewer</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-3">
+        <select id="users-status-filter" class="form-select">
+          <option value="all">Tum Durumlar</option>
+          <option value="active">Sadece Aktif</option>
+          <option value="inactive">Sadece Pasif</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-3">
+        <select id="users-sort" class="form-select">
+          <option value="username_asc">Kullanici (A-Z)</option>
+          <option value="username_desc">Kullanici (Z-A)</option>
+          <option value="id_desc">ID (Yeni -> Eski)</option>
+          <option value="id_asc">ID (Eski -> Yeni)</option>
+          <option value="role_asc">Rol (A-Z)</option>
+        </select>
+      </div>
     </div>
   </div>
-  <div class="row wrap" style="margin: 10px 0;">
-    <input id="users-search" placeholder="Ara: kullanici / ad / e-posta" style="max-width:280px;" />
-    <select id="users-role-filter" style="max-width:160px;">
-      <option value="all">Tum Roller</option>
-      <option value="admin">admin</option>
-      <option value="operator">operator</option>
-      <option value="viewer">viewer</option>
-    </select>
-    <select id="users-status-filter" style="max-width:160px;">
-      <option value="all">Tum Durumlar</option>
-      <option value="active">Sadece Aktif</option>
-      <option value="inactive">Sadece Pasif</option>
-    </select>
-    <select id="users-sort" style="max-width:220px;">
-      <option value="username_asc">Kullanici (A-Z)</option>
-      <option value="username_desc">Kullanici (Z-A)</option>
-      <option value="id_desc">ID (Yeni -> Eski)</option>
-      <option value="id_asc">ID (Eski -> Yeni)</option>
-      <option value="role_asc">Rol (A-Z)</option>
-    </select>
-  </div>
-  <div class="table-wrap" style="margin-top: 12px;">
-    <table>
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter users-table">
       <thead>
         <tr>
-          <th>ID</th><th>Kullanici</th><th>Ad Soyad</th><th>E-posta</th><th>Rol</th><th>Durum</th><th></th>
+          <th>ID</th>
+          <th>Kullanici</th>
+          <th>Ad Soyad</th>
+          <th>E-posta</th>
+          <th>Rol</th>
+          <th>Durum</th>
+          <th class="col-actions"></th>
         </tr>
       </thead>
-      <tbody id="user-rows"></tbody>
+      <tbody id="user-rows">
+        <tr><td colspan="7" class="text-secondary">Yukleniyor...</td></tr>
+      </tbody>
     </table>
   </div>
 </div>
 
 <div id="user-create-modal" class="user-modal-backdrop hidden" aria-live="polite">
-  <div class="user-modal">
-    <h3 style="margin-top:0;">Yeni Kullanici</h3>
-    <form id="user-create-form" class="grid">
-      <div class="grid cols-2">
-        <div><label>Kullanici Adi</label><input name="username" required /></div>
-        <div><label>Sifre</label><input name="password" type="password" minlength="6" required /></div>
+  <div class="user-modal-dialog">
+    <div class="card mb-0 ac-modal-success">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Yeni Kullanici</h3>
+        <button class="btn btn-outline-secondary btn-sm" id="user-create-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
       </div>
-      <div class="grid cols-2">
-        <div><label>Ad Soyad</label><input name="full_name" /></div>
-        <div><label>E-posta</label><input name="email" /></div>
-      </div>
-      <div class="grid cols-2">
-        <div>
-          <label>Rol</label>
-          <select name="role">
-            <option value="viewer">viewer</option>
-            <option value="operator">operator</option>
-            <option value="admin">admin</option>
-          </select>
+      <div class="card-body">
+        <div class="ac-modal-status-block">
+          <span class="ac-modal-status-icon success"><i class="ti ti-user-plus"></i></span>
+          <div class="text-secondary">Yeni kullanici kaydi olusturmak icin zorunlu alanlari doldurun.</div>
         </div>
-        <div class="row wrap" style="margin-top:26px;">
-          <label><input name="is_active" type="checkbox" checked /> Aktif</label>
-        </div>
+        <form id="user-create-form" class="row g-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label">Kullanici Adi</label>
+            <input class="form-control" name="username" required />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Sifre</label>
+            <input class="form-control" name="password" type="password" minlength="6" required />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Ad Soyad</label>
+            <input class="form-control" name="full_name" />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">E-posta</label>
+            <input class="form-control" name="email" />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Rol</label>
+            <select class="form-select" name="role">
+              <option value="viewer">viewer</option>
+              <option value="operator">operator</option>
+              <option value="admin">admin</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-6 d-flex align-items-end">
+            <div class="form-check">
+              <input class="form-check-input" name="is_active" type="checkbox" checked id="user_create_active" />
+              <label class="form-check-label" for="user_create_active">Aktif</label>
+            </div>
+          </div>
+          <div class="col-12 d-flex justify-content-end">
+            <div class="btn-list">
+              <button class="btn btn-outline-secondary" id="user-create-cancel-btn-2" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
+              <button class="btn btn-primary" type="submit"><i class="ti ti-plus me-1"></i>Olustur</button>
+            </div>
+          </div>
+        </form>
       </div>
-      <div class="row" style="justify-content:flex-end;">
-        <button class="btn secondary" id="user-create-cancel-btn" type="button">Iptal</button>
-        <button class="btn" type="submit">Olustur</button>
-      </div>
-    </form>
+    </div>
   </div>
 </div>
 
 <div id="user-edit-modal" class="user-modal-backdrop hidden" aria-live="polite">
-  <div class="user-modal">
-    <h3 style="margin-top:0;">Kullanici Duzenle</h3>
-    <form id="user-edit-form" class="grid">
-      <input name="id" type="hidden" />
-      <div class="grid cols-2">
-        <div><label>Kullanici Adi</label><input name="username" required /></div>
-        <div><label>Yeni Sifre (opsiyonel)</label><input name="password" type="password" minlength="6" /></div>
+  <div class="user-modal-dialog">
+    <div class="card mb-0 ac-modal-warning">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Kullanici Duzenle</h3>
+        <button class="btn btn-outline-secondary btn-sm" id="user-edit-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
       </div>
-      <div class="grid cols-2">
-        <div><label>Ad Soyad</label><input name="full_name" /></div>
-        <div><label>E-posta</label><input name="email" /></div>
-      </div>
-      <div class="grid cols-2">
-        <div>
-          <label>Rol</label>
-          <select name="role">
-            <option value="viewer">viewer</option>
-            <option value="operator">operator</option>
-            <option value="admin">admin</option>
-          </select>
+      <div class="card-body">
+        <div class="ac-modal-status-block">
+          <span class="ac-modal-status-icon warning"><i class="ti ti-alert-triangle"></i></span>
+          <div class="text-secondary">Rol ve aktiflik degisiklikleri kullanicinin erisim yetkilerini hemen etkiler.</div>
         </div>
-        <div class="row wrap" style="margin-top:26px;">
-          <label><input name="is_active" type="checkbox" /> Aktif</label>
-        </div>
+        <form id="user-edit-form" class="row g-3">
+          <input name="id" type="hidden" />
+          <div class="col-12 col-md-6">
+            <label class="form-label">Kullanici Adi</label>
+            <input class="form-control" name="username" required />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Yeni Sifre (opsiyonel)</label>
+            <input class="form-control" name="password" type="password" minlength="6" />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Ad Soyad</label>
+            <input class="form-control" name="full_name" />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">E-posta</label>
+            <input class="form-control" name="email" />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Rol</label>
+            <select class="form-select" name="role">
+              <option value="viewer">viewer</option>
+              <option value="operator">operator</option>
+              <option value="admin">admin</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-6 d-flex align-items-end">
+            <div class="form-check">
+              <input class="form-check-input" name="is_active" type="checkbox" id="user_edit_active" />
+              <label class="form-check-label" for="user_edit_active">Aktif</label>
+            </div>
+          </div>
+          <div class="col-12 d-flex justify-content-end">
+            <div class="btn-list">
+              <button class="btn btn-outline-secondary" id="user-edit-cancel-btn-2" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
+              <button class="btn btn-primary" type="submit"><i class="ti ti-device-floppy me-1"></i>Kaydet</button>
+            </div>
+          </div>
+        </form>
       </div>
-      <div class="row" style="justify-content:flex-end;">
-        <button class="btn secondary" id="user-edit-cancel-btn" type="button">Iptal</button>
-        <button class="btn" type="submit">Kaydet</button>
-      </div>
-    </form>
+    </div>
   </div>
 </div>
 {% endblock %}
@@ -192,23 +266,34 @@
     usersById.clear();
     const items = applyFilters(allUsers);
     if (!items.length) {
-      rows.innerHTML = '<tr><td colspan="7" class="muted">Kayit yok</td></tr>';
+      rows.innerHTML = '<tr><td colspan="7" class="text-secondary">Kayit yok</td></tr>';
       return;
     }
+
     items.forEach((item) => {
       usersById.set(Number(item.id), item);
       const tr = document.createElement('tr');
-      const statusBadge = item.is_active ? '<span class="badge ok">aktif</span>' : '<span class="badge warn">pasif</span>';
+      const statusBadge = item.is_active
+        ? '<span class="badge bg-green-lt text-green">aktif</span>'
+        : '<span class="badge bg-secondary-lt text-secondary">pasif</span>';
+      const roleBadgeClass = item.role === 'admin'
+        ? 'bg-red-lt text-red'
+        : item.role === 'operator'
+          ? 'bg-blue-lt text-blue'
+          : 'bg-secondary-lt text-secondary';
+
       tr.innerHTML = `
         <td>${item.id}</td>
-        <td>${esc(item.username || '-')}</td>
+        <td class="fw-medium">${esc(item.username || '-')}</td>
         <td>${esc(item.full_name || '-')}</td>
-        <td>${esc(item.email || '-')}</td>
-        <td><span class="badge">${esc(item.role || '-')}</span></td>
+        <td class="text-secondary">${esc(item.email || '-')}</td>
+        <td><span class="badge ${roleBadgeClass}">${esc(item.role || '-')}</span></td>
         <td>${statusBadge}</td>
-        <td class="row" data-required-roles="admin">
-          <button class="btn secondary" type="button" data-action="edit" data-id="${item.id}">Duzenle</button>
-          <button class="btn danger" type="button" data-action="delete" data-id="${item.id}">Sil</button>
+        <td class="col-actions" data-required-roles="admin">
+          <div class="btn-list flex-nowrap">
+            <button class="btn btn-outline-secondary btn-sm" type="button" data-action="edit" data-id="${item.id}"><i class="ti ti-edit me-1"></i>Duzenle</button>
+            <button class="btn btn-outline-danger btn-sm" type="button" data-action="delete" data-id="${item.id}"><i class="ti ti-trash me-1"></i>Sil</button>
+          </div>
         </td>
       `;
       rows.appendChild(tr);
@@ -264,7 +349,12 @@
   document.getElementById('users-refresh-btn').addEventListener('click', loadUsers);
   document.getElementById('users-new-btn').addEventListener('click', () => openModal(createModal));
   document.getElementById('user-create-cancel-btn').addEventListener('click', () => closeModal(createModal));
+  document.getElementById('user-create-cancel-btn-2').addEventListener('click', () => closeModal(createModal));
   document.getElementById('user-edit-cancel-btn').addEventListener('click', () => closeModal(editModal));
+  document.getElementById('user-edit-cancel-btn-2').addEventListener('click', () => closeModal(editModal));
+  createModal.addEventListener('click', (e) => { if (e.target === createModal) closeModal(createModal); });
+  editModal.addEventListener('click', (e) => { if (e.target === editModal) closeModal(editModal); });
+
   ['users-search', 'users-role-filter', 'users-status-filter', 'users-sort'].forEach((id) => {
     document.getElementById(id).addEventListener('input', renderUsers);
     document.getElementById(id).addEventListener('change', renderUsers);

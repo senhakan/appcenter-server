@@ -408,6 +408,11 @@ def dashboard_page(request: Request):
     return templates.TemplateResponse("dashboard.html", {"request": request, "active_page": "dashboard"})
 
 
+@app.get("/dashboard-v2")
+def dashboard_v2_page(request: Request):
+    return templates.TemplateResponse("dashboard_v2.html", {"request": request, "active_page": "dashboard"})
+
+
 @app.get("/agents")
 def agents_page(request: Request):
     return templates.TemplateResponse("agents/list.html", {"request": request, "active_page": "agents"})

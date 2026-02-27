@@ -2,31 +2,79 @@
 <html lang="tr">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>AppCenter Login</title>
-    <link rel="stylesheet" href="/static/css/app.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>AppCenter Giris</title>
+    <link rel="stylesheet" href="/static/vendor/tabler-1.4.0/css/tabler.min.css?v={{ ASSET_VERSION }}" />
+    <link rel="stylesheet" href="/static/vendor/tabler-icons/tabler-icons.min.css?v={{ ASSET_VERSION }}" />
+    <link rel="stylesheet" href="/static/css/app-overrides.css?v={{ ASSET_VERSION }}" />
+    <style>
+      body {
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 12% 12%, rgba(15, 98, 254, 0.12), transparent 42%),
+          radial-gradient(circle at 88% 18%, rgba(255, 183, 3, 0.14), transparent 36%),
+          #f6f8fb;
+      }
+      .login-brand {
+        height: 36px;
+        width: auto;
+      }
+      .login-muted {
+        color: var(--tblr-secondary-color, #626976);
+      }
+    </style>
   </head>
   <body>
-    <div class="layout" style="max-width: 480px; padding-top: 80px;">
-      <div class="card">
-        <h2 style="margin-top: 0;">AppCenter Giris</h2>
-        <p class="muted">Varsayilan: admin / admin123</p>
-        <form id="login-form" class="grid">
-          <div>
-            <label>Kullanici Adi</label>
-            <input id="username" value="admin" required />
+    <div class="page page-center">
+      <div class="container container-tight py-4">
+        <div class="text-center mb-4">
+          <a href="/login" class="navbar-brand navbar-brand-autodark" aria-label="AppCenter">
+            <img src="/static/img/opview_logo.png?v={{ ASSET_VERSION }}" alt="AppCenter" class="login-brand" />
+          </a>
+        </div>
+        <div class="card card-md">
+          <div class="card-body">
+            <h2 class="h2 text-center mb-2">AppCenter Giris</h2>
+            <p class="text-center login-muted mb-4">Varsayilan hesap: <strong>admin</strong> / <strong>admin123</strong></p>
+            <form id="login-form" autocomplete="off" novalidate>
+              <div class="mb-3">
+                <label class="form-label" for="username">Kullanici Adi</label>
+                <input id="username" class="form-control" value="admin" required />
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="password">Sifre</label>
+                <div class="input-group input-group-flat">
+                  <input id="password" class="form-control" value="admin123" type="password" required />
+                  <span class="input-group-text">
+                    <a href="#" id="toggle-password" class="link-secondary" aria-label="Sifreyi goster/gizle">
+                      <i class="ti ti-eye"></i>
+                    </a>
+                  </span>
+                </div>
+              </div>
+              <div class="form-footer">
+                <button class="btn btn-primary w-100" type="submit"><i class="ti ti-login me-1"></i>Giris Yap</button>
+              </div>
+            </form>
           </div>
-          <div>
-            <label>Sifre</label>
-            <input id="password" value="admin123" type="password" required />
-          </div>
-          <button class="btn" type="submit">Giris Yap</button>
-        </form>
+        </div>
       </div>
     </div>
     <div id="toast"></div>
-    <script src="/static/js/api.js"></script>
+    <script src="/static/vendor/tabler-1.4.0/js/tabler.min.js?v={{ ASSET_VERSION }}"></script>
+    <script src="/static/js/api.js?v={{ ASSET_VERSION }}"></script>
     <script>
+      const passInput = document.getElementById("password");
+      const toggleBtn = document.getElementById("toggle-password");
+
+      toggleBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const hidden = passInput.type === "password";
+        passInput.type = hidden ? "text" : "password";
+        toggleBtn.innerHTML = hidden ? '<i class="ti ti-eye-off"></i>' : '<i class="ti ti-eye"></i>';
+      });
+
       document.getElementById("login-form").addEventListener("submit", async (e) => {
         e.preventDefault();
         try {

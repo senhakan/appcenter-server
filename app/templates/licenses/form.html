@@ -1,30 +1,49 @@
 {% extends 'base.html' %}
 {% block title %}{% if license_id %}Lisans Duzenle{% else %}Yeni Lisans{% endif %}{% endblock %}
+{% block page_title %}{% if license_id %}Lisans Duzenle{% else %}Yeni Lisans{% endif %}{% endblock %}
+{% block page_actions %}
+<a class="btn btn-outline-primary btn-sm" href="/licenses"><i class="ti ti-arrow-left me-1"></i>Listeye Don</a>
+{% endblock %}
 {% block content %}
-<div class="card">
-  <div class="row spread wrap">
-    <h3 style="margin: 0;">{% if license_id %}Lisans Duzenle{% else %}Yeni Lisans{% endif %}</h3>
-    <a class="btn secondary" href="/licenses">Listeye Don</a>
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8 col-xl-6">
+    <div class="card" data-required-roles="operator,admin">
+      <div class="card-body">
+        <form id="license-form" class="row g-3">
+          <div class="col-12">
+            <label class="form-label">Yazilim Deseni</label>
+            <input class="form-control" id="f-pattern" required />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Eslestirme Tipi</label>
+            <select class="form-select" id="f-match">
+              <option value="contains">Contains</option>
+              <option value="exact">Exact</option>
+              <option value="starts_with">Starts With</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Lisans Tipi</label>
+            <select class="form-select" id="f-type" onchange="toggleTotal()">
+              <option value="licensed">Lisansli</option>
+              <option value="prohibited">Yasak</option>
+            </select>
+          </div>
+          <div class="col-12" id="total-row">
+            <label class="form-label">Toplam Lisans</label>
+            <input class="form-control" id="f-total" type="number" min="0" value="0" />
+          </div>
+          <div class="col-12">
+            <label class="form-label">Aciklama</label>
+            <textarea class="form-control" id="f-desc" rows="3"></textarea>
+          </div>
+          <div class="col-12 d-flex justify-content-end">
+            <button class="btn btn-primary" type="submit"><i class="ti ti-device-floppy me-1"></i>Kaydet</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
-  <form id="license-form" class="grid" style="max-width: 500px;" data-required-roles="operator,admin">
-    <div><label>Yazilim Deseni</label><input id="f-pattern" required /></div>
-    <div><label>Eslestirme Tipi</label>
-      <select id="f-match">
-        <option value="contains">Contains</option>
-        <option value="exact">Exact</option>
-        <option value="starts_with">Starts With</option>
-      </select>
-    </div>
-    <div><label>Lisans Tipi</label>
-      <select id="f-type" onchange="toggleTotal()">
-        <option value="licensed">Lisansli</option>
-        <option value="prohibited">Yasak</option>
-      </select>
-    </div>
-    <div id="total-row"><label>Toplam Lisans</label><input id="f-total" type="number" min="0" value="0" /></div>
-    <div><label>Aciklama</label><textarea id="f-desc" rows="3"></textarea></div>
-    <button class="btn" type="submit">Kaydet</button>
-  </form>
 </div>
 {% endblock %}
 {% block scripts %}
@@ -46,9 +65,7 @@
       document.getElementById('f-total').value = data.total_licenses;
       document.getElementById('f-desc').value = data.description || '';
       toggleTotal();
-    } catch (err) {
-      AppCenterApi.toast(err.message);
-    }
+    } catch (err) { AppCenterApi.toast(err.message); }
   }
 
   document.getElementById('license-form').addEventListener('submit', async (e) => {
@@ -63,23 +80,17 @@
     try {
       if (licenseId) {
         await AppCenterApi.req(`/licenses/${licenseId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
         });
         AppCenterApi.toast('Lisans guncellendi');
       } else {
         await AppCenterApi.req('/licenses', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
         });
         AppCenterApi.toast('Lisans olusturuldu');
         location.href = '/licenses';
       }
-    } catch (err) {
-      AppCenterApi.toast(err.message);
-    }
+    } catch (err) { AppCenterApi.toast(err.message); }
   });
 
   toggleTotal();

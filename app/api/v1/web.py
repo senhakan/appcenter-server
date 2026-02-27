@@ -39,6 +39,8 @@ from app.schemas import (
     ApplicationResponse,
     ApplicationUpdateRequest,
     DashboardStatsResponse,
+    DashboardTopClientItemResponse,
+    DashboardTopClientListResponse,
     DashboardTimelineItemResponse,
     DashboardTimelineListResponse,
     DeploymentCreateRequest,
@@ -603,6 +605,43 @@ def dashboard_timeline(
         )
 
     return DashboardTimelineListResponse(items=items)
+
+
+@router.get("/dashboard/top-clients", response_model=DashboardTopClientListResponse)
+def dashboard_top_clients(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_role("viewer", "operator", "admin")),
+) -> DashboardTopClientListResponse:
+    rows = (
+        db.query(
+            Agent.uuid.label("agent_uuid"),
+            Agent.hostname.label("hostname"),
+            Agent.status.label("status"),
+            Agent.last_seen.label("last_seen"),
+            func.count(AgentSoftwareInventory.id).label("installed_app_count"),
+        )
+        .outerjoin(AgentSoftwareInventory, AgentSoftwareInventory.agent_uuid == Agent.uuid)
+        .group_by(Agent.uuid, Agent.hostname, Agent.status, Agent.last_seen)
+        .order_by(
+            func.count(AgentSoftwareInventory.id).desc(),
+            func.coalesce(Agent.last_seen, datetime(1970, 1, 1, tzinfo=timezone.utc)).desc(),
+            Agent.hostname.asc(),
+        )
+        .limit(10)
+        .all()
+    )
+
+    items = [
+        DashboardTopClientItemResponse(
+            agent_uuid=str(r.agent_uuid),
+            hostname=r.hostname or "-",
+            status=(r.status or "offline"),
+            installed_app_count=int(r.installed_app_count or 0),
+            last_seen=r.last_seen,
+        )
+        for r in rows
+    ]
+    return DashboardTopClientListResponse(items=items)
 
 
 @router.get("/applications", response_model=ApplicationListResponse)

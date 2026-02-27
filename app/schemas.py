@@ -466,6 +466,18 @@ class DashboardStatsResponse(BaseModel):
     active_remote_sessions: int
 
 
+class DashboardTopClientItemResponse(BaseModel):
+    agent_uuid: str
+    hostname: str
+    status: str
+    installed_app_count: int
+    last_seen: Optional[datetime] = None
+
+
+class DashboardTopClientListResponse(BaseModel):
+    items: list[DashboardTopClientItemResponse]
+
+
 class SettingItem(BaseModel):
     key: str
     value: str

@@ -1,23 +1,36 @@
 {% extends 'base.html' %}
 {% block title %}Lisanslar{% endblock %}
+{% block page_title %}Lisanslar{% endblock %}
+{% block page_actions %}
+<a class="btn btn-primary btn-sm" href="/licenses/create" data-required-roles="operator,admin">
+  <i class="ti ti-plus me-1"></i>Yeni Lisans
+</a>
+{% endblock %}
 {% block content %}
-<div class="card">
-  <div class="row spread wrap">
-    <h3 style="margin: 0;">Lisans Tanimlari</h3>
-    <a class="btn" href="/licenses/create" data-required-roles="operator,admin">Yeni Lisans</a>
+<div class="row row-cards">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title mb-0">Lisans Tanimlari</h3></div>
+      <div class="table-responsive">
+        <table class="table card-table table-vcenter">
+          <thead><tr><th>Yazilim Deseni</th><th>Tip</th><th>Toplam Lisans</th><th>Eslestirme</th><th></th></tr></thead>
+          <tbody id="lic-body"><tr><td colspan="5" class="text-secondary">Yukleniyor...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
   </div>
-  <table>
-    <thead><tr><th>Yazilim Deseni</th><th>Tip</th><th>Toplam Lisans</th><th>Eslestirme</th><th>Islemler</th></tr></thead>
-    <tbody id="lic-body"></tbody>
-  </table>
-</div>
 
-<div class="card">
-  <h3 style="margin-top: 0;">Lisans Kullanim Raporu</h3>
-  <table>
-    <thead><tr><th>Yazilim</th><th>Tip</th><th>Toplam</th><th>Kullanim</th><th>Durum</th></tr></thead>
-    <tbody id="report-body"></tbody>
-  </table>
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title mb-0">Lisans Kullanim Raporu</h3></div>
+      <div class="table-responsive">
+        <table class="table card-table table-vcenter">
+          <thead><tr><th>Yazilim</th><th>Tip</th><th>Toplam</th><th>Kullanim</th><th>Durum</th></tr></thead>
+          <tbody id="report-body"><tr><td colspan="5" class="text-secondary">Yukleniyor...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}
 {% block scripts %}
@@ -30,25 +43,25 @@
       const data = await AppCenterApi.req('/licenses');
       const body = document.getElementById('lic-body');
       const items = data.items || [];
-      if (!items.length) { body.innerHTML = '<tr><td colspan="5" class="muted">Lisans tanimi yok</td></tr>'; return; }
+      if (!items.length) { body.innerHTML = '<tr><td colspan="5" class="text-secondary">Lisans tanimi yok</td></tr>'; return; }
       body.innerHTML = items.map(i => {
         const typeBadge = i.license_type === 'prohibited'
-          ? '<span style="color:#ef4444;font-weight:600">Yasak</span>'
-          : '<span style="color:#3b82f6;font-weight:600">Lisansli</span>';
+          ? '<span class="badge bg-red-lt text-red">Yasak</span>'
+          : '<span class="badge bg-blue-lt text-blue">Lisansli</span>';
         return `<tr>
           <td>${i.software_name_pattern}</td>
           <td>${typeBadge}</td>
           <td>${i.license_type === 'licensed' ? i.total_licenses : '-'}</td>
           <td>${i.match_type}</td>
           <td>${canWrite
-            ? `<a class="btn secondary" href="/licenses/${i.id}/edit">Duzenle</a>
-               <button class="btn secondary" onclick="deleteLicense(${i.id})">Sil</button>`
+            ? `<div class="btn-list flex-nowrap">
+                 <a class="btn btn-outline-secondary btn-sm" href="/licenses/${i.id}/edit"><i class="ti ti-edit me-1"></i>Duzenle</a>
+                 <button class="btn btn-outline-danger btn-sm" onclick="deleteLicense(${i.id})"><i class="ti ti-trash me-1"></i>Sil</button>
+               </div>`
             : '-'}</td>
         </tr>`;
       }).join('');
-    } catch (err) {
-      AppCenterApi.toast(err.message);
-    }
+    } catch (err) { AppCenterApi.toast(err.message); }
   }
 
   async function loadReport() {
@@ -56,16 +69,12 @@
       const data = await AppCenterApi.req('/licenses/report');
       const body = document.getElementById('report-body');
       const items = data.items || [];
-      if (!items.length) { body.innerHTML = '<tr><td colspan="5" class="muted">Rapor verisi yok</td></tr>'; return; }
+      if (!items.length) { body.innerHTML = '<tr><td colspan="5" class="text-secondary">Rapor verisi yok</td></tr>'; return; }
       body.innerHTML = items.map(i => {
         let statusBadge;
-        if (i.license_type === 'prohibited' && i.is_violation) {
-          statusBadge = '<span style="color:#ef4444;font-weight:600">Yasak Tespit</span>';
-        } else if (i.is_violation) {
-          statusBadge = '<span style="color:#f97316;font-weight:600">Asim</span>';
-        } else {
-          statusBadge = '<span style="color:#22c55e;font-weight:600">OK</span>';
-        }
+        if (i.license_type === 'prohibited' && i.is_violation) statusBadge = '<span class="badge bg-red-lt text-red">Yasak Tespit</span>';
+        else if (i.is_violation) statusBadge = '<span class="badge bg-yellow-lt text-yellow">Asim</span>';
+        else statusBadge = '<span class="badge bg-green-lt text-green">OK</span>';
         return `<tr>
           <td>${i.pattern}</td>
           <td>${i.license_type === 'prohibited' ? 'Yasak' : 'Lisansli'}</td>
@@ -74,9 +83,7 @@
           <td>${statusBadge}</td>
         </tr>`;
       }).join('');
-    } catch (err) {
-      AppCenterApi.toast(err.message);
-    }
+    } catch (err) { AppCenterApi.toast(err.message); }
   }
 
   async function deleteLicense(id) {
@@ -86,9 +93,7 @@
       AppCenterApi.toast('Lisans silindi');
       loadLicenses();
       loadReport();
-    } catch (err) {
-      AppCenterApi.toast(err.message);
-    }
+    } catch (err) { AppCenterApi.toast(err.message); }
   }
 
   loadLicenses();

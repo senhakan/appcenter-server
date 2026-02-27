@@ -2,29 +2,58 @@
 <html lang="tr">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>{% block title %}AppCenter{% endblock %}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/vendor/tabler-1.4.0/css/tabler.min.css?v={{ ASSET_VERSION }}" />
+    <link rel="stylesheet" href="/static/vendor/tabler-icons/tabler-icons.min.css?v={{ ASSET_VERSION }}" />
     <link rel="stylesheet" href="/static/css/app.css?v={{ ASSET_VERSION }}" />
+    <link rel="stylesheet" href="/static/css/app-overrides.css?v={{ ASSET_VERSION }}" />
+    {% block extra_css %}{% endblock %}
   </head>
-  <body data-page-roles="{{ page_roles|default('') }}">
-    <div class="layout">
+  <body class="app-shell" data-page-roles="{{ page_roles|default('') }}">
+    <a href="#content" class="visually-hidden skip-link">Skip to main content</a>
+    <script src="/static/vendor/tabler-1.4.0/js/tabler-theme.min.js?v={{ ASSET_VERSION }}"></script>
+    <div class="page">
       {% include 'components/topbar.html' %}
-      {% block content %}{% endblock %}
+      <div class="page-wrapper">
+        <div class="page-header d-print-none app-page-header">
+          <div class="container-xl">
+            {% block page_header %}
+            <div class="row g-2 align-items-center">
+              <div class="col">
+                <div class="page-pretitle">AppCenter</div>
+                <h2 class="page-title">{% block page_title %}{% endblock %}</h2>
+              </div>
+              <div class="col-auto ms-auto d-print-none">
+                {% block page_actions %}{% endblock %}
+              </div>
+            </div>
+            {% endblock %}
+          </div>
+        </div>
+        <div class="page-body" id="content">
+          <div class="container-xl">
+            {% block content %}{% endblock %}
+          </div>
+        </div>
+      </div>
     </div>
     <div id="session-timeout-modal" class="session-modal hidden" aria-live="polite">
-      <div class="session-modal-card">
+      <div class="session-modal-card ac-modal-warning">
         <h3>Oturum Suresi Doluyor</h3>
+        <div class="ac-modal-status-block">
+          <span class="ac-modal-status-icon warning"><i class="ti ti-alert-triangle"></i></span>
+          <div class="text-secondary">Guvensizlik nedeniyle oturumunuz otomatik kapatilacak.</div>
+        </div>
         <p>Oturumunuz <strong id="session-timeout-countdown">30</strong> saniye icinde sonlanacak.</p>
-        <div class="row">
-          <button id="session-continue-btn" class="btn" type="button">Devam Et</button>
-          <button id="session-logout-btn" class="btn secondary" type="button">Cikis Yap</button>
+        <div class="d-flex gap-2">
+          <button id="session-continue-btn" class="btn btn-primary" type="button"><i class="ti ti-player-play me-1"></i>Devam Et</button>
+          <button id="session-logout-btn" class="btn btn-outline-secondary" type="button"><i class="ti ti-logout me-1"></i>Cikis Yap</button>
         </div>
       </div>
     </div>
     <div id="toast"></div>
+    <script src="/static/vendor/tabler-1.4.0/js/tabler.min.js?v={{ ASSET_VERSION }}"></script>
     <script src="/static/js/api.js?v={{ ASSET_VERSION }}"></script>
     {% block scripts %}{% endblock %}
   </body>

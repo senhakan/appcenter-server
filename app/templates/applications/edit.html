@@ -1,59 +1,33 @@
 {% extends 'base.html' %}
 {% block title %}Uygulama Duzenle{% endblock %}
+{% block page_title %}Uygulama Duzenle{% endblock %}
+{% block page_actions %}
+<a class="btn btn-outline-primary btn-sm" href="/applications"><i class="ti ti-list me-1"></i>Liste</a>
+{% endblock %}
 {% block content %}
 <style>
-  .field-error {
-    margin-top: 4px;
-    color: #b42318;
-    font-size: 12px;
-    line-height: 1.3;
-    min-height: 16px;
-  }
+  .field-error { margin-top: 4px; color: var(--tblr-danger, #d63939); font-size: 12px; line-height: 1.3; min-height: 16px; }
 </style>
-<div class="card" style="max-width: 900px;">
-  <div class="row spread wrap">
-    <h3 style="margin: 0;">Uygulama Duzenle</h3>
-    <a class="btn secondary" href="/applications">Liste</a>
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-10 col-xl-9">
+    <div class="card">
+      <div class="card-body">
+        <form id="app-edit-form" class="row g-3">
+          <div class="col-12 col-md-6"><label class="form-label">Gorunen Ad</label><input class="form-control" name="display_name" required /></div>
+          <div class="col-12 col-md-6"><label class="form-label">Versiyon</label><input class="form-control" name="version" required /></div>
+          <div class="col-12"><label class="form-label">Aciklama</label><textarea class="form-control" name="description"></textarea></div>
+          <div class="col-12 col-md-6"><label class="form-label">Kurulum Parametreleri</label><input class="form-control" name="install_args" placeholder="/S /qn" /></div>
+          <div class="col-12 col-md-6"><label class="form-label">Kaldirma Parametreleri</label><input class="form-control" name="uninstall_args" placeholder="/uninstall /quiet" /></div>
+          <div class="col-12 col-md-6"><label class="form-label">Kategori</label><input class="form-control" name="category" /></div>
+          <div class="col-12 col-md-6 d-flex align-items-end gap-3">
+            <label class="form-check"><input class="form-check-input" type="checkbox" name="is_visible_in_store" /><span class="form-check-label">Store'da gorunsun</span></label>
+            <label class="form-check"><input class="form-check-input" type="checkbox" name="is_active" /><span class="form-check-label">Aktif</span></label>
+          </div>
+          <div class="col-12 d-flex justify-content-end"><button class="btn btn-primary" type="submit"><i class="ti ti-device-floppy me-1"></i>Kaydet</button></div>
+        </form>
+      </div>
+    </div>
   </div>
-  <form id="app-edit-form" class="grid" style="margin-top: 10px;">
-    <div class="grid cols-2">
-      <div>
-        <label>Gorunen Ad</label>
-        <input name="display_name" required />
-      </div>
-      <div>
-        <label>Versiyon</label>
-        <input name="version" required />
-      </div>
-    </div>
-    <div>
-      <label>Aciklama</label>
-      <textarea name="description"></textarea>
-    </div>
-    <div class="grid cols-2">
-      <div>
-        <label>Kurulum Parametreleri</label>
-        <input name="install_args" placeholder="/S /qn" />
-      </div>
-      <div>
-        <label>Kaldirma Parametreleri</label>
-        <input name="uninstall_args" placeholder="/uninstall /quiet" />
-      </div>
-    </div>
-    <div class="grid cols-2">
-      <div>
-        <label>Kategori</label>
-        <input name="category" />
-      </div>
-      <div class="row wrap" style="margin-top: 26px;">
-        <label><input type="checkbox" name="is_visible_in_store" /> Store'da gorunsun</label>
-        <label><input type="checkbox" name="is_active" /> Aktif</label>
-      </div>
-    </div>
-    <div class="row" style="justify-content: flex-end;">
-      <button class="btn" type="submit">Kaydet</button>
-    </div>
-  </form>
 </div>
 {% endblock %}
 {% block scripts %}
@@ -61,24 +35,14 @@
   AppCenterApi.protectPage();
   const appId = Number("{{ app_id }}");
 
-  function clearFormErrors(formEl) {
-    formEl.querySelectorAll('.field-error').forEach((el) => el.remove());
-  }
-
+  function clearFormErrors(formEl) { formEl.querySelectorAll('.field-error').forEach((el) => el.remove()); }
   function setFormError(formEl, fieldName, message) {
     const input = formEl.querySelector(`[name="${fieldName}"]`);
     if (!input || !message) return;
     const next = input.nextElementSibling;
-    if (next && next.classList && next.classList.contains('field-error')) {
-      next.textContent = message;
-      return;
-    }
-    const err = document.createElement('div');
-    err.className = 'field-error';
-    err.textContent = message;
-    input.insertAdjacentElement('afterend', err);
+    if (next && next.classList && next.classList.contains('field-error')) { next.textContent = message; return; }
+    const err = document.createElement('div'); err.className = 'field-error'; err.textContent = message; input.insertAdjacentElement('afterend', err);
   }
-
   function parseApiErrorToFields(message) {
     const m = (message || '').toString().toLowerCase();
     if (m.includes('display_name is required')) return { display_name: 'Gorunen ad zorunludur' };
@@ -124,11 +88,7 @@
       is_active: form.get('is_active') === 'on',
     };
     try {
-      await AppCenterApi.req(`/applications/${appId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      await AppCenterApi.req(`/applications/${appId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       AppCenterApi.toast('Uygulama guncellendi');
       setTimeout(() => { location.href = '/applications'; }, 700);
     } catch (err) {
