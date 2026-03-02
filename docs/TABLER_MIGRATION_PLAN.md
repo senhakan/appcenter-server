@@ -1,10 +1,21 @@
 # Tabler Migration Plan (Condensed, Brand-First)
 
-Last Updated: 2026-02-26
+Last Updated: 2026-03-02
 Owner: appcenter-server
-Status: Planned / Ready to execute
+Status: In Progress (Final polish + stabilization)
 
 ---
+
+## 0. Current Snapshot (2026-03-02)
+
+- Completed recently:
+  - Remote support session recording stabilized (inline stream playback, dual-monitor recording, monitor-aware list/filter/play).
+  - Remote support destructive actions aligned to Tabler-style modal confirmations (keyboard: `Enter` confirm, `Esc` cancel).
+  - PostgreSQL migration completed on production server (`/pg_data`, local-only), timeline SQL adapted for PostgreSQL compatibility.
+- Active focus:
+  - Phase F items (`cross-page polish`, `mobile read-mostly pass`, `final regression smoke`, `documentation sync`).
+- Deferred/next:
+  - Remaining explicit checklist gaps in Phase A/B/E/F below.
 
 ## 1. Approved Decisions (Locked)
 

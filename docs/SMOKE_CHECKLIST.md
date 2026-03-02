@@ -6,6 +6,7 @@ Her deploy sonrasi minimum kontrol listesi.
 
 - `GET /health` -> 200
 - `POST /api/v1/auth/login` -> 200
+- (PostgreSQL) `psql -h 127.0.0.1 -U appcenter -d appcenter -c 'select 1'` -> basarili
 
 ## B. Uygulama Akisi
 
@@ -33,6 +34,13 @@ Her deploy sonrasi minimum kontrol listesi.
 - Agent update publish script calisir:
   - `APPCENTER_ADMIN_USERNAME='admin' APPCENTER_ADMIN_PASSWORD='admin123' ./scripts/publish-agent-update.sh --version <x.y.z>` -> basarili response
 - `GET /api/v1/agent/update/download/{filename}` -> 200
+
+## D.1 PostgreSQL Sonrasi Ek Kontrol
+
+- `/api/v1/dashboard/timeline` isteginde `500` olmamali.
+- `journalctl -u appcenter` logunda su hatalar olmamali:
+  - `subquery in FROM must have an alias`
+  - `UNION types text and integer cannot be matched`
 
 ## E. UI Sayfalari
 

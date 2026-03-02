@@ -491,7 +491,7 @@ def dashboard_timeline(
                      NULL AS task_status,
                      NULL AS app_name,
                      NULL AS message,
-                     NULL AS exit_code
+                     CAST(NULL AS INTEGER) AS exit_code
               FROM agent_status_history h
               JOIN agents a ON a.uuid = h.agent_uuid
               UNION ALL
@@ -511,7 +511,7 @@ def dashboard_timeline(
                      NULL AS task_status,
                      NULL AS app_name,
                      NULL AS message,
-                     NULL AS exit_code
+                     CAST(NULL AS INTEGER) AS exit_code
               FROM agent_identity_history h
               JOIN agents a ON a.uuid = h.agent_uuid
               UNION ALL
@@ -531,7 +531,7 @@ def dashboard_timeline(
                      NULL AS task_status,
                      NULL AS app_name,
                      NULL AS message,
-                     NULL AS exit_code
+                     CAST(NULL AS INTEGER) AS exit_code
               FROM agent_system_profile_history h
               JOIN agents a ON a.uuid = h.agent_uuid
               UNION ALL
@@ -555,7 +555,7 @@ def dashboard_timeline(
               FROM task_history t
               JOIN agents a ON a.uuid = t.agent_uuid
               LEFT JOIN applications app ON app.id = t.app_id
-            )
+            ) AS timeline_events
             ORDER BY detected_at DESC
             LIMIT 10
             """

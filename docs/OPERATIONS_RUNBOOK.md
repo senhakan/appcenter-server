@@ -117,6 +117,63 @@ Bu dokuman production ortami icin deploy, smoke ve rollback adimlarini tanimlar.
     gstreamer1.0-plugins-ugly gstreamer1.0-libav
   ```
 
+### 1.8 PostgreSQL Calisma Notu (2026-03-02)
+
+- PostgreSQL:
+  - Surum: `12` (Ubuntu 20.04 paketleri)
+  - Data dizini: `/pg_data`
+  - Cluster: `12/main`
+  - Dinleme: sadece local (`127.0.0.1:5432`)
+- Uygulama baglantisi:
+  - `.env` icinde `DATABASE_URL=postgresql+psycopg2://...@127.0.0.1:5432/appcenter`
+  - Uygulama venv icinde `psycopg2-binary` kurulu olmalidir.
+- DB ve kullanici:
+  - DB adi: `appcenter`
+  - DB user: `appcenter`
+  - Erisim: local-only (`pg_hba.conf` local + 127.0.0.1/32)
+- Migration:
+  - Kaynak SQLite dosyasi: `/var/lib/appcenter/appcenter.db`
+  - Yedekler: `/var/lib/appcenter/backups/appcenter_sqlite_*.db`
+  - Tasima sonrasi tablo satir sayilari SQLite vs PostgreSQL dogrulanmistir.
+- Geri donus (acil durum):
+  - `.env` icindeki `DATABASE_URL` tekrar SQLite'a alinabilir:
+    - `sqlite:////var/lib/appcenter/appcenter.db`
+  - `systemctl restart appcenter`
+
+### 1.9 PostgreSQL Performans/Bakim Ayarlari (2026-03-02)
+
+- Sunucu profili:
+  - CPU: 16 vCPU
+  - RAM: 15 GB
+- Uygulanan temel ayarlar (`ALTER SYSTEM`):
+  - `shared_buffers=2GB`
+  - `effective_cache_size=8GB`
+  - `work_mem=16MB`
+  - `maintenance_work_mem=512MB`
+  - `wal_compression=on`
+  - `max_wal_size=4GB`
+  - `min_wal_size=1GB`
+  - `checkpoint_completion_target=0.9`
+  - `random_page_cost=1.1`
+  - `effective_io_concurrency=200`
+  - `autovacuum_naptime=20s`
+  - `autovacuum_vacuum_scale_factor=0.05`
+  - `autovacuum_analyze_scale_factor=0.02`
+  - `autovacuum_vacuum_cost_limit=2000`
+  - `log_min_duration_statement=500ms`
+  - `shared_preload_libraries=pg_stat_statements`
+- Bakim/isletim:
+  - `CREATE EXTENSION IF NOT EXISTS pg_stat_statements`
+  - Migration sonrasi `vacuumdb --analyze-in-stages` calistirildi.
+
+### 1.10 PostgreSQL Uyumluluk Notu (Timeline)
+
+- `GET /api/v1/dashboard/timeline` endpoint'i PostgreSQL'e geciste iki SQL uyumluluk guncellemesi aldi:
+  - `FROM ( ... )` alt sorgusuna alias eklendi.
+  - `UNION` icindeki `exit_code` kolonunda tip uyumu icin `CAST(NULL AS INTEGER)` kullanildi.
+- Beklenen sonuc:
+  - Endpoint `200` doner, dashboard timeline karti bos/500'e dusmez.
+
 ### 1.1 Bu Sunucuda Aktif Deployment Profili
 
 - Kaynak repo dizini: `/root/appcenter/server`
