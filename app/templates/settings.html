@@ -70,6 +70,28 @@
             <input class="form-control" id="s-runtime-jitter" type="number" min="0" />
           </div>
 
+          <div class="col-12"><hr class="my-2" /></div>
+          <div class="col-12">
+            <div class="subheader mb-2">Session Recording</div>
+          </div>
+          <div class="col-12 col-md-3">
+            <label class="form-check form-switch">
+              <input class="form-check-input" id="s-session-recording-enabled" type="checkbox" />
+              <span class="form-check-label">Session Recording Aktif</span>
+            </label>
+            <div class="form-hint">Aktif oldugunda bağlantı yapıldıgından kayıt otomatik başlar.</div>
+          </div>
+          <div class="col-12 col-md-3">
+            <label class="form-label">Recording FPS</label>
+            <input class="form-control" id="s-session-recording-fps" type="number" min="1" max="30" />
+            <div class="form-hint">1-30 FPS</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Recording Servis Durumu</label>
+            <div id="s-recording-service-status" class="mt-1">-</div>
+            <div id="s-recording-service-hint" class="form-hint mt-1"></div>
+          </div>
+
           <div class="col-12 d-flex justify-content-end">
             <button class="btn btn-primary" type="submit"><i class="ti ti-device-floppy me-1"></i>Ayarlari Kaydet</button>
           </div>
@@ -122,8 +144,38 @@
       document.getElementById('s-system-retention').value = map.system_history_retention_days || '360';
       document.getElementById('s-runtime-interval').value = map.runtime_update_interval_min || '60';
       document.getElementById('s-runtime-jitter').value = map.runtime_update_jitter_sec || '300';
+      document.getElementById('s-session-recording-enabled').checked = ['1', 'true', 'yes', 'on'].includes((map.session_recording_enabled || 'false').toString().toLowerCase());
+      document.getElementById('s-session-recording-fps').value = map.session_recording_fps || '10';
+      await loadRecordingServiceStatus();
     } catch (err) {
       AppCenterApi.toast(err.message);
+    }
+  }
+
+  async function loadRecordingServiceStatus() {
+    const statusEl = document.getElementById('s-recording-service-status');
+    const hintEl = document.getElementById('s-recording-service-hint');
+    if (!statusEl || !hintEl) return;
+    try {
+      const data = await AppCenterApi.req('/remote-support/recording/service-status');
+      const svc = (data && data.service) ? data.service : {};
+      const active = !!svc.active;
+      const enabled = !!svc.enabled;
+      const targetFps = Number(svc.target_fps || 0);
+      const missing = Array.isArray(svc.missing) ? svc.missing : [];
+      statusEl.innerHTML = active
+        ? '<span class="badge bg-green-lt text-green">Aktif</span>'
+        : '<span class="badge bg-yellow-lt text-yellow">Pasif</span>';
+      if (!enabled) {
+        hintEl.textContent = 'Session Recording ayari kapali.';
+      } else if (missing.length) {
+        hintEl.textContent = `Eksik bagimliliklar: ${missing.join(', ')}`;
+      } else {
+        hintEl.textContent = targetFps > 0 ? `Servis hazir. Hedef FPS: ${targetFps}` : 'Servis hazir.';
+      }
+    } catch (err) {
+      statusEl.innerHTML = '<span class="badge bg-red-lt text-red">Hata</span>';
+      hintEl.textContent = err.message || 'Servis durumu alinamadi';
     }
   }
 
@@ -146,11 +198,14 @@
             system_history_retention_days: document.getElementById('s-system-retention').value,
             runtime_update_interval_min: document.getElementById('s-runtime-interval').value,
             runtime_update_jitter_sec: document.getElementById('s-runtime-jitter').value,
+            session_recording_enabled: document.getElementById('s-session-recording-enabled').checked ? 'true' : 'false',
+            session_recording_fps: document.getElementById('s-session-recording-fps').value,
           },
         }),
       });
       AppCenterApi.toast('Ayarlar kaydedildi');
       await AppCenterApi.initUi(true);
+      await loadRecordingServiceStatus();
     } catch (err) {
       AppCenterApi.toast(err.message);
     }

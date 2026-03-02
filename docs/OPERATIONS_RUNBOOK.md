@@ -75,6 +75,34 @@ Bu dokuman production ortami icin deploy, smoke ve rollback adimlarini tanimlar.
   - M2 preconnect asamasinda aktif ekran otomatik degismez (M1 gorunumu sabit kalir).
   - Monitor degisimi sadece kullanici seciminde olur; M1<->M2 gecis animasyonu iki yonlu calisir.
 
+### 1.7 Session Recording Servisi (2026-03-02)
+
+- Konfigurasyon:
+  - UI: `Ayarlar > Session Recording > Session Recording Aktif`
+  - DB key: `session_recording_enabled` (`true|false`)
+  - DB key: `session_recording_fps` (`1-30`, varsayilan `10`)
+- Calisma modeli:
+  - noVNC baglantisi `connected` oldugunda kayit otomatik baslatilir.
+  - Session sonlandiginda kayit otomatik durdurulur.
+- Kayit motoru:
+  - `gst-launch-1.0` + `rfbsrc` + `x264enc` + `mp4mux`
+  - Cikti yolu: `/var/lib/appcenter/uploads/recordings/session_<session_id>/`
+- Servis durumu:
+  - UI ayni Ayarlar ekraninda `Aktif/Pasif` rozetini gosterir.
+  - Eksik bagimlilik varsa listelenir.
+- API:
+  - `GET /api/v1/remote-support/recording/service-status`
+  - `POST /api/v1/remote-support/sessions/{id}/recording/start`
+  - `POST /api/v1/remote-support/sessions/{id}/recording/stop`
+  - `GET /api/v1/remote-support/recordings`
+  - `GET /api/v1/remote-support/recordings/{recording_id}/stream`
+- GStreamer paketleri (Ubuntu 20.04):
+  ```bash
+  apt-get install -y gstreamer1.0-tools gstreamer1.0-plugins-base \
+    gstreamer1.0-plugins-good gstreamer1.0-plugins-bad \
+    gstreamer1.0-plugins-ugly gstreamer1.0-libav
+  ```
+
 ### 1.1 Bu Sunucuda Aktif Deployment Profili
 
 - Kaynak repo dizini: `/root/appcenter/server`

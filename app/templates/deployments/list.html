@@ -17,6 +17,28 @@
     width: 18px;
     height: 18px;
   }
+  .dep-toolbar {
+    display: grid !important;
+    grid-template-columns: minmax(280px, 1.5fr) minmax(170px, 1fr) minmax(210px, 1fr) minmax(1px, 1fr) !important;
+    gap: 0.5rem;
+    width: 100%;
+    min-width: 760px;
+    align-items: center;
+  }
+  .dep-toolbar .toolbar-item {
+    min-width: 0;
+  }
+  .dep-toolbar-wrap {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .dep-toolbar .form-control,
+  .dep-toolbar .form-select {
+    height: 36px;
+  }
+  .dep-toolbar .toolbar-spacer {
+    display: block;
+  }
   .dep-app-cell {
     display: inline-flex;
     align-items: center;
@@ -66,22 +88,22 @@
 </style>
 
 <div class="card">
-  <div class="card-header">
-    <div class="row g-2 w-100 dep-toolbar">
-      <div class="col-12 col-md-5">
+  <div class="card-header dep-toolbar-wrap">
+    <div class="dep-toolbar">
+      <div class="toolbar-item toolbar-search">
         <div class="input-icon">
           <span class="input-icon-addon"><i class="ti ti-search icon"></i></span>
           <input id="dep-search" class="form-control" placeholder="Ara: hedef / uygulama" autocomplete="off" />
         </div>
       </div>
-      <div class="col-12 col-md-3">
+      <div class="toolbar-item toolbar-active">
         <select id="dep-filter-active" class="form-select">
           <option value="all">Tum Durumlar</option>
           <option value="active">Sadece Aktif</option>
           <option value="inactive">Sadece Pasif</option>
         </select>
       </div>
-      <div class="col-12 col-md-4">
+      <div class="toolbar-item toolbar-sort">
         <select id="dep-sort" class="form-select">
           <option value="id_desc">ID (Yeni -> Eski)</option>
           <option value="id_asc">ID (Eski -> Yeni)</option>
@@ -91,6 +113,7 @@
           <option value="app_desc">Uygulama (Z-A)</option>
         </select>
       </div>
+      <div class="toolbar-item toolbar-spacer" aria-hidden="true"></div>
     </div>
   </div>
   <div class="table-responsive">

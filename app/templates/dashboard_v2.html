@@ -4,74 +4,18 @@
 {% block page_actions %}
 <div class="btn-list">
   <a class="btn btn-outline-secondary btn-sm" href="/dashboard"><i class="ti ti-layout-dashboard me-1"></i>Stable Dashboard</a>
-  <button class="btn btn-outline-primary btn-sm" type="button" onclick="loadDashboard()">
+  <button class="btn btn-outline-primary btn-sm" type="button" onclick="loadDashboardV2()">
     <i class="ti ti-refresh me-1"></i>Yenile
   </button>
 </div>
 {% endblock %}
 {% block content %}
 <style>
-  .timeline-item-title {
-    font-weight: 600;
-    text-decoration: none;
-    color: inherit;
-  }
-  .timeline-item-title:hover {
-    color: var(--tblr-primary);
-  }
-  .app-timeline .timeline-event-card {
-    border-color: var(--tblr-border-color, #e6e7e9);
-  }
-  .app-timeline .timeline-event-card .card-body {
-    padding: 0.75rem 0.875rem;
-  }
-  .app-timeline .timeline-event-icon {
-    background: transparent !important;
-  }
-  .app-timeline .timeline-event-icon .icon {
-    width: 18px;
-    height: 18px;
-    min-width: 18px;
-    min-height: 18px;
-  }
-  .app-timeline-empty {
-    padding: 0.5rem 0;
-  }
-  .summary-note {
-    color: var(--tblr-secondary-color, #626976);
-    font-size: 0.9rem;
-  }
-  .dash-layout {
+  .dash-v2-grid {
     display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1rem;
     align-items: start;
-  }
-  .dash-side {
-    align-self: start;
-  }
-  .dash-kpi-grid,
-  .dash-mini-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 1rem;
-  }
-  .dash-mini-grid {
-    margin-top: 1rem;
-  }
-  .dash-summary {
-    margin-top: 1rem;
-  }
-  .dash-bottom-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1rem;
-  }
-  .dash-extra-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1rem;
-    margin-top: 1rem;
   }
   .dash-v2-note {
     margin-top: 0.75rem;
@@ -79,299 +23,112 @@
     font-size: 0.85rem;
   }
   @media (max-width: 1199.98px) {
-    .dash-layout {
-      grid-template-columns: 1fr;
-    }
-    .dash-kpi-grid,
-    .dash-mini-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    .dash-bottom-grid {
-      grid-template-columns: 1fr;
-    }
-    .dash-extra-grid {
-      grid-template-columns: 1fr;
-    }
-  }
-  @media (max-width: 767.98px) {
-    .dash-kpi-grid,
-    .dash-mini-grid {
+    .dash-v2-grid {
       grid-template-columns: 1fr;
     }
   }
 </style>
 
-<div class="dash-layout">
-  <div class="dash-main">
-    <div class="dash-kpi-grid">
-      <div>
-        <div class="card">
-          <div class="card-body">
-            <div class="d-flex align-items-center">
-              <div class="subheader">Toplam Ajan</div>
-              <div class="ms-auto lh-1">
-                <span class="text-secondary d-inline-flex align-items-center lh-1" id="m-total-agents-note">-</span>
-              </div>
-            </div>
-            <div class="h1 mb-3" id="m-total-agents">-</div>
-            <div class="d-flex mb-2">
-              <div>Online Orani</div>
-              <div class="ms-auto"><span class="text-green d-inline-flex align-items-center lh-1" id="m-online-rate">-%</span></div>
-            </div>
-            <div class="progress progress-sm">
-              <div id="m-online-progress" class="progress-bar bg-primary" style="width: 0%"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div>
-        <div class="card">
-          <div class="card-body">
-            <div class="d-flex align-items-center">
-              <div class="subheader">Ajan Durumu</div>
-              <div class="ms-auto lh-1"><span class="text-secondary d-inline-flex align-items-center lh-1">Canli</span></div>
-            </div>
-            <div class="h1 mb-3" id="m-online">-</div>
-            <div class="d-flex mb-2">
-              <div>Offline</div>
-              <div class="ms-auto"><span class="text-red d-inline-flex align-items-center lh-1" id="m-offline">-</span></div>
-            </div>
-            <div class="progress progress-sm">
-              <div id="m-offline-progress" class="progress-bar bg-danger" style="width: 0%"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div>
-        <div class="card">
-          <div class="card-body">
-            <div class="d-flex align-items-center">
-              <div class="subheader">Dagitimlar</div>
-              <div class="ms-auto lh-1"><span class="text-secondary d-inline-flex align-items-center lh-1">Aktif</span></div>
-            </div>
-            <div class="h1 mb-3" id="m-deployments">-</div>
-            <div class="d-flex mb-2">
-              <div>Bekleyen Gorev</div>
-              <div class="ms-auto"><span class="text-yellow d-inline-flex align-items-center lh-1" id="m-pending-tasks">-</span></div>
-            </div>
-            <div class="progress progress-sm">
-              <div id="m-pending-progress" class="progress-bar bg-warning" style="width: 0%"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div>
-        <div class="card">
-          <div class="card-body">
-            <div class="d-flex align-items-center">
-              <div class="subheader">Remote Oturum</div>
-              <div class="ms-auto lh-1"><span class="text-secondary d-inline-flex align-items-center lh-1">Anlik</span></div>
-            </div>
-            <div class="h1 mb-3" id="m-active-remote">-</div>
-            <div class="d-flex mb-2">
-              <div>Basarisiz Gorev</div>
-              <div class="ms-auto"><span class="text-red d-inline-flex align-items-center lh-1" id="m-failed-tasks">-</span></div>
-            </div>
-            <div class="progress progress-sm">
-              <div id="m-failed-progress" class="progress-bar bg-danger" style="width: 0%"></div>
-            </div>
-          </div>
-        </div>
-      </div>
+<div class="dash-v2-grid">
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">Operasyon Analizi (V2)</h3>
     </div>
-
-    <div class="dash-mini-grid">
-      <div>
-        <div class="card card-sm">
-          <div class="card-body">
-            <div class="row align-items-center">
-              <div class="col-auto"><span class="bg-azure text-white avatar"><i class="ti ti-apps icon"></i></span></div>
-              <div class="col"><div class="font-weight-medium" id="m-apps">-</div><div class="text-secondary">Uygulama</div></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div>
-        <div class="card card-sm">
-          <div class="card-body">
-            <div class="row align-items-center">
-              <div class="col-auto"><span class="bg-red text-white avatar"><i class="ti ti-alert-triangle icon"></i></span></div>
-              <div class="col"><div class="font-weight-medium" id="m-violations">-</div><div class="text-secondary">Lisans Ihlali</div></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div>
-        <div class="card card-sm">
-          <div class="card-body">
-            <div class="row align-items-center">
-              <div class="col-auto"><span class="bg-yellow text-white avatar"><i class="ti ti-shield-x icon"></i></span></div>
-              <div class="col"><div class="font-weight-medium" id="m-prohibited">-</div><div class="text-secondary">Yasak Yazilim</div></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div>
-        <div class="card card-sm">
-          <div class="card-body">
-            <div class="row align-items-center">
-              <div class="col-auto"><span class="bg-blue text-white avatar"><i class="ti ti-activity icon"></i></span></div>
-              <div class="col"><div class="font-weight-medium" id="m-last-event">-</div><div class="text-secondary">Son Olay</div></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="dash-summary">
-      <div class="dash-bottom-grid">
-        <div class="card">
-          <div class="card-header">
-            <h3 class="card-title">Envanter Ozeti</h3>
-          </div>
-          <div class="card-body">
-            <p class="mb-3">Envanter kapsami <strong id="m-inv-coverage">-%</strong></p>
-            <div class="progress progress-separated mb-3">
-              <div id="m-inv-covered-progress" class="progress-bar bg-primary" style="width: 0%"></div>
-              <div id="m-inv-missing-progress" class="progress-bar bg-secondary" style="width: 100%"></div>
-            </div>
-            <div class="row">
-              <div class="col-auto d-flex align-items-center pe-2"><span class="legend me-2 bg-primary"></span><span>Envanterli</span><span class="ms-2 text-secondary" id="m-agents-inv">-</span></div>
-              <div class="col-auto d-flex align-items-center px-2"><span class="legend me-2 bg-secondary"></span><span>Eksik</span><span class="ms-2 text-secondary" id="m-missing-inv">-</span></div>
-            </div>
-            <hr class="my-3" />
-            <div class="row">
-              <div class="col-6"><div class="text-secondary">Benzersiz</div><div class="h3 mb-0" id="m-unique-sw">-</div></div>
-              <div class="col-6"><div class="text-secondary">Bugun Eklenen</div><div class="h3 mb-0" id="m-added-today">-</div></div>
-              <div class="col-6 mt-3"><div class="text-secondary">Bugun Kaldirilan</div><div class="h3 mb-0" id="m-removed-today">-</div></div>
-              <div class="col-6 mt-3"><div class="text-secondary">Kritik / Uyari</div><div class="h3 mb-0"><span id="m-danger-events">0</span> / <span id="m-warn-events">0</span></div></div>
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <h3 class="card-title">Top 10 Client Application Traffic</h3>
-          </div>
-          <table class="table card-table table-vcenter">
-            <thead>
-              <tr>
-                <th>Client</th>
-                <th colspan="2">Yuklu Uygulama</th>
-              </tr>
-            </thead>
-            <tbody id="top-clients-rows">
-              <tr><td colspan="3" class="text-secondary">Yukleniyor...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div class="dash-extra-grid">
-        <div class="card">
-          <div class="card-header">
-            <h3 class="card-title">Operasyon Analizi (V2)</h3>
-          </div>
-          <div class="list-group list-group-flush list-group-hoverable" id="ops-insights-list">
-            <div class="list-group-item text-secondary">Yukleniyor...</div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <h3 class="card-title">Top Software (Cross-Agent)</h3>
-          </div>
-          <table class="table card-table table-vcenter">
-            <thead>
-              <tr>
-                <th>Yazilim</th>
-                <th colspan="2">Ajan Sayisi</th>
-              </tr>
-            </thead>
-            <tbody id="top-software-rows">
-              <tr><td colspan="3" class="text-secondary">Yukleniyor...</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="card">
-          <div class="card-header d-flex align-items-center justify-content-between">
-            <h3 class="card-title">Top Risk Clients</h3>
-            <span class="badge bg-yellow-lt text-yellow" id="risk-total-badge">0</span>
-          </div>
-          <table class="table card-table table-vcenter">
-            <thead>
-              <tr>
-                <th>Client</th>
-                <th>Lisans</th>
-                <th>Prohibited</th>
-                <th>Skor</th>
-              </tr>
-            </thead>
-            <tbody id="risk-clients-rows">
-              <tr><td colspan="4" class="text-secondary">Yukleniyor...</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <h3 class="card-title">Remote Support KPI (7 Gun)</h3>
-          </div>
-          <div class="list-group list-group-flush" id="remote-metrics-list">
-            <div class="list-group-item text-secondary">Yukleniyor...</div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <h3 class="card-title">7 Gun Task Kalitesi</h3>
-          </div>
-          <table class="table card-table table-vcenter">
-            <thead>
-              <tr>
-                <th>Gun</th>
-                <th>Success / Failed / Pending</th>
-                <th class="w-25">Basari Orani</th>
-              </tr>
-            </thead>
-            <tbody id="task-trend-rows">
-              <tr><td colspan="3" class="text-secondary">Yukleniyor...</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <h3 class="card-title">7 Gun Status Gecisleri</h3>
-          </div>
-          <table class="table card-table table-vcenter">
-            <thead>
-              <tr>
-                <th>Gun</th>
-                <th>Online / Offline Gecis</th>
-                <th class="w-25">Net Etki</th>
-              </tr>
-            </thead>
-            <tbody id="status-trend-rows">
-              <tr><td colspan="3" class="text-secondary">Yukleniyor...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div class="dash-v2-note">
-        Bu ekran deneysel yerlesim alanidir. Onaydan sonra stable dashboard'a tasinacaktir.
-      </div>
+    <div class="list-group list-group-flush list-group-hoverable" id="ops-insights-list">
+      <div class="list-group-item text-secondary">Yukleniyor...</div>
     </div>
   </div>
 
-  <div class="dash-side">
-    <div id="dash-timeline">
-      <div class="text-secondary app-timeline-empty">Yukleniyor...</div>
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">Top Software (Cross-Agent)</h3>
     </div>
+    <table class="table card-table table-vcenter">
+      <thead>
+        <tr>
+          <th>Yazilim</th>
+          <th colspan="2">Ajan Sayisi</th>
+        </tr>
+      </thead>
+      <tbody id="top-software-rows">
+        <tr><td colspan="3" class="text-secondary">Yukleniyor...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-header d-flex align-items-center justify-content-between">
+      <h3 class="card-title">Top Risk Clients</h3>
+      <span class="badge bg-yellow-lt text-yellow" id="risk-total-badge">0</span>
+    </div>
+    <table class="table card-table table-vcenter">
+      <thead>
+        <tr>
+          <th>Client</th>
+          <th>Lisans</th>
+          <th>Prohibited</th>
+          <th>Skor</th>
+        </tr>
+      </thead>
+      <tbody id="risk-clients-rows">
+        <tr><td colspan="4" class="text-secondary">Yukleniyor...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">Remote Support KPI (7 Gun)</h3>
+    </div>
+    <div class="list-group list-group-flush" id="remote-metrics-list">
+      <div class="list-group-item text-secondary">Yukleniyor...</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">7 Gun Task Kalitesi</h3>
+    </div>
+    <table class="table card-table table-vcenter">
+      <thead>
+        <tr>
+          <th>Gun</th>
+          <th>Success / Failed / Pending</th>
+          <th class="w-25">Basari Orani</th>
+        </tr>
+      </thead>
+      <tbody id="task-trend-rows">
+        <tr><td colspan="3" class="text-secondary">Yukleniyor...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">7 Gun Status Gecisleri</h3>
+    </div>
+    <table class="table card-table table-vcenter">
+      <thead>
+        <tr>
+          <th>Gun</th>
+          <th>Online / Offline Gecis</th>
+          <th class="w-25">Net Etki</th>
+        </tr>
+      </thead>
+      <tbody id="status-trend-rows">
+        <tr><td colspan="3" class="text-secondary">Yukleniyor...</td></tr>
+      </tbody>
+    </table>
   </div>
 </div>
 
-<div class="summary-note mt-3">Bu ekran 10 saniyede bir otomatik yenilenir.</div>
+<div class="dash-v2-note">
+  Bu ekran deneysel yerlesim alanidir. Onaydan sonra stable dashboard'a tasinacaktir.
+</div>
 {% endblock %}
 {% block scripts %}
 <script>
   AppCenterApi.protectPage();
-  let totalAgents = 0;
-  let latestTimelineTs = 0;
 
   function esc(s) {
     return (s || '')
@@ -383,127 +140,12 @@
       .replaceAll("'", '&#39;');
   }
 
-  function severityBadge(sev) {
-    const key = (sev || '').toLowerCase();
-    if (key === 'ok') return { klass: 'bg-green-lt text-green', label: 'ok' };
-    if (key === 'warn') return { klass: 'bg-yellow-lt text-yellow', label: 'warn' };
-    if (key === 'danger') return { klass: 'bg-red-lt text-red', label: 'danger' };
-    return { klass: 'bg-blue-lt text-blue', label: key || 'info' };
-  }
-
-  function setMetric(id, value) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.textContent = value;
-  }
-
-  function setProgress(id, value) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const safe = Math.max(0, Math.min(100, Number(value) || 0));
-    el.style.width = `${safe}%`;
-  }
-
-  function timelineIconByType(eventType, severity) {
-    const t = (eventType || '').toLowerCase();
-    const s = (severity || '').toLowerCase();
-    const tone = s === 'danger'
-      ? 'text-red'
-      : s === 'warn'
-        ? 'text-yellow'
-        : s === 'ok'
-          ? 'text-green'
-          : 'text-blue';
-
-    if (t.includes('deploy') || t.includes('release')) return { icon: 'ti ti-rocket', tone };
-    if (t.includes('inventory') || t.includes('software')) return { icon: 'ti ti-list-details', tone };
-    if (t.includes('remote') || t.includes('session')) return { icon: 'ti ti-headset', tone };
-    if (t.includes('license')) return { icon: 'ti ti-license', tone };
-    if (t.includes('task') || t.includes('job')) return { icon: 'ti ti-checkup-list', tone };
-    if (t.includes('security') || t.includes('alert')) return { icon: 'ti ti-shield-exclamation', tone };
-    if (t.includes('agent') || t.includes('status') || t.includes('heartbeat')) return { icon: 'ti ti-devices', tone };
-    return { icon: 'ti ti-activity', tone };
-  }
-
-  async function loadTimeline() {
-    try {
-      await AppCenterApi.initUi();
-      const data = await AppCenterApi.req('/dashboard/timeline');
-      const el = document.getElementById('dash-timeline');
-      const items = data.items || [];
-      if (!items.length) {
-        el.innerHTML = '<div class="text-secondary app-timeline-empty">Kayit yok</div>';
-        setMetric('m-danger-events', 0);
-        setMetric('m-warn-events', 0);
-        setMetric('m-last-event', '-');
-        return;
-      }
-      let dangerCount = 0;
-      let warnCount = 0;
-      latestTimelineTs = 0;
-      el.innerHTML = `<ul class="timeline app-timeline mb-0">${items.map(i => {
-        const when = AppCenterApi.formatDate(i.detected_at);
-        const whenRel = AppCenterApi.relTime(i.detected_at);
-        const title = `${i.hostname || '-'} (${(i.event_type || '-')})`;
-        const b = severityBadge(i.severity);
-        const iconMeta = timelineIconByType(i.event_type, i.severity);
-        const sev = (i.severity || '').toLowerCase();
-        if (sev === 'danger') dangerCount += 1;
-        if (sev === 'warn') warnCount += 1;
-        const dt = AppCenterApi.parseDate(i.detected_at);
-        const ts = dt ? dt.getTime() : 0;
-        if (ts > latestTimelineTs) latestTimelineTs = ts;
-        return `<li class="timeline-event">
-          <div class="timeline-event-icon ${iconMeta.tone}">
-            <i class="${iconMeta.icon} icon icon-1"></i>
-          </div>
-          <div class="card timeline-event-card">
-            <div class="card-body">
-              <div class="text-secondary float-end" title="${esc(when)}">${esc(whenRel)}</div>
-              <h4 class="mb-1 d-flex align-items-center gap-2">
-                <a class="timeline-item-title" href="/agents/${esc(i.agent_uuid)}">${esc(title)}</a>
-                <span class="badge ${b.klass}">${esc(b.label)}</span>
-              </h4>
-              <p class="text-secondary mb-0">${esc(i.summary || '-')}</p>
-            </div>
-          </div>
-        </li>`;
-      }).join('')}</ul>`;
-      setMetric('m-danger-events', dangerCount);
-      setMetric('m-warn-events', warnCount);
-      setMetric('m-last-event', latestTimelineTs ? AppCenterApi.relTime(new Date(latestTimelineTs).toISOString()) : '-');
-    } catch (err) {
-      AppCenterApi.toast(err.message);
-    }
-  }
-
-  async function loadTopClients() {
-    try {
-      const data = await AppCenterApi.req('/dashboard/top-clients');
-      const rows = data.items || [];
-      const el = document.getElementById('top-clients-rows');
-      if (!rows.length) {
-        el.innerHTML = '<tr><td colspan="3" class="text-secondary">Kayit yok</td></tr>';
-        return;
-      }
-      const maxInstalled = Math.max(...rows.map((x) => Number(x.installed_app_count || 0)), 1);
-      el.innerHTML = rows.map((item) => {
-        const installed = Number(item.installed_app_count || 0);
-        const ratio = Math.max(0, Math.min(100, Math.round((installed / maxInstalled) * 10000) / 100));
-        return `<tr>
-          <td><a class="text-reset text-decoration-none" href="/agents/${esc(item.agent_uuid)}">${esc(item.hostname || '-')}</a></td>
-          <td>${installed.toLocaleString('tr-TR')}</td>
-          <td class="w-50">
-            <div class="progress progress-xs">
-              <div class="progress-bar bg-primary" style="width: ${ratio}%"></div>
-            </div>
-          </td>
-        </tr>`;
-      }).join('');
-    } catch (err) {
-      const el = document.getElementById('top-clients-rows');
-      if (el) el.innerHTML = `<tr><td colspan="3" class="text-danger">${esc(err.message || 'Yuklenemedi')}</td></tr>`;
-    }
+  function fmtDuration(sec) {
+    const s = Math.max(0, Number(sec) || 0);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    if (h > 0) return `${h}s ${m}dk`;
+    return `${m}dk`;
   }
 
   async function loadTopSoftware() {
@@ -642,14 +284,6 @@
     }
   }
 
-  function fmtDuration(sec) {
-    const s = Math.max(0, Number(sec) || 0);
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    if (h > 0) return `${h}s ${m}dk`;
-    return `${m}dk`;
-  }
-
   async function loadComplianceBreakdown() {
     try {
       const data = await AppCenterApi.req('/dashboard/compliance-breakdown');
@@ -710,69 +344,20 @@
     }
   }
 
-  async function loadDashboard() {
-    try {
-      const stats = await AppCenterApi.req('/dashboard/stats');
-      totalAgents = stats.total_agents || 0;
-      const online = stats.online_agents || 0;
-      const offline = Math.max(0, totalAgents - online);
-      const onlineRate = totalAgents > 0 ? Math.round((online / totalAgents) * 100) : 0;
-      const pending = stats.pending_tasks || 0;
-      const failed = stats.failed_tasks || 0;
-
-      setMetric('m-total-agents', totalAgents.toLocaleString('tr-TR'));
-      setMetric('m-total-agents-note', `${offline.toLocaleString('tr-TR')} offline`);
-      setMetric('m-online', online.toLocaleString('tr-TR'));
-      setMetric('m-offline', offline.toLocaleString('tr-TR'));
-      setMetric('m-online-rate', `${onlineRate}%`);
-      setMetric('m-apps', (stats.total_applications || 0).toLocaleString('tr-TR'));
-      setMetric('m-deployments', (stats.active_deployments || 0).toLocaleString('tr-TR'));
-      setMetric('m-active-remote', (stats.active_remote_sessions || 0).toLocaleString('tr-TR'));
-      setMetric('m-pending-tasks', pending.toLocaleString('tr-TR'));
-      setMetric('m-failed-tasks', failed.toLocaleString('tr-TR'));
-
-      setProgress('m-online-progress', onlineRate);
-      setProgress('m-offline-progress', 100 - onlineRate);
-      setProgress('m-pending-progress', Math.min(100, pending * 5));
-      setProgress('m-failed-progress', Math.min(100, failed * 8));
-    } catch (err) {
-      AppCenterApi.toast(err.message);
-    }
-
-    try {
-      const inv = await AppCenterApi.req('/inventory/dashboard');
-      const invAgents = inv.agents_with_inventory || 0;
-      const missing = Math.max(0, totalAgents - invAgents);
-      const coverage = totalAgents > 0 ? Math.round((invAgents / totalAgents) * 100) : 0;
-
-      setMetric('m-unique-sw', (inv.total_unique_software || 0).toLocaleString('tr-TR'));
-      setMetric('m-agents-inv', invAgents.toLocaleString('tr-TR'));
-      setMetric('m-added-today', (inv.added_today || 0).toLocaleString('tr-TR'));
-      setMetric('m-removed-today', (inv.removed_today || 0).toLocaleString('tr-TR'));
-      setMetric('m-violations', (inv.license_violations || 0).toLocaleString('tr-TR'));
-      setMetric('m-prohibited', (inv.prohibited_alerts || 0).toLocaleString('tr-TR'));
-      setMetric('m-missing-inv', missing.toLocaleString('tr-TR'));
-      setMetric('m-inv-coverage', `${coverage}%`);
-
-      setProgress('m-inv-covered-progress', coverage);
-      setProgress('m-inv-missing-progress', 100 - coverage);
-    } catch (_) {
-      // inventory stats optional
-    }
-
-    await loadTimeline();
-    await loadTopClients();
-    await loadTopSoftware();
-    await loadOpsInsights();
-    await loadTrends();
-    await loadComplianceBreakdown();
-    await loadRemoteMetrics();
+  async function loadDashboardV2() {
+    await Promise.all([
+      loadTopSoftware(),
+      loadOpsInsights(),
+      loadTrends(),
+      loadComplianceBreakdown(),
+      loadRemoteMetrics(),
+    ]);
   }
 
   (async function () {
     await AppCenterApi.initUi();
-    await loadDashboard();
-    setInterval(loadDashboard, 10000);
+    await loadDashboardV2();
+    setInterval(loadDashboardV2, 15000);
   })();
 </script>
 {% endblock %}

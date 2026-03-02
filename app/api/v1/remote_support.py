@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.auth import require_role
 from app.database import get_db
-from app.models import Agent, User
+from app.models import Agent, RemoteSupportRecording, User
 from app.schemas import (
     MessageResponse,
     RemoteSessionAgentApproveRequest,
@@ -17,10 +19,136 @@ from app.schemas import (
 )
 from app.services import novnc_service as novnc
 from app.services import remote_support_service as rs
+from app.services import session_recording_service as recording
 from app.services import audit_service as audit
 from app.api.v1.agent import _authenticate_agent
 
 router = APIRouter(tags=["remote-support"])
+
+
+@router.get("/remote-support/recording/service-status")
+def get_recording_service_status(
+    user: User = Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+):
+    _ = user
+    return {"status": "ok", "service": recording.get_service_status(db)}
+
+
+@router.post("/remote-support/sessions/{session_id}/recording/start")
+def start_session_recording(
+    session_id: int,
+    trigger: str = Query(default="manual"),
+    user: User = Depends(require_role("operator", "admin")),
+    db: Session = Depends(get_db),
+):
+    rec, started = recording.start_recording(db, session_id, trigger_source=trigger)
+    if started:
+        audit.record_audit(
+            db,
+            user_id=user.id,
+            action="remote_support.recording_start",
+            resource_type="remote_support_recording",
+            resource_id=str(rec.id),
+            details={"session_id": session_id, "trigger": trigger},
+        )
+    return {
+        "status": "ok",
+        "started": started,
+        "recording": {
+            "id": rec.id,
+            "session_id": rec.session_id,
+            "status": rec.status,
+            "target_fps": rec.target_fps,
+            "file_path": rec.file_path,
+            "started_at": rec.started_at,
+        },
+    }
+
+
+@router.post("/remote-support/sessions/{session_id}/recording/stop", response_model=MessageResponse)
+def stop_session_recording(
+    session_id: int,
+    user: User = Depends(require_role("operator", "admin")),
+    db: Session = Depends(get_db),
+):
+    stopped = recording.stop_recording(db, session_id, reason="manual_stop")
+    if stopped:
+        audit.record_audit(
+            db,
+            user_id=user.id,
+            action="remote_support.recording_stop",
+            resource_type="remote_support_session",
+            resource_id=str(session_id),
+            details={"reason": "manual_stop"},
+        )
+        return MessageResponse(status="ok", message="Recording stop signal sent")
+    return MessageResponse(status="ok", message="No running recording for this session")
+
+
+@router.get("/remote-support/recordings")
+def list_remote_recordings(
+    session_id: Optional[int] = None,
+    agent_uuid: Optional[str] = None,
+    limit: int = 100,
+    user: User = Depends(require_role("viewer", "operator", "admin")),
+    db: Session = Depends(get_db),
+):
+    _ = user
+    q = db.query(RemoteSupportRecording)
+    if session_id is not None:
+        q = q.filter(RemoteSupportRecording.session_id == session_id)
+    if agent_uuid:
+        q = q.filter(RemoteSupportRecording.agent_uuid == agent_uuid)
+    items = q.order_by(RemoteSupportRecording.id.desc()).limit(max(1, min(limit, 500))).all()
+    agent_map = {
+        a.uuid: a.hostname
+        for a in db.query(Agent).filter(Agent.uuid.in_({r.agent_uuid for r in items})).all()
+    } if items else {}
+    return {
+        "status": "ok",
+        "items": [
+            {
+                "id": r.id,
+                "session_id": r.session_id,
+                "agent_uuid": r.agent_uuid,
+                "agent_hostname": agent_map.get(r.agent_uuid),
+                "status": r.status,
+                "target_fps": r.target_fps,
+                "trigger_source": r.trigger_source,
+                "file_path": r.file_path,
+                "started_at": r.started_at,
+                "ended_at": r.ended_at,
+                "duration_sec": r.duration_sec,
+                "file_size_bytes": r.file_size_bytes,
+                "error_message": r.error_message,
+            }
+            for r in items
+        ],
+        "total": len(items),
+    }
+
+
+@router.get("/remote-support/recordings/{recording_id}/stream")
+def stream_remote_recording(
+    recording_id: int,
+    user: User = Depends(require_role("viewer", "operator", "admin")),
+    db: Session = Depends(get_db),
+):
+    _ = user
+    rec = db.query(RemoteSupportRecording).filter(RemoteSupportRecording.id == recording_id).first()
+    if not rec:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recording not found")
+    raw_path = (rec.file_path or "").strip()
+    if not raw_path:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Recording file path is empty")
+    root = recording.get_recordings_root()
+    path = Path(raw_path).expanduser().resolve()
+    if root not in path.parents:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Recording path is outside allowed directory")
+    if not path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recording file not found")
+    return FileResponse(str(path), media_type="video/mp4", filename=path.name)
 
 
 @router.post("/remote-support/sessions")

@@ -17,6 +17,28 @@
     width: 18px;
     height: 18px;
   }
+  .apps-toolbar {
+    display: grid !important;
+    grid-template-columns: minmax(280px, 1.5fr) minmax(170px, 1fr) minmax(210px, 1fr) minmax(1px, 1fr) !important;
+    gap: 0.5rem;
+    width: 100%;
+    min-width: 760px;
+    align-items: center;
+  }
+  .apps-toolbar .toolbar-item {
+    min-width: 0;
+  }
+  .apps-toolbar-wrap {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .apps-toolbar .form-control,
+  .apps-toolbar .form-select {
+    height: 36px;
+  }
+  .apps-toolbar .toolbar-spacer {
+    display: block;
+  }
   .apps-modal-backdrop {
     position: fixed;
     inset: 0;
@@ -46,22 +68,22 @@
 </style>
 
 <div class="card">
-  <div class="card-header">
-    <div class="row g-2 w-100 apps-toolbar">
-      <div class="col-12 col-md-5">
+  <div class="card-header apps-toolbar-wrap">
+    <div class="apps-toolbar">
+      <div class="toolbar-item toolbar-search">
         <div class="input-icon">
           <span class="input-icon-addon"><i class="ti ti-search icon"></i></span>
           <input id="apps-search" class="form-control" placeholder="Ara: ad / versiyon / kategori" autocomplete="off" />
         </div>
       </div>
-      <div class="col-12 col-md-3">
+      <div class="toolbar-item toolbar-active">
         <select id="apps-filter-active" class="form-select">
           <option value="all">Tum Durumlar</option>
           <option value="active">Sadece Aktif</option>
           <option value="inactive">Sadece Pasif</option>
         </select>
       </div>
-      <div class="col-12 col-md-4">
+      <div class="toolbar-item toolbar-sort">
         <select id="apps-sort" class="form-select">
           <option value="id_desc">ID (Yeni -> Eski)</option>
           <option value="id_asc">ID (Eski -> Yeni)</option>
@@ -71,6 +93,7 @@
           <option value="version_desc">Versiyon (Z-A)</option>
         </select>
       </div>
+      <div class="toolbar-item toolbar-spacer" aria-hidden="true"></div>
     </div>
   </div>
   <div class="table-responsive">

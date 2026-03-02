@@ -56,6 +56,8 @@ DEFAULT_SETTINGS = {
     "system_history_retention_days": ("360", "Sistem profili degisim gecmisi saklama suresi (gun)"),
     "runtime_update_interval_min": ("60", "Agent runtime update kontrol araligi (dakika)"),
     "runtime_update_jitter_sec": ("300", "Agent runtime update jitter (saniye)"),
+    "session_recording_enabled": ("false", "Remote support session recording auto-start"),
+    "session_recording_fps": ("10", "Remote support session recording target FPS"),
 }
 
 DEFAULT_GROUPS = {
@@ -99,6 +101,7 @@ def _run_startup_migrations() -> None:
         _migrate_sqlite_agent_identity_history_table()
         _migrate_sqlite_agent_status_history_table()
         _migrate_sqlite_remote_support_table()
+        _migrate_sqlite_remote_support_recordings_table()
         _migrate_sqlite_audit_logs_table()
 
 
@@ -409,6 +412,42 @@ def _migrate_sqlite_audit_logs_table() -> None:
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_logs(resource_type, resource_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at)"))
+
+
+def _migrate_sqlite_remote_support_recordings_table() -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS remote_support_recordings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id INTEGER NOT NULL REFERENCES remote_support_sessions(id) ON DELETE CASCADE,
+                    agent_uuid TEXT NOT NULL REFERENCES agents(uuid) ON DELETE CASCADE,
+                    status TEXT NOT NULL DEFAULT 'recording',
+                    target_fps INTEGER,
+                    trigger_source TEXT,
+                    file_path TEXT,
+                    log_path TEXT,
+                    started_at TEXT NOT NULL,
+                    ended_at TEXT,
+                    duration_sec INTEGER,
+                    file_size_bytes INTEGER,
+                    error_message TEXT,
+                    CONSTRAINT ck_rsr_status CHECK (
+                        status IN ('recording','completed','stopped','failed')
+                    )
+                )
+                """
+            )
+        )
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_rsr_session ON remote_support_recordings(session_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_rsr_agent ON remote_support_recordings(agent_uuid)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_rsr_status ON remote_support_recordings(status)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_rsr_started ON remote_support_recordings(started_at)"))
+        cols = conn.execute(text("PRAGMA table_info(remote_support_recordings)")).mappings().all()
+        names = {c["name"] for c in cols}
+        if "target_fps" not in names:
+            conn.execute(text("ALTER TABLE remote_support_recordings ADD COLUMN target_fps INTEGER"))
 
 
 def seed_initial_data() -> None:

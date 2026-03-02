@@ -17,6 +17,28 @@
     width: 18px;
     height: 18px;
   }
+  .groups-toolbar {
+    display: grid !important;
+    grid-template-columns: minmax(280px, 1.5fr) minmax(170px, 1fr) minmax(210px, 1fr) minmax(1px, 1fr) !important;
+    gap: 0.5rem;
+    width: 100%;
+    min-width: 760px;
+    align-items: center;
+  }
+  .groups-toolbar .toolbar-item {
+    min-width: 0;
+  }
+  .groups-toolbar-wrap {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .groups-toolbar .form-control,
+  .groups-toolbar .form-select {
+    height: 36px;
+  }
+  .groups-toolbar .toolbar-spacer {
+    display: block;
+  }
   .group-name {
     display: inline-flex;
     align-items: center;
@@ -63,22 +85,22 @@
 </style>
 
 <div class="card">
-  <div class="card-header">
-    <div class="row g-2 w-100 groups-toolbar">
-      <div class="col-12 col-md-5">
+  <div class="card-header groups-toolbar-wrap">
+    <div class="groups-toolbar">
+      <div class="toolbar-item toolbar-search">
         <div class="input-icon">
           <span class="input-icon-addon"><i class="ti ti-search icon"></i></span>
           <input id="group-search-input" class="form-control" type="text" placeholder="Grup ara: ad veya aciklama" />
         </div>
       </div>
-      <div class="col-12 col-md-3">
+      <div class="toolbar-item toolbar-active">
         <select id="group-active-filter" class="form-select">
           <option value="active">Sadece Aktif</option>
           <option value="all">Tum Gruplar</option>
           <option value="inactive">Sadece Pasif</option>
         </select>
       </div>
-      <div class="col-12 col-md-4">
+      <div class="toolbar-item toolbar-sort">
         <select id="group-sort" class="form-select">
           <option value="name_asc">Ad (A-Z)</option>
           <option value="name_desc">Ad (Z-A)</option>
@@ -88,6 +110,7 @@
           <option value="count_asc">Ajan Sayisi (Az -> Cok)</option>
         </select>
       </div>
+      <div class="toolbar-item toolbar-spacer" aria-hidden="true"></div>
     </div>
   </div>
   <div id="group-table-wrap" class="table-responsive">

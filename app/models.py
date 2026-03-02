@@ -298,6 +298,30 @@ class RemoteSupportSession(Base):
     admin_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 
+class RemoteSupportRecording(Base):
+    __tablename__ = "remote_support_recordings"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('recording','completed','stopped','failed')",
+            name="ck_rsr_status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("remote_support_sessions.id", ondelete="CASCADE"), nullable=False)
+    agent_uuid: Mapped[str] = mapped_column(ForeignKey("agents.uuid", ondelete="CASCADE"), nullable=False)
+    status: Mapped[str] = mapped_column(String, default="recording", nullable=False)
+    target_fps: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    trigger_source: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    file_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    log_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    duration_sec: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    file_size_bytes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
 Index("idx_settings_key", Setting.key)
 Index("idx_group_name", Group.name)
 Index("idx_agent_status", Agent.status)
@@ -327,6 +351,10 @@ Index("idx_rs_agent", RemoteSupportSession.agent_uuid)
 Index("idx_rs_status", RemoteSupportSession.status)
 Index("idx_rs_requested", RemoteSupportSession.requested_at)
 Index("idx_rs_admin", RemoteSupportSession.admin_user_id)
+Index("idx_rsr_session", RemoteSupportRecording.session_id)
+Index("idx_rsr_agent", RemoteSupportRecording.agent_uuid)
+Index("idx_rsr_status", RemoteSupportRecording.status)
+Index("idx_rsr_started", RemoteSupportRecording.started_at)
 
 
 class AgentSoftwareInventory(Base):

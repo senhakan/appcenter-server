@@ -274,6 +274,13 @@ def end_session(db: Session, session_id: int, ended_by: str) -> RemoteSupportSes
     db.add(session)
     db.commit()
     db.refresh(session)
+    try:
+        from app.services import session_recording_service
+
+        session_recording_service.stop_recording(db, session.id, reason=f"session_end:{ended_by}")
+    except Exception:
+        # Recording stop failures should not block session termination.
+        pass
     agent_signal.notify_agent(session.agent_uuid)
     return session
 
@@ -295,6 +302,12 @@ def end_session_from_agent(db: Session, session_id: int, agent_uuid: str, ended_
     db.add(session)
     db.commit()
     db.refresh(session)
+    try:
+        from app.services import session_recording_service
+
+        session_recording_service.stop_recording(db, session.id, reason=f"agent_end:{ended_by or 'agent'}")
+    except Exception:
+        pass
     return session
 
 
@@ -316,6 +329,12 @@ def cancel_pending_session(db: Session, session_id: int, admin_user_id: int | No
     db.add(session)
     db.commit()
     db.refresh(session)
+    try:
+        from app.services import session_recording_service
+
+        session_recording_service.stop_recording(db, session.id, reason="pending_cancel")
+    except Exception:
+        pass
     agent_signal.notify_agent(session.agent_uuid)
     return session
 

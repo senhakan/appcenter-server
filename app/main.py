@@ -123,6 +123,14 @@ NAV_SCHEMA: list[dict[str, Any]] = [
             {"key": "infra_health", "title": "Sistem Durumu (Yakinda)", "path": None, "active_pages": [], "roles": ["admin"], "feature_flag": "infra"},
             {"key": "infra_config", "title": "Konfigurasyon (Yakinda)", "path": None, "active_pages": [], "roles": ["admin"], "feature_flag": "infra"},
             {"key": "infra_integrations", "title": "Entegrasyonlar (Yakinda)", "path": None, "active_pages": [], "roles": ["admin"], "feature_flag": "infra"},
+            {
+                "key": "infra_session_recordings",
+                "title": "Session Recordings",
+                "path": "/infra/recordings",
+                "active_pages": ["infra_recordings"],
+                "roles": ["admin", "operator", "viewer"],
+                "feature_flag": "infra",
+            },
             {"key": "infra_audit", "title": "Audit Log", "path": "/audit", "active_pages": ["audit"], "roles": ["admin"], "feature_flag": "audit"},
             {"key": "infra_diag", "title": "Tanilama (Yakinda)", "path": None, "active_pages": [], "roles": ["admin"], "feature_flag": "infra"},
         ],
@@ -559,6 +567,14 @@ def audit_page(request: Request):
     return templates.TemplateResponse(
         "audit/list.html",
         {"request": request, "active_page": "audit", "page_roles": "admin"},
+    )
+
+
+@app.get("/infra/recordings")
+def infra_recordings_page(request: Request):
+    return templates.TemplateResponse(
+        "infrastructure/recordings.html",
+        {"request": request, "active_page": "infra_recordings", "page_roles": "viewer,operator,admin"},
     )
 
 

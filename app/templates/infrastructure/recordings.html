@@ -1,0 +1,173 @@
+{% extends 'base.html' %}
+{% block title %}Session Recordings{% endblock %}
+{% block page_title %}Session Recordings (Gecici){% endblock %}
+{% block content %}
+<div class="row row-cards">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Uzak Destek Kayitlari</h3>
+        <div class="d-flex gap-2">
+          <input id="f-agent" class="form-control form-control-sm" placeholder="Agent UUID" style="width: 280px;" />
+          <input id="f-session" class="form-control form-control-sm" placeholder="Session ID" style="width: 120px;" />
+          <button id="btn-refresh" class="btn btn-sm btn-primary" type="button">
+            <i class="ti ti-refresh me-1"></i>Yenile
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-vcenter">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Session</th>
+                <th>Agent</th>
+                <th>Durum</th>
+                <th>Baslangic</th>
+                <th>Bitis</th>
+                <th>Sure</th>
+                <th>FPS</th>
+                <th>Boyut</th>
+                <th>Izle</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+  let activePlayer = null;
+
+  function esc(s) {
+    return (s || '')
+      .toString()
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  function fmtSize(n) {
+    const b = Number(n || 0);
+    if (!b) return '-';
+    if (b < 1024) return `${b} B`;
+    if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+    if (b < 1024 * 1024 * 1024) return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(b / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  }
+
+  function badge(status) {
+    const st = (status || '').toLowerCase();
+    if (st === 'completed') return '<span class="badge bg-green-lt text-green">completed</span>';
+    if (st === 'recording') return '<span class="badge bg-yellow-lt text-yellow">recording</span>';
+    if (st === 'stopped') return '<span class="badge bg-blue-lt text-blue">stopped</span>';
+    return '<span class="badge bg-red-lt text-red">failed</span>';
+  }
+
+  function closeInlinePlayer() {
+    if (!activePlayer) return;
+    const { detailRow, objectUrl, button } = activePlayer;
+    try {
+      detailRow?.remove();
+    } catch (_) {}
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    if (button) {
+      button.innerHTML = '<i class="ti ti-player-play me-1"></i>Izle';
+      button.classList.remove('btn-outline-danger');
+      button.classList.add('btn-outline-primary');
+    }
+    activePlayer = null;
+  }
+
+  async function openInlinePlayer(button, recordingId) {
+    const parentRow = button.closest('tr');
+    if (!parentRow) return;
+    try {
+      button.disabled = true;
+      const res = await AppCenterApi.req(`/remote-support/recordings/${encodeURIComponent(recordingId)}/stream`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+
+      const detailRow = document.createElement('tr');
+      detailRow.className = 'recording-inline-row';
+      detailRow.innerHTML = `
+        <td colspan="10" class="bg-body-secondary">
+          <div class="p-2">
+            <video controls autoplay style="width: 100%; max-height: 520px; background: #000;" src="${url}"></video>
+          </div>
+        </td>
+      `;
+      parentRow.insertAdjacentElement('afterend', detailRow);
+
+      button.innerHTML = '<i class="ti ti-x me-1"></i>Kapat';
+      button.classList.remove('btn-outline-primary');
+      button.classList.add('btn-outline-danger');
+      activePlayer = { detailRow, objectUrl: url, button, recordingId: String(recordingId) };
+    } catch (err) {
+      AppCenterApi.toast(err.message || 'Kayit acilamadi');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function loadRows() {
+    try {
+      const q = [];
+      const agent = (document.getElementById('f-agent').value || '').trim();
+      const sid = (document.getElementById('f-session').value || '').trim();
+      if (agent) q.push(`agent_uuid=${encodeURIComponent(agent)}`);
+      if (sid) q.push(`session_id=${encodeURIComponent(sid)}`);
+      q.push('limit=200');
+      const data = await AppCenterApi.req(`/remote-support/recordings?${q.join('&')}`);
+      const rows = document.getElementById('rows');
+      rows.innerHTML = (data.items || []).map((r) => `
+        <tr>
+          <td>${r.id}</td>
+          <td>#${r.session_id}</td>
+          <td>
+            <div>${esc(r.agent_hostname || '-')}</div>
+            <div><code>${esc(r.agent_uuid || '-')}</code></div>
+          </td>
+          <td>${badge(r.status)}</td>
+          <td>${esc(AppCenterApi.formatDate(r.started_at) || '-')}</td>
+          <td>${esc(AppCenterApi.formatDate(r.ended_at) || '-')}</td>
+          <td>${r.duration_sec != null ? `${r.duration_sec}s` : '-'}</td>
+          <td>${r.target_fps != null ? `${r.target_fps}` : '-'}</td>
+          <td>${fmtSize(r.file_size_bytes)}</td>
+          <td>
+            <button class="btn btn-sm btn-outline-primary" type="button" data-watch="${r.id}" ${r.status === 'recording' ? 'disabled' : ''}>
+              <i class="ti ti-player-play me-1"></i>Izle
+            </button>
+          </td>
+        </tr>
+      `).join('');
+      closeInlinePlayer();
+      rows.querySelectorAll('[data-watch]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const id = btn.getAttribute('data-watch');
+          if (!id) return;
+          if (activePlayer && activePlayer.recordingId === String(id)) {
+            closeInlinePlayer();
+            return;
+          }
+          closeInlinePlayer();
+          await openInlinePlayer(btn, id);
+        });
+      });
+    } catch (err) {
+      AppCenterApi.toast(err.message || 'Kayit listesi yuklenemedi');
+    }
+  }
+
+  document.getElementById('btn-refresh').addEventListener('click', loadRows);
+  loadRows();
+</script>
+{% endblock %}

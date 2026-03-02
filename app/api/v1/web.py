@@ -85,6 +85,29 @@ router = APIRouter(tags=["web"])
 settings = get_settings()
 MIN_SESSION_TIMEOUT_MINUTES = 1
 MAX_SESSION_TIMEOUT_MINUTES = 1440
+MIN_RECORDING_FPS = 1
+MAX_RECORDING_FPS = 30
+
+
+def _as_utc(dt_value):
+    # sqlite raw queries can return strings and/or naive datetimes.
+    if dt_value is None:
+        return None
+    if isinstance(dt_value, str):
+        s = dt_value.strip()
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        if " " in s and "T" not in s:
+            s = s.replace(" ", "T", 1)
+        try:
+            dt_value = datetime.fromisoformat(s)
+        except Exception:
+            return None
+    if isinstance(dt_value, datetime):
+        if dt_value.tzinfo is None:
+            return dt_value.replace(tzinfo=timezone.utc)
+        return dt_value.astimezone(timezone.utc)
+    return None
 
 
 @router.get("/agents", response_model=AgentListResponse)
@@ -443,26 +466,6 @@ def dashboard_timeline(
     db: Session = Depends(get_db),
     _: User = Depends(require_role("viewer", "operator", "admin")),
 ) -> DashboardTimelineListResponse:
-    def _as_utc(dt_value):
-        # sqlite raw queries can return strings and/or naive datetimes.
-        if dt_value is None:
-            return None
-        if isinstance(dt_value, str):
-            s = dt_value.strip()
-            if s.endswith("Z"):
-                s = s[:-1] + "+00:00"
-            if " " in s and "T" not in s:
-                s = s.replace(" ", "T", 1)
-            try:
-                dt_value = datetime.fromisoformat(s)
-            except Exception:
-                return None
-        if isinstance(dt_value, datetime):
-            if dt_value.tzinfo is None:
-                return dt_value.replace(tzinfo=timezone.utc)
-            return dt_value.astimezone(timezone.utc)
-        return None
-
     rows = db.execute(
         text(
             """
@@ -824,9 +827,15 @@ def dashboard_remote_metrics(
     durations = []
     for s in sessions:
         if s.approved_at and s.requested_at:
-            approval_delays.append(max(0, int((_as_utc(s.approved_at) - _as_utc(s.requested_at)).total_seconds())))
+            approved_at = _as_utc(s.approved_at)
+            requested_at = _as_utc(s.requested_at)
+            if approved_at and requested_at:
+                approval_delays.append(max(0, int((approved_at - requested_at).total_seconds())))
         if s.connected_at and s.ended_at:
-            durations.append(max(0, int((_as_utc(s.ended_at) - _as_utc(s.connected_at)).total_seconds())))
+            ended_at = _as_utc(s.ended_at)
+            connected_at = _as_utc(s.connected_at)
+            if ended_at and connected_at:
+                durations.append(max(0, int((ended_at - connected_at).total_seconds())))
 
     avg_approval_delay_sec = int(sum(approval_delays) / len(approval_delays)) if approval_delays else 0
     avg_session_duration_sec = int(sum(durations) / len(durations)) if durations else 0
@@ -1091,6 +1100,22 @@ def settings_update(
                     detail=(
                         f"session_timeout_minutes must be between "
                         f"{MIN_SESSION_TIMEOUT_MINUTES} and {MAX_SESSION_TIMEOUT_MINUTES}"
+                    ),
+                )
+        if key == "session_recording_fps":
+            try:
+                fps = int((value or "").strip())
+            except Exception:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid session_recording_fps",
+                )
+            if fps < MIN_RECORDING_FPS or fps > MAX_RECORDING_FPS:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"session_recording_fps must be between "
+                        f"{MIN_RECORDING_FPS} and {MAX_RECORDING_FPS}"
                     ),
                 )
         if key in {"runtime_update_interval_min", "runtime_update_jitter_sec"}:
