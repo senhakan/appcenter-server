@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 import unicodedata
 from typing import Optional
 
-from sqlalchemy import func
+from sqlalchemy import String, cast, func
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -213,10 +213,19 @@ def get_software_summary(
         AgentSoftwareInventory.normalized_name,
         AgentSoftwareInventory.software_name,
     )
+    dialect = (getattr(getattr(db, "bind", None), "dialect", None) or getattr(db.get_bind(), "dialect", None)).name
+    if dialect == "postgresql":
+        versions_agg = func.string_agg(
+            func.distinct(cast(AgentSoftwareInventory.software_version, String)),
+            ",",
+        )
+    else:
+        versions_agg = func.group_concat(func.distinct(AgentSoftwareInventory.software_version))
+
     q = db.query(
         name_col.label("name"),
         func.count(func.distinct(AgentSoftwareInventory.agent_uuid)).label("agent_count"),
-        func.group_concat(func.distinct(AgentSoftwareInventory.software_version)).label("versions"),
+        versions_agg.label("versions"),
     ).group_by(name_col)
 
     if search:

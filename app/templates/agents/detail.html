@@ -34,6 +34,54 @@
   .agent-note-col textarea {
     min-height: 82px;
   }
+  .agent-overview-kv {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 0.375rem 0.75rem;
+    font-size: 0.92rem;
+  }
+  .agent-overview-kv .k {
+    color: var(--tblr-secondary-color, #6b7280);
+  }
+  .agent-overview-kv .v {
+    color: var(--tblr-body-color, #1f2937);
+    word-break: break-word;
+  }
+  .agent-overview-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  .agent-overview-groups {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  .agent-overview-groups .full {
+    grid-column: 1 / -1;
+  }
+  .agent-overview-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .agent-monitor-header {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+  }
+  @media (max-width: 767.98px) {
+    .agent-overview-metrics,
+    .agent-overview-groups {
+      grid-template-columns: 1fr;
+    }
+    .agent-overview-kv {
+      grid-template-columns: 1fr;
+      gap: 0.25rem;
+    }
+  }
   .agent-disk-col {
     align-self: start;
   }
@@ -43,23 +91,81 @@
     margin-top: 8px;
     justify-content: flex-end;
   }
+  /* Keep Tabler tabs intact against legacy .nav/.nav a global styles. */
+  .agent-tabs.nav {
+    gap: 0;
+  }
+  .agent-tabs.nav a.nav-link {
+    border: var(--tblr-border-width, 1px) solid transparent;
+    border-top-left-radius: var(--tblr-border-radius, 6px);
+    border-top-right-radius: var(--tblr-border-radius, 6px);
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    background: transparent;
+    padding: 0.75rem 1rem;
+  }
+  .agent-tabs.nav a.nav-link.active {
+    color: var(--tblr-primary, #066fd1);
+    background: var(--tblr-bg-surface, #fff);
+    border-color: var(--tblr-border-color, #e5e7eb) var(--tblr-border-color, #e5e7eb) var(--tblr-bg-surface, #fff);
+  }
+  .table-row-filler td {
+    height: 44px;
+    color: transparent;
+    user-select: none;
+  }
+  .agent-tab-pane-fixed {
+    min-height: 640px;
+    display: flex;
+    flex-direction: column;
+  }
+  .agent-tab-toolbar {
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+  }
+  .agent-tab-pane-fixed .table-responsive {
+    min-height: 470px;
+  }
 </style>
-<div class="card">
-  <div class="card-body">
-    <div id="agent-detail" class="grid cols-2"></div>
-  </div>
-</div>
+<div id="agent-overview"></div>
 
 <div class="card">
-  <div class="card-body">
-  <div class="btn-list mb-3">
-    <button class="btn btn-primary" id="tab-inventory" onclick="showTab('inventory')"><i class="ti ti-apps me-1"></i>Yuklu Yazilimlar</button>
-    <button class="btn btn-outline-secondary" id="tab-changes" onclick="showTab('changes')"><i class="ti ti-history me-1"></i>Degisim Gecmisi</button>
-    <button class="btn btn-outline-secondary" id="tab-system" onclick="showTab('system')"><i class="ti ti-cpu me-1"></i>Sistem Gecmisi</button>
+  <div class="card-header">
+    <ul class="nav nav-tabs card-header-tabs agent-tabs" data-bs-toggle="tabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <a href="#tabs-home-3" class="nav-link active" data-bs-toggle="tab" aria-selected="true" role="tab">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" class="icon me-2 icon-2">
+            <path d="M5 12l-2 0l9 -9l9 9l-2 0"></path>
+            <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"></path>
+            <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6"></path>
+          </svg>Yuklu Yazilimlar
+        </a>
+      </li>
+      <li class="nav-item" role="presentation">
+        <a href="#tabs-profile-3" class="nav-link" data-bs-toggle="tab" aria-selected="false" role="tab" tabindex="-1">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" class="icon me-2 icon-2">
+            <path d="M3 12h4l3 8l4 -16l3 8h4"></path>
+          </svg>Degisim Gecmisi
+        </a>
+      </li>
+      <li class="nav-item" role="presentation">
+        <a href="#tabs-system-3" class="nav-link" data-bs-toggle="tab" aria-selected="false" role="tab" tabindex="-1">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" class="icon me-2 icon-2">
+            <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+            <rect x="9" y="9" width="6" height="6"></rect>
+            <path d="M15 2v2"></path><path d="M15 20v2"></path><path d="M2 15h2"></path><path d="M2 9h2"></path><path d="M20 15h2"></path><path d="M20 9h2"></path><path d="M9 2v2"></path><path d="M9 20v2"></path>
+          </svg>Sistem Gecmisi
+        </a>
+      </li>
+    </ul>
   </div>
-
-  <div id="panel-inventory">
-    <div class="d-flex align-items-center justify-content-between mb-2">
+  <div class="card-body">
+  <div class="tab-content">
+  <div id="tabs-home-3" class="tab-pane active show agent-tab-pane-fixed" role="tabpanel">
+    <div class="agent-tab-toolbar">
       <input id="inv-search" class="form-control" type="text" placeholder="Yazilim ara..." oninput="filterInventory()" style="max-width:300px;" />
       <span class="text-secondary" id="inv-updated"></span>
     </div>
@@ -69,30 +175,63 @@
       <tbody id="inv-body"></tbody>
     </table>
     </div>
+    <div class="card-footer mt-2">
+      <div class="row g-2 justify-content-center justify-content-sm-between">
+        <div class="col-auto d-flex align-items-center">
+          <p class="m-0 text-secondary" id="inv-page-info">-</p>
+        </div>
+        <div class="col-auto">
+          <ul class="pagination m-0 ms-auto" id="inv-pagination"></ul>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <div id="panel-changes" style="display:none;">
+  <div id="tabs-profile-3" class="tab-pane agent-tab-pane-fixed" role="tabpanel">
+    <div class="agent-tab-toolbar">
+      <span class="text-secondary small">Degisim Gecmisi</span>
+      <span class="text-secondary small">&nbsp;</span>
+    </div>
     <div class="table-responsive">
     <table class="table card-table table-vcenter">
       <thead><tr><th>Tarih</th><th>Yazilim</th><th>Islem</th><th><i class="ti ti-eye me-1"></i>Detay</th></tr></thead>
       <tbody id="changes-body"></tbody>
     </table>
     </div>
-    <div class="d-flex justify-content-end mt-2">
-      <button class="btn btn-outline-secondary btn-sm" id="changes-more" onclick="loadMoreChanges()"><i class="ti ti-chevron-down me-1"></i>Daha Fazla</button>
+    <div class="card-footer">
+      <div class="row g-2 justify-content-center justify-content-sm-between">
+        <div class="col-auto d-flex align-items-center">
+          <p class="m-0 text-secondary" id="changes-page-info">-</p>
+        </div>
+        <div class="col-auto">
+          <ul class="pagination m-0 ms-auto" id="changes-pagination"></ul>
+        </div>
+      </div>
     </div>
   </div>
 
-  <div id="panel-system" style="display:none;">
+  <div id="tabs-system-3" class="tab-pane agent-tab-pane-fixed" role="tabpanel">
+    <div class="agent-tab-toolbar">
+      <span class="text-secondary small">Sistem Gecmisi</span>
+      <span class="text-secondary small">&nbsp;</span>
+    </div>
     <div class="table-responsive">
     <table class="table card-table table-vcenter">
       <thead><tr><th>Tarih</th><th>Degisen Bilgiler</th></tr></thead>
       <tbody id="sys-body"></tbody>
     </table>
     </div>
-    <div class="d-flex justify-content-end mt-2">
-      <button class="btn btn-outline-secondary btn-sm" id="sys-more" onclick="loadMoreSystem()"><i class="ti ti-chevron-down me-1"></i>Daha Fazla</button>
+    <div class="card-footer">
+      <div class="row g-2 justify-content-center justify-content-sm-between">
+        <div class="col-auto d-flex align-items-center">
+          <p class="m-0 text-secondary" id="sys-page-info">-</p>
+        </div>
+        <div class="col-auto">
+          <ul class="pagination m-0 ms-auto" id="sys-pagination"></ul>
+        </div>
+      </div>
     </div>
+  </div>
   </div>
   </div>
 </div>
@@ -120,8 +259,15 @@
   const agentId = "{{ agent_uuid }}";
   let agentHostname = "";
   let allInventory = [];
-  let changesOffset = 0;
-  let systemOffset = 0;
+  let filteredInventory = [];
+  let invPage = 1;
+  const INV_PAGE_SIZE = 10;
+  const CHANGES_PAGE_SIZE = 10;
+  const SYSTEM_PAGE_SIZE = 10;
+  let changesPage = 1;
+  let systemPage = 1;
+  let changesHasNext = false;
+  let systemHasNext = false;
   let savedNote = '';
   const deleteModal = document.getElementById('agent-delete-modal');
 
@@ -135,13 +281,56 @@
   function openDeleteModal() { deleteModal.classList.remove('hidden'); }
   function closeDeleteModal() { deleteModal.classList.add('hidden'); }
 
-  function showTab(tab) {
-    document.getElementById('panel-inventory').style.display = tab === 'inventory' ? '' : 'none';
-    document.getElementById('panel-changes').style.display = tab === 'changes' ? '' : 'none';
-    document.getElementById('panel-system').style.display = tab === 'system' ? '' : 'none';
-    document.getElementById('tab-inventory').className = tab === 'inventory' ? 'btn btn-primary' : 'btn btn-outline-secondary';
-    document.getElementById('tab-changes').className = tab === 'changes' ? 'btn btn-primary' : 'btn btn-outline-secondary';
-    document.getElementById('tab-system').className = tab === 'system' ? 'btn btn-primary' : 'btn btn-outline-secondary';
+  function escHtml(value) {
+    return (value || '')
+      .toString()
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  function relTime(value) {
+    const dt = AppCenterApi.parseDate(value);
+    if (!dt) return '-';
+    const ms = Date.now() - dt.getTime();
+    const sec = Math.max(0, Math.floor(ms / 1000));
+    if (sec < 60) return `${sec} sn once`;
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min} dk once`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr} s once`;
+    const day = Math.floor(hr / 24);
+    return `${day} gun once`;
+  }
+
+  function formatDurationSeconds(totalSec) {
+    const sec = Number(totalSec || 0);
+    if (!Number.isFinite(sec) || sec <= 0) return '-';
+    const d = Math.floor(sec / 86400);
+    const h = Math.floor((sec % 86400) / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    if (d > 0) return `${d} gun ${h} saat ${m} dk`;
+    if (h > 0) return `${h} saat ${m} dk`;
+    return `${m} dk`;
+  }
+
+  function uptimeFromLastOnline(data) {
+    const isOnline = (data.status || '').toLowerCase() === 'online';
+    const dt = AppCenterApi.parseDate(data.last_seen);
+    if (!isOnline) return '0 dk';
+    if (!dt) return '-';
+    const sec = Math.max(0, Math.floor((Date.now() - dt.getTime()) / 1000));
+    return formatDurationSeconds(sec);
+  }
+
+  function normalizePublisher(value) {
+    const text = (value || '').toString().trim();
+    if (!text) return '-';
+    const cn = text.match(/(?:^|,)\s*CN=([^,]+)/i);
+    if (cn && cn[1]) return cn[1].trim();
+    return text.replace(/^CN=/i, '').trim() || '-';
   }
 
   function syncNoteSaveButton() {
@@ -178,43 +367,113 @@
       await AppCenterApi.initUi();
       const data = await AppCenterApi.req(`/agents/${agentId}`);
       agentHostname = data.hostname || '';
-      const el = document.getElementById('agent-detail');
-      const sessions = (data.logged_in_sessions || []).map(s => `${s.username} (${s.session_type})`);
+      const el = document.getElementById('agent-overview');
+      const sessions = (data.logged_in_sessions || []).map(s => `${escHtml(s.username || '-') } (${escHtml(s.session_type || '-')})`);
       const sessionsText = sessions.length ? sessions.join('<br/>') : '-';
+      const primaryUser = sessions.length ? sessions[0] : '-';
       const sessionsUpdated = data.logged_in_sessions_updated_at ? AppCenterApi.formatDate(data.logged_in_sessions_updated_at) : '-';
       const rsUpdated = data.remote_support_updated_at ? AppCenterApi.formatDate(data.remote_support_updated_at) : '-';
       const rsHelper = data.remote_support_helper_running ? `Calisiyor${data.remote_support_helper_pid ? (' (PID ' + data.remote_support_helper_pid + ')') : ''}` : 'Calismiyor';
       const sys = data.system_profile || null;
       const sysUpdated = data.system_profile_updated_at ? AppCenterApi.formatDate(data.system_profile_updated_at) : '-';
-      const sysDisks = sys ? ((sys.disks || []).map(d => `Disk ${d.index}: ${d.size_gb || '?'} GB (${d.bus_type || '?'}) ${d.model || ''}`.trim()).join('<br/>') || '-') : '-';
+      const sysDisks = sys ? ((sys.disks || []).map(d => `Disk ${escHtml(d.index)}: ${escHtml(d.size_gb || '?')} GB (${escHtml(d.bus_type || '?')}) ${escHtml(d.model || '')}`.trim()).join('<br/>') || '-') : '-';
       const sysVirt = sys && sys.virtualization ? `${sys.virtualization.is_virtual ? 'Evet' : 'Hayir'} ${sys.virtualization.vendor || ''} ${sys.virtualization.model || ''}`.trim() : '-';
+      const isOnline = (data.status || '').toLowerCase() === 'online';
+      const statusClass = isOnline ? 'status-green status-indicator-animated' : 'status-red';
+      const statusTextClass = isOnline ? 'text-green' : 'text-red';
+      const uptimeText = uptimeFromLastOnline(data);
+      const lastSeenFull = data.last_seen ? AppCenterApi.formatDate(data.last_seen) : '-';
+      const lastSeenRel = relTime(data.last_seen);
+      const uptimeInfoText = data.last_seen ? `${relTime(data.last_seen)} (${lastSeenFull})` : '-';
       el.innerHTML = `
-        <div><label>UUID</label><div>${data.uuid}</div></div>
-        <div><label>Hostname</label><div>${data.hostname || '-'}</div></div>
-        <div><label>IP</label><div>${data.ip_address || '-'}</div></div>
-        <div><label>Durum</label><div>${data.status || '-'}</div></div>
-        <div><label>Version</label><div>${data.version || '-'}</div></div>
-        <div><label>Son Gorulme</label><div>${data.last_seen ? AppCenterApi.formatDate(data.last_seen) : '-'}</div></div>
-        <div><label>Login Olan Kullanici(lar)</label><div>${sessionsText}</div></div>
-        <div><label>Session Guncelleme</label><div>${sessionsUpdated}</div></div>
-        <div><label>Remote State</label><div>${data.remote_support_state || '-'}</div></div>
-        <div><label>Remote Session ID</label><div>${data.remote_support_session_id || '-'}</div></div>
-        <div><label>Remote Helper</label><div>${rsHelper}</div></div>
-        <div><label>Remote Guncelleme</label><div>${rsUpdated}</div></div>
-        <div><label>Sistem Profili Guncelleme</label><div>${sysUpdated}</div></div>
-        <div><label>OS</label><div>${sys ? ((sys.os_full_name || '-') + ' ' + (sys.os_version || '') + (sys.build_number ? (' (Build ' + sys.build_number + ')') : '')) : '-'}</div></div>
-        <div><label>Mimari</label><div>${sys ? (sys.architecture || '-') : '-'}</div></div>
-        <div><label>Marka/Model</label><div>${sys ? ((sys.manufacturer || '-') + ' ' + (sys.model || '')) : '-'}</div></div>
-        <div><label>CPU</label><div>${sys ? ((sys.cpu_model || '-') + ' (P:' + (sys.cpu_cores_physical ?? '-') + ' L:' + (sys.cpu_cores_logical ?? '-') + ')') : '-'}</div></div>
-        <div><label>RAM</label><div>${sys && sys.total_memory_gb != null ? (sys.total_memory_gb + ' GB') : '-'}</div></div>
-        <div><label>Virtual</label><div>${sysVirt || '-'}</div></div>
-        <div></div>
-        <div class="agent-disk-col"><label>Diskler</label><div>${sysDisks}</div></div>
-        <div class="agent-note-col" style="grid-column: span 2;">
-          <label for="agent-note-input">Not</label>
-          <textarea id="agent-note-input" rows="3" maxlength="2000" placeholder="Ajan ile ilgili not..." ${canWrite ? '' : 'readonly'}></textarea>
-          <div class="agent-note-actions"${canWrite ? '' : ' style="display:none;"'}>
-            <button class="btn btn-outline-secondary" id="agent-note-save-btn" type="button" disabled ${canWrite ? '' : 'hidden'}><i class="ti ti-device-floppy me-1"></i>Kaydet</button>
+        <div class="agent-monitor-header mb-3">
+          <div class="row g-3 align-items-center">
+            <div class="col-auto">
+              <span class="status-indicator ${statusClass}">
+                <span class="status-indicator-circle"></span>
+                <span class="status-indicator-circle"></span>
+                <span class="status-indicator-circle"></span>
+              </span>
+            </div>
+            <div class="col">
+              <h2 class="page-title mb-1">
+                <span class="agent-overview-inline">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-1"><rect x="3" y="4" width="18" height="12" rx="1"></rect><path d="M7 20h10"></path><path d="M9 16v4"></path><path d="M15 16v4"></path></svg>
+                  ${escHtml(data.hostname || '-')}
+                </span>
+                <span class="text-secondary ms-3 agent-overview-inline">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-1"><path d="M8 7a4 4 0 1 0 8 0"></path><path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2"></path></svg>
+                  ${escHtml(primaryUser)}
+                </span>
+              </h2>
+              <div class="text-secondary">
+                <ul class="list-inline list-inline-dots mb-0">
+                  <li class="list-inline-item"><span class="${statusTextClass}">${escHtml((data.status || '-').toUpperCase())}</span></li>
+                  <li class="list-inline-item">Son kontrol: ${escHtml(lastSeenRel)}</li>
+                  <li class="list-inline-item">Remote: ${escHtml(data.remote_support_state || '-')}</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="agent-overview-metrics mb-3">
+          <div class="card">
+            <div class="card-body">
+              <div class="subheader">Uptime suresi</div>
+              <div class="h3 m-0">${escHtml(uptimeText)}</div>
+              <div class="text-secondary mt-1 small">Son uptime tarihi: ${escHtml(uptimeInfoText)}</div>
+            </div>
+          </div>
+          <div class="card"><div class="card-body"><div class="subheader">Son kontrol</div><div class="h3 m-0">${escHtml(lastSeenFull)}</div></div></div>
+          <div class="card"><div class="card-body"><div class="subheader">Yuklu uygulama sayisi</div><div class="h3 m-0" id="agent-kpi-apps">-</div></div></div>
+        </div>
+        <div class="agent-overview-groups">
+          <div>
+            <div class="card">
+              <div class="card-header"><h3 class="card-title mb-0">Kimlik ve Erisim</h3></div>
+              <div class="card-body">
+                <div class="datagrid">
+                  <div class="datagrid-item"><div class="datagrid-title">UUID</div><div class="datagrid-content">${escHtml(data.uuid || '-')}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">IP</div><div class="datagrid-content">${escHtml(data.ip_address || '-')}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">Versiyon</div><div class="datagrid-content">${escHtml(data.version || '-')}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">Login kullanici</div><div class="datagrid-content">${sessionsText}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">Session guncelleme</div><div class="datagrid-content">${escHtml(sessionsUpdated)}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">Remote helper</div><div class="datagrid-content">${escHtml(rsHelper)}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">Remote guncelleme</div><div class="datagrid-content">${escHtml(rsUpdated)}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">Remote session ID</div><div class="datagrid-content">${escHtml(data.remote_support_session_id || '-')}</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="card">
+              <div class="card-header"><h3 class="card-title mb-0">Sistem Ozeti</h3></div>
+              <div class="card-body">
+                <div class="datagrid">
+                  <div class="datagrid-item"><div class="datagrid-title">Profil guncelleme</div><div class="datagrid-content">${escHtml(sysUpdated)}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">OS</div><div class="datagrid-content">${escHtml(sys ? ((sys.os_full_name || '-') + ' ' + (sys.os_version || '') + (sys.build_number ? (' (Build ' + sys.build_number + ')') : '')) : '-')}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">Mimari</div><div class="datagrid-content">${escHtml(sys ? (sys.architecture || '-') : '-')}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">Marka/Model</div><div class="datagrid-content">${escHtml(sys ? ((sys.manufacturer || '-') + ' ' + (sys.model || '')) : '-')}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">CPU</div><div class="datagrid-content">${escHtml(sys ? ((sys.cpu_model || '-') + ' (P:' + (sys.cpu_cores_physical ?? '-') + ' L:' + (sys.cpu_cores_logical ?? '-') + ')') : '-')}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">RAM</div><div class="datagrid-content">${escHtml(sys && sys.total_memory_gb != null ? (sys.total_memory_gb + ' GB') : '-')}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">Virtual</div><div class="datagrid-content">${escHtml(sysVirt || '-')}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">Diskler</div><div class="datagrid-content">${sysDisks}</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="full">
+            <div class="card">
+              <div class="card-header"><h3 class="card-title mb-0">Notlar</h3></div>
+              <div class="card-body">
+                <div class="agent-note-col">
+                  <textarea id="agent-note-input" rows="3" maxlength="2000" placeholder="Ajan ile ilgili not..." ${canWrite ? '' : 'readonly'}></textarea>
+                  <div class="agent-note-actions"${canWrite ? '' : ' style="display:none;"'}>
+                    <button class="btn btn-outline-secondary" id="agent-note-save-btn" type="button" disabled ${canWrite ? '' : 'hidden'}><i class="ti ti-device-floppy me-1"></i>Kaydet</button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       `;
@@ -233,6 +492,8 @@
     try {
       const data = await AppCenterApi.req(`/agents/${agentId}/inventory`);
       allInventory = data.items || [];
+      const appKpi = document.getElementById('agent-kpi-apps');
+      if (appKpi) appKpi.textContent = String(allInventory.length);
       filterInventory();
     } catch (err) {
       AppCenterApi.toast(err.message);
@@ -245,31 +506,105 @@
     body.innerHTML = items.map(i => `<tr>
       <td>${i.software_name}</td>
       <td>${i.software_version || '-'}</td>
-      <td>${i.publisher || '-'}</td>
+      <td>${normalizePublisher(i.publisher)}</td>
       <td>${i.estimated_size_kb || '-'}</td>
       <td>${i.architecture || '-'}</td>
     </tr>`).join('');
   }
 
+  function appendFillerRows(body, colCount, count) {
+    for (let i = 0; i < count; i += 1) {
+      body.innerHTML += `<tr class="table-row-filler"><td colspan="${colCount}">&nbsp;</td></tr>`;
+    }
+  }
+
+  function updateInventoryPager(total, page) {
+    const totalPages = Math.max(1, Math.ceil(total / INV_PAGE_SIZE));
+    const from = total ? ((page - 1) * INV_PAGE_SIZE + 1) : 0;
+    const to = Math.min(page * INV_PAGE_SIZE, total);
+    const info = document.getElementById('inv-page-info');
+    if (info) info.innerHTML = `Gosterilen <strong>${from}-${to}</strong> / <strong>${total}</strong> (Sayfa <strong>${page}</strong>)`;
+    renderPager(
+      'inv-pagination',
+      page,
+      page < totalPages,
+      () => changeInvPage(-1),
+      () => changeInvPage(1),
+    );
+  }
+
+  function renderInventoryPage() {
+    const total = filteredInventory.length;
+    const totalPages = Math.max(1, Math.ceil(total / INV_PAGE_SIZE));
+    if (invPage > totalPages) invPage = totalPages;
+    if (invPage < 1) invPage = 1;
+    const start = (invPage - 1) * INV_PAGE_SIZE;
+    const pageItems = filteredInventory.slice(start, start + INV_PAGE_SIZE);
+    renderInventory(pageItems);
+    const body = document.getElementById('inv-body');
+    if (body && pageItems.length > 0 && pageItems.length < INV_PAGE_SIZE) {
+      appendFillerRows(body, 5, INV_PAGE_SIZE - pageItems.length);
+    }
+    if (body && pageItems.length === 0) {
+      appendFillerRows(body, 5, INV_PAGE_SIZE - 1);
+    }
+    updateInventoryPager(total, invPage);
+  }
+
   function filterInventory() {
     const q = (document.getElementById('inv-search').value || '').toLowerCase();
-    const filtered = allInventory.filter((i) => {
+    filteredInventory = allInventory.filter((i) => {
       const name = (i.software_name || '').toLowerCase();
       if (!name.includes(q)) return false;
       return true;
     });
-    document.getElementById('inv-updated').textContent = `${filtered.length}/${allInventory.length} yazilim`;
-    renderInventory(filtered);
+    invPage = 1;
+    document.getElementById('inv-updated').textContent = `${filteredInventory.length}/${allInventory.length} yazilim`;
+    renderInventoryPage();
   }
 
-  async function loadChanges() {
+  function changeInvPage(delta) {
+    const totalPages = Math.max(1, Math.ceil(filteredInventory.length / INV_PAGE_SIZE));
+    invPage = Math.max(1, Math.min(totalPages, invPage + Number(delta || 0)));
+    renderInventoryPage();
+  }
+
+  function renderPager(containerId, currentPage, hasNext, onPrev, onNext) {
+    const root = document.getElementById(containerId);
+    if (!root) return;
+    root.innerHTML = `
+      <li class="page-item ${currentPage <= 1 ? 'disabled' : ''}">
+        <a class="page-link" href="#" ${currentPage <= 1 ? 'tabindex="-1" aria-disabled="true"' : ''} data-pager="prev">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-1"><path d="M15 6l-6 6l6 6" /></svg>
+        </a>
+      </li>
+      <li class="page-item active"><a class="page-link" href="#">${currentPage}</a></li>
+      <li class="page-item ${hasNext ? '' : 'disabled'}">
+        <a class="page-link" href="#" ${hasNext ? '' : 'tabindex="-1" aria-disabled="true"'} data-pager="next">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-1"><path d="M9 6l6 6l-6 6" /></svg>
+        </a>
+      </li>
+    `;
+    const prev = root.querySelector('[data-pager="prev"]');
+    const next = root.querySelector('[data-pager="next"]');
+    if (prev && currentPage > 1) prev.addEventListener('click', (e) => { e.preventDefault(); onPrev(); });
+    if (next && hasNext) next.addEventListener('click', (e) => { e.preventDefault(); onNext(); });
+  }
+
+  async function loadChangesPage(page) {
     try {
       await AppCenterApi.initUi();
-      const data = await AppCenterApi.req(`/agents/${agentId}/inventory/changes?limit=50&offset=${changesOffset}`);
+      const safePage = Math.max(1, Number(page || 1));
+      const offset = (safePage - 1) * CHANGES_PAGE_SIZE;
+      const data = await AppCenterApi.req(`/agents/${agentId}/inventory/changes?limit=${CHANGES_PAGE_SIZE}&offset=${offset}`);
       const items = data.items || [];
       const body = document.getElementById('changes-body');
+      body.innerHTML = '';
       const badges = { installed: 'color:#22c55e', removed: 'color:#ef4444', updated: 'color:#3b82f6' };
       const labels = { installed: 'Yuklendi', removed: 'Kaldirildi', updated: 'Guncellendi' };
+      if (!items.length) {
+        body.innerHTML = '<tr><td colspan="4" class="text-secondary">Kayit yok</td></tr>';
+      }
       items.forEach(i => {
         const detail = i.change_type === 'updated' ? `${i.previous_version || '?'} → ${i.software_version || '?'}` : (i.software_version || '-');
         body.innerHTML += `<tr>
@@ -279,21 +614,42 @@
           <td>${detail}</td>
         </tr>`;
       });
-      changesOffset += items.length;
-      if (items.length < 50) document.getElementById('changes-more').style.display = 'none';
+      if (items.length > 0 && items.length < CHANGES_PAGE_SIZE) {
+        appendFillerRows(body, 4, CHANGES_PAGE_SIZE - items.length);
+      }
+      if (items.length === 0) {
+        appendFillerRows(body, 4, CHANGES_PAGE_SIZE - 1);
+      }
+      changesPage = safePage;
+      changesHasNext = items.length === CHANGES_PAGE_SIZE;
+      const from = items.length ? offset + 1 : 0;
+      const to = offset + items.length;
+      const info = document.getElementById('changes-page-info');
+      if (info) info.innerHTML = `Gosterilen <strong>${from}-${to}</strong> (Sayfa <strong>${changesPage}</strong>)`;
+      renderPager(
+        'changes-pagination',
+        changesPage,
+        changesHasNext,
+        () => loadChangesPage(changesPage - 1),
+        () => loadChangesPage(changesPage + 1),
+      );
     } catch (err) {
       AppCenterApi.toast(err.message);
     }
   }
 
-  function loadMoreChanges() { loadChanges(); }
-
-  async function loadSystemHistory() {
+  async function loadSystemPage(page) {
     try {
       await AppCenterApi.initUi();
-      const data = await AppCenterApi.req(`/agents/${agentId}/timeline?limit=50&offset=${systemOffset}`);
+      const safePage = Math.max(1, Number(page || 1));
+      const offset = (safePage - 1) * SYSTEM_PAGE_SIZE;
+      const data = await AppCenterApi.req(`/agents/${agentId}/timeline?limit=${SYSTEM_PAGE_SIZE}&offset=${offset}`);
       const items = data.items || [];
       const body = document.getElementById('sys-body');
+      body.innerHTML = '';
+      if (!items.length) {
+        body.innerHTML = '<tr><td colspan="2" class="text-secondary">Kayit yok</td></tr>';
+      }
       items.forEach(i => {
         let details = '';
         if (i.event_type === 'identity') {
@@ -344,14 +700,29 @@
           <td>${details}</td>
         </tr>`;
       });
-      systemOffset += items.length;
-      if (items.length < 50) document.getElementById('sys-more').style.display = 'none';
+      if (items.length > 0 && items.length < SYSTEM_PAGE_SIZE) {
+        appendFillerRows(body, 2, SYSTEM_PAGE_SIZE - items.length);
+      }
+      if (items.length === 0) {
+        appendFillerRows(body, 2, SYSTEM_PAGE_SIZE - 1);
+      }
+      systemPage = safePage;
+      systemHasNext = items.length === SYSTEM_PAGE_SIZE;
+      const from = items.length ? offset + 1 : 0;
+      const to = offset + items.length;
+      const info = document.getElementById('sys-page-info');
+      if (info) info.innerHTML = `Gosterilen <strong>${from}-${to}</strong> (Sayfa <strong>${systemPage}</strong>)`;
+      renderPager(
+        'sys-pagination',
+        systemPage,
+        systemHasNext,
+        () => loadSystemPage(systemPage - 1),
+        () => loadSystemPage(systemPage + 1),
+      );
     } catch (err) {
       AppCenterApi.toast(err.message);
     }
   }
-
-  function loadMoreSystem() { loadSystemHistory(); }
 
   document.getElementById('agent-delete-btn').addEventListener('click', () => {
     const shown = agentHostname || agentId;
@@ -374,8 +745,8 @@
     await AppCenterApi.initUi();
     loadAgentDetail();
     loadInventory();
-    loadChanges();
-    loadSystemHistory();
+    loadChangesPage(1);
+    loadSystemPage(1);
   })();
 </script>
 {% endblock %}

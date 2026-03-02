@@ -89,6 +89,7 @@
       <div class="container-xl">
         <ul class="navbar-nav">
           {% for item in NAV_GET_MENU(NAV_ROLE) %}
+            {% set right_aligned = (item.key == 'management') %}
             {% if item.children %}
               {% set ns = namespace(has_active_child=false) %}
               {% for child in item.children %}
@@ -96,7 +97,7 @@
                   {% set ns.has_active_child = true %}
                 {% endif %}
               {% endfor %}
-              <li class="nav-item dropdown nav-dropdown{% if ns.has_active_child %} active{% endif %}" data-nav-item data-roles="{{ (item.roles or [])|join(',') }}">
+              <li class="nav-item dropdown nav-dropdown{% if ns.has_active_child %} active{% endif %}{% if right_aligned %} nav-item-management{% endif %}" data-nav-item data-roles="{{ (item.roles or [])|join(',') }}">
                 <a class="nav-link dropdown-toggle{% if ns.has_active_child %} active{% endif %}" href="#nav-{{ item.key }}" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
                   <span class="nav-link-icon d-md-none d-lg-inline-block">
                     {% if item.key == 'management' %}<i class="ti ti-settings icon"></i>
@@ -126,7 +127,7 @@
                 </div>
               </li>
             {% else %}
-              <li class="nav-item{% if active_page in item.active_pages %} active{% endif %}" data-nav-item data-roles="{{ (item.roles or [])|join(',') }}">
+              <li class="nav-item{% if active_page in item.active_pages %} active{% endif %}{% if right_aligned %} nav-item-management{% endif %}" data-nav-item data-roles="{{ (item.roles or [])|join(',') }}">
                 <a class="nav-link{% if active_page in item.active_pages %} active{% endif %}" href="{{ item.path }}">
                   <span class="nav-link-icon d-md-none d-lg-inline-block">
                     {% if item.key == 'dashboard' %}<i class="ti ti-dashboard icon"></i>

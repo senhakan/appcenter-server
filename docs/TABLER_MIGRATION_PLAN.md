@@ -233,6 +233,11 @@ Current progress:
 - [x] Remaining non-migrated operational/admin sub-pages aligned to Tabler card/table/form patterns.
 - [x] Legacy button/badge/muted class usage removed from migrated templates in favor of Tabler semantic classes.
 - [x] Core list/detail/form pages now share a consistent toolbar/table/action language.
+- [x] Agents list left-filter panel aligned with Tabler `job-listing` pattern (online switch, group selector, version checkboxes, live filtering).
+- [x] Agents detail tabs aligned with Tabler `tabs.html` structure and legacy CSS conflicts neutralized.
+- [x] Agents detail top section redesigned with uptime-style header + KPI cards and grouped detail cards.
+- [x] Agents detail `Kimlik ve Erisim` / `Sistem Ozeti` converted to Tabler `datagrid` blocks.
+- [x] Inventory/Changes/System tabs now use theme-consistent pagination and fixed-height pane behavior to prevent layout jumping.
 
 ---
 

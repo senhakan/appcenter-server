@@ -72,6 +72,17 @@ body.app-shell {
   gap: 0.125rem;
 }
 
+@media (min-width: 768px) {
+  .app-sub-navbar .navbar-nav {
+    width: 100%;
+  }
+
+  .app-sub-navbar .nav-item-management {
+    order: 999;
+    margin-left: auto;
+  }
+}
+
 .app-sub-navbar .nav-link.active,
 .app-sub-navbar .nav-item.active > .nav-link {
   font-weight: 600;

@@ -314,6 +314,39 @@ Deploy sonrasi UI bos gorunuyorsa (dashboard/agent listesi bos, kartlar dolmuyor
 - Cozum: hard refresh (`Ctrl+F5`) veya cache temizleyip tekrar login olun.
 - Not: Bu repo static asset'lerde `?v={{ app_version }}` cache-bust kullanir. Yine de proxy/tarayici cache'i bazen etkileyebilir.
 
+## 4.2 Inventory 500 (PostgreSQL) Sorun Giderme
+
+Belirti:
+
+- `Yazilim Envanteri` acilirken `Internal Server Error`.
+- Log: `psycopg2.errors.UndefinedFunction: function group_concat(...) does not exist`.
+
+Kok neden:
+
+- SQLite fonksiyonu `group_concat` PostgreSQL'de bulunmaz.
+
+Cozum:
+
+- `app/services/inventory_service.py` icinde DB dialect'e gore aggregate fonksiyon secimi:
+  - PostgreSQL: `string_agg(distinct ...)`
+  - SQLite: `group_concat(distinct ...)`
+
+Hizli kontrol:
+
+```bash
+cd /opt/appcenter/server
+/opt/appcenter/server/venv/bin/python - <<'PY'
+from app.database import SessionLocal
+from app.services.inventory_service import get_software_summary
+s = SessionLocal()
+try:
+    items, total = get_software_summary(s, search='', page=1, per_page=5)
+    print('ok', total, len(items))
+finally:
+    s.close()
+PY
+```
+
 DB saglik kontrolu:
 
 ```bash
