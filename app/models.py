@@ -310,6 +310,7 @@ class RemoteSupportRecording(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     session_id: Mapped[int] = mapped_column(ForeignKey("remote_support_sessions.id", ondelete="CASCADE"), nullable=False)
     agent_uuid: Mapped[str] = mapped_column(ForeignKey("agents.uuid", ondelete="CASCADE"), nullable=False)
+    monitor_index: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     status: Mapped[str] = mapped_column(String, default="recording", nullable=False)
     target_fps: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     trigger_source: Mapped[Optional[str]] = mapped_column(String, nullable=True)

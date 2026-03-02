@@ -86,7 +86,14 @@
             <input class="form-control" id="s-session-recording-fps" type="number" min="1" max="30" />
             <div class="form-hint">1-30 FPS</div>
           </div>
-          <div class="col-12 col-md-6">
+          <div class="col-12 col-md-3">
+            <label class="form-check form-switch">
+              <input class="form-check-input" id="s-session-recording-watermark-enabled" type="checkbox" />
+              <span class="form-check-label">Filigran Ekle</span>
+            </label>
+            <div class="form-hint">Sag ustte hostname + tarih/saat (%30 gorunurluk)</div>
+          </div>
+          <div class="col-12 col-md-3">
             <label class="form-label">Recording Servis Durumu</label>
             <div id="s-recording-service-status" class="mt-1">-</div>
             <div id="s-recording-service-hint" class="form-hint mt-1"></div>
@@ -146,6 +153,7 @@
       document.getElementById('s-runtime-jitter').value = map.runtime_update_jitter_sec || '300';
       document.getElementById('s-session-recording-enabled').checked = ['1', 'true', 'yes', 'on'].includes((map.session_recording_enabled || 'false').toString().toLowerCase());
       document.getElementById('s-session-recording-fps').value = map.session_recording_fps || '10';
+      document.getElementById('s-session-recording-watermark-enabled').checked = ['1', 'true', 'yes', 'on'].includes((map.session_recording_watermark_enabled || 'false').toString().toLowerCase());
       await loadRecordingServiceStatus();
     } catch (err) {
       AppCenterApi.toast(err.message);
@@ -162,6 +170,7 @@
       const active = !!svc.active;
       const enabled = !!svc.enabled;
       const targetFps = Number(svc.target_fps || 0);
+      const wmEnabled = !!svc.watermark_enabled;
       const missing = Array.isArray(svc.missing) ? svc.missing : [];
       statusEl.innerHTML = active
         ? '<span class="badge bg-green-lt text-green">Aktif</span>'
@@ -171,7 +180,9 @@
       } else if (missing.length) {
         hintEl.textContent = `Eksik bagimliliklar: ${missing.join(', ')}`;
       } else {
-        hintEl.textContent = targetFps > 0 ? `Servis hazir. Hedef FPS: ${targetFps}` : 'Servis hazir.';
+        hintEl.textContent = targetFps > 0
+          ? `Servis hazir. Hedef FPS: ${targetFps}. Filigran: ${wmEnabled ? 'acik' : 'kapali'}`
+          : `Servis hazir. Filigran: ${wmEnabled ? 'acik' : 'kapali'}`;
       }
     } catch (err) {
       statusEl.innerHTML = '<span class="badge bg-red-lt text-red">Hata</span>';
@@ -200,6 +211,7 @@
             runtime_update_jitter_sec: document.getElementById('s-runtime-jitter').value,
             session_recording_enabled: document.getElementById('s-session-recording-enabled').checked ? 'true' : 'false',
             session_recording_fps: document.getElementById('s-session-recording-fps').value,
+            session_recording_watermark_enabled: document.getElementById('s-session-recording-watermark-enabled').checked ? 'true' : 'false',
           },
         }),
       });

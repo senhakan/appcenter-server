@@ -58,6 +58,7 @@ DEFAULT_SETTINGS = {
     "runtime_update_jitter_sec": ("300", "Agent runtime update jitter (saniye)"),
     "session_recording_enabled": ("false", "Remote support session recording auto-start"),
     "session_recording_fps": ("10", "Remote support session recording target FPS"),
+    "session_recording_watermark_enabled": ("false", "Remote support session recording watermark"),
 }
 
 DEFAULT_GROUPS = {
@@ -423,6 +424,7 @@ def _migrate_sqlite_remote_support_recordings_table() -> None:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     session_id INTEGER NOT NULL REFERENCES remote_support_sessions(id) ON DELETE CASCADE,
                     agent_uuid TEXT NOT NULL REFERENCES agents(uuid) ON DELETE CASCADE,
+                    monitor_index INTEGER NOT NULL DEFAULT 1,
                     status TEXT NOT NULL DEFAULT 'recording',
                     target_fps INTEGER,
                     trigger_source TEXT,
@@ -448,6 +450,8 @@ def _migrate_sqlite_remote_support_recordings_table() -> None:
         names = {c["name"] for c in cols}
         if "target_fps" not in names:
             conn.execute(text("ALTER TABLE remote_support_recordings ADD COLUMN target_fps INTEGER"))
+        if "monitor_index" not in names:
+            conn.execute(text("ALTER TABLE remote_support_recordings ADD COLUMN monitor_index INTEGER NOT NULL DEFAULT 1"))
 
 
 def seed_initial_data() -> None:

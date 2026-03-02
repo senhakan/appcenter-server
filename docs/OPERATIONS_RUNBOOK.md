@@ -81,21 +81,35 @@ Bu dokuman production ortami icin deploy, smoke ve rollback adimlarini tanimlar.
   - UI: `Ayarlar > Session Recording > Session Recording Aktif`
   - DB key: `session_recording_enabled` (`true|false`)
   - DB key: `session_recording_fps` (`1-30`, varsayilan `10`)
+  - DB key: `session_recording_watermark_enabled` (`true|false`, varsayilan `false`)
 - Calisma modeli:
   - noVNC baglantisi `connected` oldugunda kayit otomatik baslatilir.
+  - M1 baglandiginda M1 kaydi baslar; M2 baglantisi acildiginda M2 kaydi ayrica baslar.
+  - Her monitor bagimsiz kaydedilir (`M1` ve `M2` icin ayri kayit satiri/dosyasi).
   - Session sonlandiginda kayit otomatik durdurulur.
 - Kayit motoru:
   - `gst-launch-1.0` + `rfbsrc` + `x264enc` + `mp4mux`
   - Cikti yolu: `/var/lib/appcenter/uploads/recordings/session_<session_id>/`
+  - Dosya adinda monitor bilgisi bulunur: `recording_<id>_m1_*.mp4`, `recording_<id>_m2_*.mp4`
+  - DB kayit alanlari:
+    - `monitor_index` (`1|2`)
+    - `target_fps`
 - Servis durumu:
   - UI ayni Ayarlar ekraninda `Aktif/Pasif` rozetini gosterir.
   - Eksik bagimlilik varsa listelenir.
 - API:
   - `GET /api/v1/remote-support/recording/service-status`
-  - `POST /api/v1/remote-support/sessions/{id}/recording/start`
+  - `POST /api/v1/remote-support/sessions/{id}/recording/start?monitor=1|2`
   - `POST /api/v1/remote-support/sessions/{id}/recording/stop`
   - `GET /api/v1/remote-support/recordings`
+    - opsiyonel filtre: `monitor=1|2`
   - `GET /api/v1/remote-support/recordings/{recording_id}/stream`
+  - `GET /api/v1/remote-support/recordings/{recording_id}/play-token`
+  - `GET /api/v1/remote-support/recordings/{recording_id}/public-stream?play_token=...`
+- Izleme (UI):
+  - Session Recordings ekraninda kayitlar inline player ile acilir, yeni sekme acilmaz.
+  - Oynatma `blob()` yerine stream URL ile yapilir (buyuk dosyada parca parca oynatma / buffering destegi).
+  - Liste ekraninda `Monitör` sutunu ve `Monitör` filtresi bulunur.
 - GStreamer paketleri (Ubuntu 20.04):
   ```bash
   apt-get install -y gstreamer1.0-tools gstreamer1.0-plugins-base \

@@ -6,11 +6,12 @@ import signal
 import subprocess
 import threading
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
 from fastapi import HTTPException, status
+from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -21,14 +22,17 @@ settings = get_settings()
 
 RECORDING_SETTING_KEY = "session_recording_enabled"
 RECORDING_FPS_SETTING_KEY = "session_recording_fps"
+RECORDING_WATERMARK_SETTING_KEY = "session_recording_watermark_enabled"
 MIN_RECORDING_FPS = 1
 MAX_RECORDING_FPS = 30
 DEFAULT_RECORDING_FPS = 10
+PLAYBACK_TOKEN_KIND = "remote_recording_playback"
 
 
 @dataclass
 class _RuntimeRecording:
     session_id: int
+    monitor_index: int
     recording_id: int
     process: subprocess.Popen
     output_path: str
@@ -37,7 +41,7 @@ class _RuntimeRecording:
 
 
 _RUNTIME_LOCK = threading.Lock()
-_RUNTIME_BY_SESSION: dict[int, _RuntimeRecording] = {}
+_RUNTIME_BY_KEY: dict[tuple[int, int], _RuntimeRecording] = {}
 
 
 def _utcnow() -> datetime:
@@ -58,6 +62,10 @@ def _get_setting(db: Session, key: str, default: str) -> str:
     return item.value if item else default
 
 
+def _normalize_monitor(monitor_index: int | None) -> int:
+    return 2 if int(monitor_index or 1) == 2 else 1
+
+
 def is_recording_enabled(db: Session) -> bool:
     return _parse_bool(_get_setting(db, RECORDING_SETTING_KEY, "false"), default=False)
 
@@ -71,10 +79,42 @@ def get_recording_fps(db: Session) -> int:
     return min(MAX_RECORDING_FPS, max(MIN_RECORDING_FPS, fps))
 
 
+def is_recording_watermark_enabled(db: Session) -> bool:
+    return _parse_bool(_get_setting(db, RECORDING_WATERMARK_SETTING_KEY, "false"), default=False)
+
+
 def get_recordings_root() -> Path:
     root = Path(settings.upload_dir).expanduser().resolve() / "recordings"
     root.mkdir(parents=True, exist_ok=True)
     return root
+
+
+def create_playback_token(recording_id: int, expires_sec: int = 900) -> tuple[str, datetime]:
+    now = _utcnow()
+    exp = now + timedelta(seconds=max(60, int(expires_sec)))
+    payload = {
+        "kind": PLAYBACK_TOKEN_KIND,
+        "recording_id": int(recording_id),
+        "exp": exp,
+    }
+    token = jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
+    return token, exp
+
+
+def verify_playback_token(token: str, recording_id: int) -> bool:
+    if not token:
+        return False
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
+    except JWTError:
+        return False
+    if payload.get("kind") != PLAYBACK_TOKEN_KIND:
+        return False
+    try:
+        rid = int(payload.get("recording_id"))
+    except Exception:
+        return False
+    return rid == int(recording_id)
 
 
 def _dependency_status() -> dict[str, object]:
@@ -105,11 +145,16 @@ def get_service_status(db: Session) -> dict[str, object]:
     dep = _dependency_status()
     enabled = is_recording_enabled(db)
     target_fps = get_recording_fps(db)
+    watermark_enabled = is_recording_watermark_enabled(db)
     with _RUNTIME_LOCK:
-        running = [{"session_id": r.session_id, "recording_id": r.recording_id} for r in _RUNTIME_BY_SESSION.values()]
+        running = [
+            {"session_id": r.session_id, "monitor_index": r.monitor_index, "recording_id": r.recording_id}
+            for r in _RUNTIME_BY_KEY.values()
+        ]
     return {
         "enabled": enabled,
         "target_fps": target_fps,
+        "watermark_enabled": watermark_enabled,
         "deps_ok": bool(dep["ok"]),
         "missing": dep["missing"],
         "active": bool(enabled and dep["ok"]),
@@ -209,15 +254,20 @@ def _watch_recording(runtime: _RuntimeRecording) -> None:
     finally:
         db.close()
         with _RUNTIME_LOCK:
-            current = _RUNTIME_BY_SESSION.get(runtime.session_id)
+            key = (runtime.session_id, runtime.monitor_index)
+            current = _RUNTIME_BY_KEY.get(key)
             if current and current.recording_id == runtime.recording_id:
-                _RUNTIME_BY_SESSION.pop(runtime.session_id, None)
+                _RUNTIME_BY_KEY.pop(key, None)
 
 
-def _mark_stale_recordings(db: Session, session_id: int) -> None:
+def _mark_stale_recordings(db: Session, session_id: int, monitor_index: int) -> None:
     rows = (
         db.query(RemoteSupportRecording)
-        .filter(RemoteSupportRecording.session_id == session_id, RemoteSupportRecording.status == "recording")
+        .filter(
+            RemoteSupportRecording.session_id == session_id,
+            RemoteSupportRecording.monitor_index == monitor_index,
+            RemoteSupportRecording.status == "recording",
+        )
         .all()
     )
     if not rows:
@@ -230,8 +280,14 @@ def _mark_stale_recordings(db: Session, session_id: int) -> None:
         db.add(row)
 
 
-def start_recording(db: Session, session_id: int, trigger_source: str = "manual") -> tuple[RemoteSupportRecording, bool]:
+def start_recording(
+    db: Session,
+    session_id: int,
+    trigger_source: str = "manual",
+    monitor_index: int = 1,
+) -> tuple[RemoteSupportRecording, bool]:
     ensure_service_ready(db)
+    monitor = _normalize_monitor(monitor_index)
     session = db.query(RemoteSupportSession).filter(RemoteSupportSession.id == session_id).first()
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
@@ -240,6 +296,8 @@ def start_recording(db: Session, session_id: int, trigger_source: str = "manual"
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Session not recordable in state: {session.status}")
     if not session.vnc_password:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Missing VNC password for recording")
+    if monitor == 2 and int(session.monitor_count or 0) < 2:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Monitor 2 is not available for this session")
 
     agent = db.query(Agent).filter(Agent.uuid == session.agent_uuid).first()
     agent_ip = (agent.ip_address or "").strip() if agent else ""
@@ -247,21 +305,24 @@ def start_recording(db: Session, session_id: int, trigger_source: str = "manual"
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Missing agent IP for recording")
 
     with _RUNTIME_LOCK:
-        runtime = _RUNTIME_BY_SESSION.get(session_id)
+        runtime = _RUNTIME_BY_KEY.get((session_id, monitor))
         if runtime and runtime.process.poll() is None:
             rec = db.query(RemoteSupportRecording).filter(RemoteSupportRecording.id == runtime.recording_id).first()
             if rec:
                 return rec, False
 
-    _mark_stale_recordings(db, session_id)
+    _mark_stale_recordings(db, session_id, monitor)
 
     root = get_recordings_root() / f"session_{session_id}"
     root.mkdir(parents=True, exist_ok=True)
     stamp = _utcnow().strftime("%Y%m%d_%H%M%S")
     target_fps = get_recording_fps(db)
+    watermark_enabled = is_recording_watermark_enabled(db)
+    watermark_host = ((agent.hostname if agent else None) or session.agent_uuid or "-")[:120]
     rec = RemoteSupportRecording(
         session_id=session.id,
         agent_uuid=session.agent_uuid,
+        monitor_index=monitor,
         status="recording",
         target_fps=target_fps,
         trigger_source=(trigger_source or "manual")[:120],
@@ -270,8 +331,8 @@ def start_recording(db: Session, session_id: int, trigger_source: str = "manual"
     db.add(rec)
     db.flush()
 
-    output_path = (root / f"recording_{rec.id}_{stamp}.mp4").resolve()
-    log_path = (root / f"recording_{rec.id}_{stamp}.log").resolve()
+    output_path = (root / f"recording_{rec.id}_m{monitor}_{stamp}.mp4").resolve()
+    log_path = (root / f"recording_{rec.id}_m{monitor}_{stamp}.log").resolve()
     rec.file_path = str(output_path)
     rec.log_path = str(log_path)
 
@@ -280,7 +341,7 @@ def start_recording(db: Session, session_id: int, trigger_source: str = "manual"
         "-e",
         "rfbsrc",
         f"host={agent_ip}",
-        "port=20010",
+        f"port={20011 if monitor == 2 else 20010}",
         f"password={session.vnc_password}",
         "shared=true",
         "view-only=true",
@@ -289,25 +350,56 @@ def start_recording(db: Session, session_id: int, trigger_source: str = "manual"
         "do-timestamp=true",
         "!",
         "videoconvert",
-        "!",
-        "videorate",
-        "!",
-        f"video/x-raw,format=I420,framerate={target_fps}/1",
-        "!",
-        "x264enc",
-        "tune=zerolatency",
-        "speed-preset=veryfast",
-        "bitrate=2500",
-        "key-int-max=20",
-        "!",
-        "h264parse",
-        "!",
-        "mp4mux",
-        "faststart=true",
-        "!",
-        "filesink",
-        f"location={str(output_path)}",
     ]
+    if watermark_enabled:
+        cmd.extend(
+            [
+                "!",
+                "textoverlay",
+                f"text=Host\\: {watermark_host}",
+                "halignment=right",
+                "valignment=top",
+                "line-alignment=right",
+                "xpad=24",
+                "ypad=12",
+                "font-desc=Sans, 18",
+                "color=0xFFFFFFFF",
+                "shaded-background=true",
+                "!",
+                "clockoverlay",
+                "halignment=right",
+                "valignment=top",
+                "line-alignment=right",
+                "xpad=24",
+                "ypad=68",
+                "font-desc=Sans, 16",
+                "time-format=%Y-%m-%d %H\\:%M\\:%S",
+                "color=0xFFFFFFFF",
+                "shaded-background=true",
+            ]
+        )
+    cmd.extend(
+        [
+            "!",
+            "videorate",
+            "!",
+            f"video/x-raw,format=I420,framerate={target_fps}/1",
+            "!",
+            "x264enc",
+            "tune=zerolatency",
+            "speed-preset=veryfast",
+            "bitrate=2500",
+            "key-int-max=20",
+            "!",
+            "h264parse",
+            "!",
+            "mp4mux",
+            "faststart=true",
+            "!",
+            "filesink",
+            f"location={str(output_path)}",
+        ]
+    )
 
     try:
         log_fp = open(log_path, "ab")
@@ -324,13 +416,14 @@ def start_recording(db: Session, session_id: int, trigger_source: str = "manual"
 
     runtime = _RuntimeRecording(
         session_id=session.id,
+        monitor_index=monitor,
         recording_id=rec.id,
         process=process,
         output_path=str(output_path),
         log_path=str(log_path),
     )
     with _RUNTIME_LOCK:
-        _RUNTIME_BY_SESSION[session.id] = runtime
+        _RUNTIME_BY_KEY[(session.id, monitor)] = runtime
 
     db.add(rec)
     db.commit()
@@ -341,27 +434,42 @@ def start_recording(db: Session, session_id: int, trigger_source: str = "manual"
     return rec, True
 
 
-def stop_recording(db: Session, session_id: int, reason: str = "manual_stop") -> bool:
+def stop_recording(
+    db: Session,
+    session_id: int,
+    reason: str = "manual_stop",
+    monitor_index: int | None = None,
+) -> bool:
     _ = reason
+    monitor = None if monitor_index is None else _normalize_monitor(monitor_index)
     stopped = False
     with _RUNTIME_LOCK:
-        runtime = _RUNTIME_BY_SESSION.get(session_id)
-        if runtime and runtime.process.poll() is None:
-            runtime.stop_requested = True
-            try:
-                runtime.process.send_signal(signal.SIGINT)
-                stopped = True
-            except Exception:
-                pass
+        targets = []
+        for (sid, mon), runtime in _RUNTIME_BY_KEY.items():
+            if sid != session_id:
+                continue
+            if monitor is not None and mon != monitor:
+                continue
+            targets.append(runtime)
+        for runtime in targets:
+            if runtime.process.poll() is None:
+                runtime.stop_requested = True
+                try:
+                    runtime.process.send_signal(signal.SIGINT)
+                    stopped = True
+                except Exception:
+                    pass
 
     if stopped:
         return True
 
-    rows = (
-        db.query(RemoteSupportRecording)
-        .filter(RemoteSupportRecording.session_id == session_id, RemoteSupportRecording.status == "recording")
-        .all()
+    q = db.query(RemoteSupportRecording).filter(
+        RemoteSupportRecording.session_id == session_id,
+        RemoteSupportRecording.status == "recording",
     )
+    if monitor is not None:
+        q = q.filter(RemoteSupportRecording.monitor_index == monitor)
+    rows = q.all()
     if not rows:
         return False
     now = _utcnow()

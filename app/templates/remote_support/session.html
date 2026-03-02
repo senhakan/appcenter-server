@@ -404,6 +404,8 @@
   .rs-modal-actions {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
   }
 </style>
 <div class="card">
@@ -603,6 +605,20 @@
     </div>
   </div>
 </div>
+<div id="rs-end-confirm-modal" class="rs-modal-backdrop" aria-live="polite" aria-modal="true" role="dialog">
+  <div class="rs-modal-card ac-modal-warning">
+    <div class="ac-modal-status-block mb-3">
+      <span class="ac-modal-status-icon warning"><i class="ti ti-power"></i></span>
+      <div class="text-secondary">Bu islem aktif uzak destek oturumunu sonlandirir.</div>
+    </div>
+    <div class="rs-modal-title">Baglantiyi Sonlandir</div>
+    <div class="rs-modal-text">Baglantiyi kesmek istediginize emin misiniz?</div>
+    <div class="rs-modal-actions">
+      <button id="rs-end-confirm-cancel" class="btn btn-outline-secondary" type="button">Vazgec</button>
+      <button id="rs-end-confirm-ok" class="btn btn-danger" type="button"><i class="ti ti-power me-1"></i>Baglantiyi Kes</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -635,8 +651,9 @@
   let helpDrawerOpen = false;
   let windowPresenceTimer = null;
   let rejectionModalShown = false;
-  let recordingAutoStartDone = false;
-  let recordingAutoStartInFlight = false;
+  let endConfirmModalResolver = null;
+  const recordingAutoStartDoneByMonitor = { 1: false, 2: false };
+  const recordingAutoStartInFlightByMonitor = { 1: false, 2: false };
 
   function esc(s) {
     return (s || '')
@@ -1132,25 +1149,28 @@
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  async function ensureSessionRecordingStarted(source) {
-    if (recordingAutoStartDone || recordingAutoStartInFlight) return;
+  async function ensureSessionRecordingStarted(monitor, source) {
+    const mon = Number(monitor) === 2 ? 2 : 1;
+    if (recordingAutoStartDoneByMonitor[mon] || recordingAutoStartInFlightByMonitor[mon]) return;
     if (!currentSession || !currentSession.id) return;
-    recordingAutoStartInFlight = true;
+    recordingAutoStartInFlightByMonitor[mon] = true;
     try {
-      const data = await AppCenterApi.req(`/remote-support/sessions/${SESSION_ID}/recording/start?trigger=${encodeURIComponent(source || 'novnc_connect')}`, {
+      const data = await AppCenterApi.req(
+        `/remote-support/sessions/${SESSION_ID}/recording/start?monitor=${mon}&trigger=${encodeURIComponent(source || `novnc_connect_m${mon}`)}`,
+        {
         method: 'POST',
       });
-      recordingAutoStartDone = true;
+      recordingAutoStartDoneByMonitor[mon] = true;
       if (data && data.started) {
-        addConnLog('Kayıt başlatıldı.', 'ok');
+        addConnLog(`Kayıt başlatıldı (M${mon}).`, 'ok');
       } else {
-        addConnLog('Kayıt zaten aktif.', 'warn');
+        addConnLog(`Kayıt zaten aktif (M${mon}).`, 'warn');
       }
     } catch (err) {
       const msg = err && err.message ? err.message : 'Kayit servisi baslatilamadi';
-      addConnLog(`Kayıt başlatılamadı: ${msg}`, 'error');
+      addConnLog(`Kayıt başlatılamadı (M${mon}): ${msg}`, 'error');
     } finally {
-      recordingAutoStartInFlight = false;
+      recordingAutoStartInFlightByMonitor[mon] = false;
     }
   }
 
@@ -1214,7 +1234,7 @@
         clearReconnectTimer();
         setConnBadge('Bagli', 'ok');
         addConnLog('Iframe noVNC: baglandi', 'ok');
-        ensureSessionRecordingStarted('novnc_iframe_connect');
+        ensureSessionRecordingStarted(selectedMonitor, `novnc_iframe_connect_m${selectedMonitor}`);
       } else if (st === 'reconnecting') {
         liveConnState = 'reconnecting';
         setConnBadge('Yeniden Baglaniyor', 'warn');
@@ -1353,7 +1373,7 @@
 
     rfb.addEventListener('connect', () => {
       addConnLog(`Embedded noVNC M${mon}: baglandi`, 'ok');
-      ensureSessionRecordingStarted(`novnc_connect_m${mon}`);
+      ensureSessionRecordingStarted(mon, `novnc_connect_m${mon}`);
       if (selectedMonitor === mon) {
         liveConnState = 'connected';
         reconnectAttempt = 0;
@@ -1593,11 +1613,32 @@
     if (modal) modal.classList.add('show');
   }
 
+  function closeEndConfirmModal(result) {
+    const modal = document.getElementById('rs-end-confirm-modal');
+    if (modal) modal.classList.remove('show');
+    const resolver = endConfirmModalResolver;
+    endConfirmModalResolver = null;
+    if (resolver) resolver(!!result);
+  }
+
+  function showEndConfirmModal() {
+    if (endConfirmModalResolver) return Promise.resolve(false);
+    const modal = document.getElementById('rs-end-confirm-modal');
+    if (!modal) return Promise.resolve(false);
+    modal.classList.add('show');
+    return new Promise((resolve) => {
+      endConfirmModalResolver = resolve;
+    });
+  }
+
   async function endSession(options) {
     const opts = options || {};
     const closePage = !!opts.closePage;
     const askConfirm = opts.askConfirm !== false;
-    if (askConfirm && !window.confirm('Bu oturum bitirilsin mi?')) return;
+    if (askConfirm) {
+      const confirmed = await showEndConfirmModal();
+      if (!confirmed) return;
+    }
     try {
       await AppCenterApi.req(`/remote-support/sessions/${SESSION_ID}/end`, { method: 'POST' });
       AppCenterApi.toast('Oturum bitirme istegi gonderildi');
@@ -1669,13 +1710,7 @@
     await AppCenterApi.initUi();
     document.getElementById('tool-connect-toggle').addEventListener('click', () => {
       if (isLiveConnected()) {
-        manualDisconnectRequested = true;
-        disconnectViewer();
-        liveConnState = 'disconnected';
-        setConnBadge('Ayrildi', 'warn');
-        setViewerStatus('Baglanti kullanici tarafindan sonlandirildi.');
-        addConnLog('Baglanti kullanici tarafindan sonlandirildi. Otomatik reconnect kapatildi.', 'warn');
-        syncToolbar();
+        endSession({ closePage: true, askConfirm: true });
         return;
       }
       startViewer('manual');
@@ -1825,6 +1860,20 @@
         closeSessionPage();
       });
     }
+    const endConfirmOk = document.getElementById('rs-end-confirm-ok');
+    if (endConfirmOk) {
+      endConfirmOk.addEventListener('click', () => closeEndConfirmModal(true));
+    }
+    const endConfirmCancel = document.getElementById('rs-end-confirm-cancel');
+    if (endConfirmCancel) {
+      endConfirmCancel.addEventListener('click', () => closeEndConfirmModal(false));
+    }
+    const endConfirmModal = document.getElementById('rs-end-confirm-modal');
+    if (endConfirmModal) {
+      endConfirmModal.addEventListener('click', (ev) => {
+        if (ev.target === endConfirmModal) closeEndConfirmModal(false);
+      });
+    }
     const pasteClose = document.getElementById('rs-paste-close');
     if (pasteClose) {
       pasteClose.addEventListener('click', () => togglePasteDrawer(false));
@@ -1879,6 +1928,18 @@
     });
     document.addEventListener('fullscreenchange', () => {
       syncViewerGeometry();
+    });
+    document.addEventListener('keydown', (ev) => {
+      if (!endConfirmModalResolver) return;
+      if (ev.key === 'Escape') {
+        ev.preventDefault();
+        closeEndConfirmModal(false);
+        return;
+      }
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        closeEndConfirmModal(true);
+      }
     });
   })();
 </script>

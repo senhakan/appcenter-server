@@ -39,10 +39,11 @@ def get_recording_service_status(
 def start_session_recording(
     session_id: int,
     trigger: str = Query(default="manual"),
+    monitor: int = Query(default=1, ge=1, le=2),
     user: User = Depends(require_role("operator", "admin")),
     db: Session = Depends(get_db),
 ):
-    rec, started = recording.start_recording(db, session_id, trigger_source=trigger)
+    rec, started = recording.start_recording(db, session_id, trigger_source=trigger, monitor_index=monitor)
     if started:
         audit.record_audit(
             db,
@@ -50,7 +51,7 @@ def start_session_recording(
             action="remote_support.recording_start",
             resource_type="remote_support_recording",
             resource_id=str(rec.id),
-            details={"session_id": session_id, "trigger": trigger},
+            details={"session_id": session_id, "monitor": monitor, "trigger": trigger},
         )
     return {
         "status": "ok",
@@ -58,6 +59,7 @@ def start_session_recording(
         "recording": {
             "id": rec.id,
             "session_id": rec.session_id,
+            "monitor_index": rec.monitor_index,
             "status": rec.status,
             "target_fps": rec.target_fps,
             "file_path": rec.file_path,
@@ -90,6 +92,7 @@ def stop_session_recording(
 def list_remote_recordings(
     session_id: Optional[int] = None,
     agent_uuid: Optional[str] = None,
+    monitor: Optional[int] = Query(default=None, ge=1, le=2),
     limit: int = 100,
     user: User = Depends(require_role("viewer", "operator", "admin")),
     db: Session = Depends(get_db),
@@ -100,6 +103,8 @@ def list_remote_recordings(
         q = q.filter(RemoteSupportRecording.session_id == session_id)
     if agent_uuid:
         q = q.filter(RemoteSupportRecording.agent_uuid == agent_uuid)
+    if monitor is not None:
+        q = q.filter(RemoteSupportRecording.monitor_index == monitor)
     items = q.order_by(RemoteSupportRecording.id.desc()).limit(max(1, min(limit, 500))).all()
     agent_map = {
         a.uuid: a.hostname
@@ -113,6 +118,7 @@ def list_remote_recordings(
                 "session_id": r.session_id,
                 "agent_uuid": r.agent_uuid,
                 "agent_hostname": agent_map.get(r.agent_uuid),
+                "monitor_index": r.monitor_index,
                 "status": r.status,
                 "target_fps": r.target_fps,
                 "trigger_source": r.trigger_source,
@@ -136,6 +142,43 @@ def stream_remote_recording(
     db: Session = Depends(get_db),
 ):
     _ = user
+    rec = db.query(RemoteSupportRecording).filter(RemoteSupportRecording.id == recording_id).first()
+    if not rec:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recording not found")
+    raw_path = (rec.file_path or "").strip()
+    if not raw_path:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Recording file path is empty")
+    root = recording.get_recordings_root()
+    path = Path(raw_path).expanduser().resolve()
+    if root not in path.parents:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Recording path is outside allowed directory")
+    if not path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recording file not found")
+    return FileResponse(str(path), media_type="video/mp4", filename=path.name)
+
+
+@router.get("/remote-support/recordings/{recording_id}/play-token")
+def create_recording_play_token(
+    recording_id: int,
+    user: User = Depends(require_role("viewer", "operator", "admin")),
+    db: Session = Depends(get_db),
+):
+    _ = user
+    rec = db.query(RemoteSupportRecording).filter(RemoteSupportRecording.id == recording_id).first()
+    if not rec:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recording not found")
+    token, exp = recording.create_playback_token(recording_id, expires_sec=900)
+    return {"status": "ok", "play_token": token, "expires_at": exp}
+
+
+@router.get("/remote-support/recordings/{recording_id}/public-stream")
+def stream_remote_recording_public(
+    recording_id: int,
+    play_token: str = Query(default=""),
+    db: Session = Depends(get_db),
+):
+    if not recording.verify_playback_token(play_token, recording_id):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid playback token")
     rec = db.query(RemoteSupportRecording).filter(RemoteSupportRecording.id == recording_id).first()
     if not rec:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recording not found")

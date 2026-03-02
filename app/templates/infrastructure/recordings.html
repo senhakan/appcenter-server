@@ -10,6 +10,11 @@
         <div class="d-flex gap-2">
           <input id="f-agent" class="form-control form-control-sm" placeholder="Agent UUID" style="width: 280px;" />
           <input id="f-session" class="form-control form-control-sm" placeholder="Session ID" style="width: 120px;" />
+          <select id="f-monitor" class="form-select form-select-sm" style="width: 110px;">
+            <option value="">Monitör: Tümü</option>
+            <option value="1">Monitör 1</option>
+            <option value="2">Monitör 2</option>
+          </select>
           <button id="btn-refresh" class="btn btn-sm btn-primary" type="button">
             <i class="ti ti-refresh me-1"></i>Yenile
           </button>
@@ -22,6 +27,7 @@
               <tr>
                 <th>ID</th>
                 <th>Session</th>
+                <th>Monitör</th>
                 <th>Agent</th>
                 <th>Durum</th>
                 <th>Baslangic</th>
@@ -74,11 +80,10 @@
 
   function closeInlinePlayer() {
     if (!activePlayer) return;
-    const { detailRow, objectUrl, button } = activePlayer;
+    const { detailRow, button } = activePlayer;
     try {
       detailRow?.remove();
     } catch (_) {}
-    if (objectUrl) URL.revokeObjectURL(objectUrl);
     if (button) {
       button.innerHTML = '<i class="ti ti-player-play me-1"></i>Izle';
       button.classList.remove('btn-outline-danger');
@@ -92,25 +97,35 @@
     if (!parentRow) return;
     try {
       button.disabled = true;
-      const res = await AppCenterApi.req(`/remote-support/recordings/${encodeURIComponent(recordingId)}/stream`);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
+      const tokenResp = await AppCenterApi.req(`/remote-support/recordings/${encodeURIComponent(recordingId)}/play-token`);
+      const playToken = (tokenResp && tokenResp.play_token) ? tokenResp.play_token : '';
+      if (!playToken) throw new Error('Playback token alinamadi');
+      const streamUrl = `/api/v1/remote-support/recordings/${encodeURIComponent(recordingId)}/public-stream?play_token=${encodeURIComponent(playToken)}`;
 
       const detailRow = document.createElement('tr');
       detailRow.className = 'recording-inline-row';
       detailRow.innerHTML = `
-        <td colspan="10" class="bg-body-secondary">
+        <td colspan="11" class="bg-body-secondary">
           <div class="p-2">
-            <video controls autoplay style="width: 100%; max-height: 520px; background: #000;" src="${url}"></video>
+            <div class="text-secondary mb-2" data-play-state>Kayit yukleniyor...</div>
+            <video controls autoplay style="width: 100%; max-height: 520px; background: #000;" src="${streamUrl}"></video>
           </div>
         </td>
       `;
       parentRow.insertAdjacentElement('afterend', detailRow);
+      const video = detailRow.querySelector('video');
+      const stateEl = detailRow.querySelector('[data-play-state]');
+      if (video && stateEl) {
+        video.addEventListener('canplay', () => { stateEl.textContent = 'Oynatiliyor'; });
+        video.addEventListener('playing', () => { stateEl.textContent = 'Oynatiliyor'; });
+        video.addEventListener('waiting', () => { stateEl.textContent = 'Buffering...'; });
+        video.addEventListener('error', () => { stateEl.textContent = 'Oynatma hatasi'; });
+      }
 
       button.innerHTML = '<i class="ti ti-x me-1"></i>Kapat';
       button.classList.remove('btn-outline-primary');
       button.classList.add('btn-outline-danger');
-      activePlayer = { detailRow, objectUrl: url, button, recordingId: String(recordingId) };
+      activePlayer = { detailRow, button, recordingId: String(recordingId) };
     } catch (err) {
       AppCenterApi.toast(err.message || 'Kayit acilamadi');
     } finally {
@@ -123,8 +138,10 @@
       const q = [];
       const agent = (document.getElementById('f-agent').value || '').trim();
       const sid = (document.getElementById('f-session').value || '').trim();
+      const mon = (document.getElementById('f-monitor').value || '').trim();
       if (agent) q.push(`agent_uuid=${encodeURIComponent(agent)}`);
       if (sid) q.push(`session_id=${encodeURIComponent(sid)}`);
+      if (mon) q.push(`monitor=${encodeURIComponent(mon)}`);
       q.push('limit=200');
       const data = await AppCenterApi.req(`/remote-support/recordings?${q.join('&')}`);
       const rows = document.getElementById('rows');
@@ -132,6 +149,7 @@
         <tr>
           <td>${r.id}</td>
           <td>#${r.session_id}</td>
+          <td>M${Number(r.monitor_index || 1)}</td>
           <td>
             <div>${esc(r.agent_hostname || '-')}</div>
             <div><code>${esc(r.agent_uuid || '-')}</code></div>
@@ -144,7 +162,7 @@
           <td>${fmtSize(r.file_size_bytes)}</td>
           <td>
             <button class="btn btn-sm btn-outline-primary" type="button" data-watch="${r.id}" ${r.status === 'recording' ? 'disabled' : ''}>
-              <i class="ti ti-player-play me-1"></i>Izle
+              <i class="ti ti-player-play me-1"></i>Izle M${Number(r.monitor_index || 1)}
             </button>
           </td>
         </tr>
