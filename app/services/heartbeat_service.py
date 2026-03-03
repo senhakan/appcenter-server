@@ -30,12 +30,16 @@ def _get_setting(db: Session, key: str, default: str) -> str:
     return setting.value if setting else default
 
 
-def get_heartbeat_config(db: Session) -> HeartbeatConfig:
-    download_url = _get_setting(db, "agent_download_url", "")
-    agent_hash = _get_setting(db, "agent_hash", "")
+def get_heartbeat_config(db: Session, agent_platform: str) -> HeartbeatConfig:
+    platform = (agent_platform or "windows").strip().lower()
+    if platform not in {"windows", "linux"}:
+        platform = "windows"
+    latest_version = _get_setting(db, f"agent_latest_version_{platform}", "") or _get_setting(db, "agent_latest_version", "1.0.0")
+    download_url = _get_setting(db, f"agent_download_url_{platform}", "") or _get_setting(db, "agent_download_url", "")
+    agent_hash = _get_setting(db, f"agent_hash_{platform}", "") or _get_setting(db, "agent_hash", "")
     return HeartbeatConfig(
         bandwidth_limit_kbps=int(_get_setting(db, "bandwidth_limit_kbps", "1024")),
-        latest_agent_version=_get_setting(db, "agent_latest_version", "1.0.0"),
+        latest_agent_version=latest_version or "1.0.0",
         agent_download_url=download_url or None,
         agent_hash=agent_hash or None,
         runtime_update_interval_min=int(_get_setting(db, "runtime_update_interval_min", "60")),
@@ -349,7 +353,7 @@ def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> t
         if agent.inventory_hash is None or agent.inventory_hash != payload.inventory_hash:
             inventory_sync_required = True
 
-    config = get_heartbeat_config(db)
+    config = get_heartbeat_config(db, agent.platform or "windows")
     config.inventory_scan_interval_min = int(_get_setting(db, "inventory_scan_interval_min", "10"))
     config.inventory_sync_required = inventory_sync_required
     config.store_tray_enabled = _is_store_tray_enabled_for_agent(db, agent.uuid)

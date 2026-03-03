@@ -74,6 +74,10 @@ class Agent(Base):
     ip_address: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     os_user: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     os_version: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    platform: Mapped[str] = mapped_column(String, default="windows", nullable=False)
+    arch: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    distro: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    distro_version: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     version: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     last_seen: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String, default="offline", nullable=False)
@@ -158,7 +162,7 @@ class AgentGroup(Base):
 class Application(Base):
     __tablename__ = "applications"
     __table_args__ = (
-        CheckConstraint("file_type IN ('msi', 'exe')", name="ck_application_file_type"),
+        CheckConstraint("file_type IN ('msi', 'exe', 'deb', 'tar.gz', 'sh')", name="ck_application_file_type"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -170,6 +174,7 @@ class Application(Base):
     file_hash: Mapped[str] = mapped_column(String, nullable=False)
     file_size_bytes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     file_type: Mapped[str] = mapped_column(String, default="msi", nullable=False)
+    target_platform: Mapped[str] = mapped_column(String, default="windows", nullable=False)
     install_args: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     uninstall_args: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_visible_in_store: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

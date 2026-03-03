@@ -12,11 +12,18 @@
         <form id="upload-form" class="row g-3">
           <div class="col-12 col-md-6"><label class="form-label">Gorunen Ad</label><input class="form-control" name="display_name" required /></div>
           <div class="col-12 col-md-6"><label class="form-label">Versiyon</label><input class="form-control" name="version" required /></div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Hedef Platform</label>
+            <select class="form-select" name="target_platform" id="target-platform" required>
+              <option value="windows" selected>Windows</option>
+              <option value="linux">Linux</option>
+            </select>
+          </div>
           <div class="col-12"><label class="form-label">Aciklama</label><textarea class="form-control" name="description"></textarea></div>
           <div class="col-12 col-md-6"><label class="form-label">Kurulum Parametreleri (install_args)</label><input class="form-control" name="install_args" placeholder="/S /qn" /></div>
           <div class="col-12 col-md-6"><label class="form-label">Kaldirma Parametreleri (uninstall_args)</label><input class="form-control" name="uninstall_args" placeholder="/uninstall /quiet" /></div>
           <div class="col-12 col-md-6"><label class="form-label">Uygulama Ikonu (opsiyonel)</label><input class="form-control" name="icon" type="file" accept=".png,.jpg,.jpeg,.webp,.svg" /></div>
-          <div class="col-12 col-md-6"><label class="form-label">Kurulum Dosyasi (.msi / .exe)</label><input class="form-control" name="file" type="file" accept=".msi,.exe" required /></div>
+          <div class="col-12 col-md-6"><label class="form-label">Kurulum Dosyasi</label><input class="form-control" name="file" id="app-file" type="file" accept=".msi,.exe" required /></div>
           <div class="col-12 d-flex justify-content-end"><button class="btn btn-primary" type="submit"><i class="ti ti-upload me-1"></i>Yukle</button></div>
         </form>
       </div>
@@ -27,6 +34,14 @@
 {% block scripts %}
 <script>
   AppCenterApi.protectPage();
+  const targetPlatform = document.getElementById('target-platform');
+  const appFile = document.getElementById('app-file');
+  function syncFileAccept() {
+    const p = (targetPlatform.value || 'windows').toLowerCase();
+    appFile.setAttribute('accept', p === 'linux' ? '.deb,.tar.gz,.sh' : '.msi,.exe');
+  }
+  targetPlatform.addEventListener('change', syncFileAccept);
+  syncFileAccept();
   document.getElementById('upload-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {

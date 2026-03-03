@@ -18,6 +18,13 @@
           <div class="col-12"><label class="form-label">Aciklama</label><textarea class="form-control" name="description"></textarea></div>
           <div class="col-12 col-md-6"><label class="form-label">Kurulum Parametreleri</label><input class="form-control" name="install_args" placeholder="/S /qn" /></div>
           <div class="col-12 col-md-6"><label class="form-label">Kaldirma Parametreleri</label><input class="form-control" name="uninstall_args" placeholder="/uninstall /quiet" /></div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Hedef Platform</label>
+            <select class="form-select" name="target_platform">
+              <option value="windows">Windows</option>
+              <option value="linux">Linux</option>
+            </select>
+          </div>
           <div class="col-12 col-md-6"><label class="form-label">Kategori</label><input class="form-control" name="category" /></div>
           <div class="col-12 col-md-6 d-flex align-items-end gap-3">
             <label class="form-check"><input class="form-check-input" type="checkbox" name="is_visible_in_store" /><span class="form-check-label">Store'da gorunsun</span></label>
@@ -58,6 +65,7 @@
     form.description.value = data.description || '';
     form.install_args.value = data.install_args || '';
     form.uninstall_args.value = data.uninstall_args || '';
+    form.target_platform.value = (data.target_platform || 'windows');
     form.category.value = data.category || '';
     form.is_visible_in_store.checked = !!data.is_visible_in_store;
     form.is_active.checked = !!data.is_active;
@@ -83,6 +91,7 @@
       description: (form.get('description') || '').toString() || null,
       install_args: (form.get('install_args') || '').toString() || null,
       uninstall_args: (form.get('uninstall_args') || '').toString() || null,
+      target_platform: (form.get('target_platform') || 'windows').toString(),
       category: (form.get('category') || '').toString() || null,
       is_visible_in_store: form.get('is_visible_in_store') === 'on',
       is_active: form.get('is_active') === 'on',

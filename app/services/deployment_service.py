@@ -3,12 +3,15 @@ from __future__ import annotations
 from typing import Optional
 
 from datetime import datetime, timedelta, timezone
+import logging
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models import Agent, AgentApplication, AgentGroup, Application, Deployment
 from app.schemas import DeploymentCreateRequest, DeploymentUpdateRequest
+
+logger = logging.getLogger(__name__)
 
 
 def _resolve_target_agents(db: Session, target_type: str, target_id: Optional[str]) -> list[Agent]:
@@ -42,9 +45,24 @@ def _ensure_application_exists(db: Session, app_id: int) -> None:
 
 
 def _seed_agent_applications(db: Session, deployment: Deployment) -> int:
+    app = db.query(Application).filter(Application.id == deployment.app_id).first()
+    if not app:
+        return 0
+    app_platform = (app.target_platform or "windows").strip().lower()
     agents = _resolve_target_agents(db, deployment.target_type, deployment.target_id)
     created = 0
     for agent in agents:
+        agent_platform = (agent.platform or "windows").strip().lower()
+        if agent_platform != app_platform:
+            logger.info(
+                "deployment %s skipped platform mismatch: agent=%s (%s), app=%s (%s)",
+                deployment.id,
+                agent.uuid,
+                agent_platform,
+                app.id,
+                app_platform,
+            )
+            continue
         existing = (
             db.query(AgentApplication)
             .filter(AgentApplication.agent_uuid == agent.uuid, AgentApplication.app_id == deployment.app_id)
@@ -134,6 +152,16 @@ def queue_store_install_for_agent(db: Session, agent_uuid: str, app_id: int) -> 
     )
     if not app:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found in store")
+    agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
+    if not agent:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
+    agent_platform = (agent.platform or "windows").strip().lower()
+    app_platform = (app.target_platform or "windows").strip().lower()
+    if agent_platform != app_platform:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Platform mismatch: agent={agent_platform}, app={app_platform}",
+        )
 
     agent_app = (
         db.query(AgentApplication)

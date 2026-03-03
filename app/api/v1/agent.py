@@ -38,6 +38,7 @@ from app.utils.file_handler import parse_range_header
 router = APIRouter(prefix="/agent", tags=["agent"])
 SIGNAL_OFFLINE_GRACE_SEC = 3
 SIGNAL_MAX_HOLD_SEC = 10
+VALID_PLATFORMS = {"windows", "linux"}
 
 
 def _clean_error_message(value: str | None) -> str | None:
@@ -117,6 +118,13 @@ def _authenticate_agent(db: Session, agent_uuid: str, agent_secret: str) -> Agen
     return agent
 
 
+def _normalize_platform(value: str | None) -> str:
+    platform = (value or "windows").strip().lower()
+    if platform not in VALID_PLATFORMS:
+        return "windows"
+    return platform
+
+
 def _as_utc(value: datetime | None) -> datetime | None:
     if value is None:
         return None
@@ -193,10 +201,15 @@ async def _schedule_signal_disconnect_offline(agent_uuid: str, disconnected_at: 
 @router.post("/register", response_model=AgentRegisterResponse)
 def register_agent(payload: AgentRegisterRequest, db: Session = Depends(get_db)) -> AgentRegisterResponse:
     now = datetime.now(timezone.utc)
+    platform = _normalize_platform(payload.platform)
     agent = db.query(Agent).filter(Agent.uuid == payload.uuid).first()
     if agent:
         agent.hostname = payload.hostname
         agent.os_version = payload.os_version
+        agent.platform = platform
+        agent.arch = payload.arch
+        agent.distro = payload.distro
+        agent.distro_version = payload.distro_version
         agent.version = payload.agent_version
         agent.cpu_model = payload.cpu_model
         agent.ram_gb = payload.ram_gb
@@ -211,6 +224,10 @@ def register_agent(payload: AgentRegisterRequest, db: Session = Depends(get_db))
             uuid=payload.uuid,
             hostname=payload.hostname,
             os_version=payload.os_version,
+            platform=platform,
+            arch=payload.arch,
+            distro=payload.distro,
+            distro_version=payload.distro_version,
             version=payload.agent_version,
             cpu_model=payload.cpu_model,
             ram_gb=payload.ram_gb,
@@ -235,6 +252,8 @@ def heartbeat(
     db: Session = Depends(get_db),
 ) -> HeartbeatResponse:
     agent = _authenticate_agent(db, x_agent_uuid, x_agent_secret)
+    if payload.platform is not None:
+        agent.platform = _normalize_platform(payload.platform)
     now, config, commands, _inv_sync = process_heartbeat(db, agent, payload)
 
     remote_req: RemoteSupportRequest | None = None
@@ -301,11 +320,15 @@ def download_application(
     range_header: str = Header(None, alias="Range"),
     db: Session = Depends(get_db),
 ):
-    _authenticate_agent(db, x_agent_uuid, x_agent_secret)
+    agent = _authenticate_agent(db, x_agent_uuid, x_agent_secret)
 
     app = db.query(Application).filter(Application.id == app_id, Application.is_active.is_(True)).first()
     if not app:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
+    agent_platform = _normalize_platform(getattr(agent, "platform", None))
+    app_platform = _normalize_platform(getattr(app, "target_platform", None))
+    if agent_platform != app_platform:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Application is not available for this platform")
 
     file_path = (Path(settings.upload_dir) / Path(app.filename).name).resolve()
     if not file_path.exists() or not file_path.is_file():
@@ -443,7 +466,8 @@ def get_store_applications(
     x_agent_secret: str = Header(..., alias="X-Agent-Secret"),
     db: Session = Depends(get_db),
 ) -> StoreResponse:
-    _authenticate_agent(db, x_agent_uuid, x_agent_secret)
+    agent = _authenticate_agent(db, x_agent_uuid, x_agent_secret)
+    agent_platform = _normalize_platform(getattr(agent, "platform", None))
 
     rows = (
         db.query(Application, AgentApplication)
@@ -451,7 +475,11 @@ def get_store_applications(
             AgentApplication,
             (AgentApplication.app_id == Application.id) & (AgentApplication.agent_uuid == x_agent_uuid),
         )
-        .filter(Application.is_visible_in_store.is_(True), Application.is_active.is_(True))
+        .filter(
+            Application.is_visible_in_store.is_(True),
+            Application.is_active.is_(True),
+            Application.target_platform == agent_platform,
+        )
         .order_by(Application.display_name.asc())
         .all()
     )

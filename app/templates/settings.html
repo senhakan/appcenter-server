@@ -120,12 +120,19 @@
       <div class="card-body">
         <form id="agent-update-form" class="row g-3">
           <div class="col-12">
+            <label class="form-label">Platform</label>
+            <select class="form-select" name="platform" id="agent-update-platform" required>
+              <option value="windows" selected>Windows</option>
+              <option value="linux">Linux</option>
+            </select>
+          </div>
+          <div class="col-12">
             <label class="form-label">Versiyon</label>
             <input class="form-control" name="version" placeholder="1.0.1" required />
           </div>
           <div class="col-12">
-            <label class="form-label">Paket (.exe / .msi)</label>
-            <input class="form-control" name="file" type="file" accept=".exe,.msi" required />
+            <label class="form-label">Paket</label>
+            <input class="form-control" id="agent-update-file" name="file" type="file" accept=".exe,.msi" required />
           </div>
           <div class="col-12 d-flex justify-content-end">
             <button class="btn btn-primary" type="submit"><i class="ti ti-package-import me-1"></i>Paketi Yukle</button>
@@ -241,6 +248,15 @@
       AppCenterApi.toast(err.message);
     }
   });
+
+  const updatePlatform = document.getElementById('agent-update-platform');
+  const updateFile = document.getElementById('agent-update-file');
+  function syncUpdateFileAccept() {
+    const p = (updatePlatform.value || 'windows').toLowerCase();
+    updateFile.setAttribute('accept', p === 'linux' ? '.deb,.tar.gz,.sh' : '.exe,.msi');
+  }
+  updatePlatform.addEventListener('change', syncUpdateFileAccept);
+  syncUpdateFileAccept();
 
   loadSettings();
 </script>

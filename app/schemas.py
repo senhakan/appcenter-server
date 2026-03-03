@@ -41,6 +41,10 @@ class AgentRegisterRequest(BaseModel):
     uuid: str
     hostname: str
     os_version: Optional[str] = None
+    platform: Optional[str] = None
+    arch: Optional[str] = None
+    distro: Optional[str] = None
+    distro_version: Optional[str] = None
     agent_version: Optional[str] = None
     cpu_model: Optional[str] = None
     ram_gb: Optional[int] = None
@@ -125,6 +129,7 @@ class HeartbeatRequest(BaseModel):
     apps_changed: bool = False
     installed_apps: list[InstalledAppItem] = Field(default_factory=list)
     inventory_hash: Optional[str] = None
+    platform: Optional[str] = None
     logged_in_sessions: Optional[list[LoggedInSession]] = None
     system_profile: Optional[SystemProfile] = None
     remote_support: Optional[RemoteSupportHeartbeat] = None
@@ -306,6 +311,7 @@ class ApplicationResponse(BaseModel):
     file_hash: str
     file_size_bytes: Optional[int] = None
     file_type: str
+    target_platform: str = "windows"
     install_args: Optional[str] = None
     uninstall_args: Optional[str] = None
     is_visible_in_store: bool
@@ -329,6 +335,7 @@ class ApplicationUpdateRequest(BaseModel):
     uninstall_args: Optional[str] = None
     is_visible_in_store: Optional[bool] = None
     category: Optional[str] = None
+    target_platform: Optional[str] = None
     is_active: Optional[bool] = None
 
 
@@ -391,6 +398,10 @@ class AgentResponse(BaseModel):
     ip_address: Optional[str] = None
     os_user: Optional[str] = None
     os_version: Optional[str] = None
+    platform: str = "windows"
+    arch: Optional[str] = None
+    distro: Optional[str] = None
+    distro_version: Optional[str] = None
     version: Optional[str] = None
     last_seen: Optional[datetime] = None
     status: str

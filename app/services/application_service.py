@@ -12,6 +12,23 @@ from app.models import Application
 from app.utils.file_handler import move_temp_to_final, sanitize_filename, save_icon_file, save_upload_to_temp
 
 settings = get_settings()
+WINDOWS_PLATFORM = "windows"
+LINUX_PLATFORM = "linux"
+ALLOWED_FILE_TYPES_BY_PLATFORM = {
+    WINDOWS_PLATFORM: {"msi", "exe"},
+    LINUX_PLATFORM: {"deb", "tar.gz", "sh"},
+}
+ALLOWED_EXTENSIONS_BY_PLATFORM = {
+    WINDOWS_PLATFORM: {".msi", ".exe"},
+    LINUX_PLATFORM: {".deb", ".tar.gz", ".sh"},
+}
+
+
+def normalize_target_platform(value: Optional[str]) -> str:
+    normalized = (value or WINDOWS_PLATFORM).strip().lower()
+    if normalized not in ALLOWED_FILE_TYPES_BY_PLATFORM:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid target_platform")
+    return normalized
 
 
 async def create_application(
@@ -25,6 +42,7 @@ async def create_application(
     is_visible_in_store: bool = True,
     category: Optional[str] = None,
     icon_file: Optional[UploadFile] = None,
+    target_platform: str = WINDOWS_PLATFORM,
 ) -> Application:
     normalized_name = (display_name or "").strip()
     if not normalized_name:
@@ -41,11 +59,19 @@ async def create_application(
             detail="Application name already exists",
         )
 
+    normalized_platform = normalize_target_platform(target_platform)
+
     temp_path, digest_hex, total_size, file_type = await save_upload_to_temp(
         upload_file=upload_file,
         upload_dir=settings.upload_dir,
         max_upload_size=settings.max_upload_size,
+        allowed_extensions=ALLOWED_EXTENSIONS_BY_PLATFORM[normalized_platform],
     )
+    if file_type not in ALLOWED_FILE_TYPES_BY_PLATFORM[normalized_platform]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid file type for platform '{normalized_platform}'",
+        )
 
     app = Application(
         display_name=normalized_name,
@@ -56,6 +82,7 @@ async def create_application(
         file_hash=f"sha256:{digest_hex}",
         file_size_bytes=total_size,
         file_type=file_type,
+        target_platform=normalized_platform,
         install_args=install_args,
         uninstall_args=uninstall_args,
         is_visible_in_store=is_visible_in_store,
@@ -123,6 +150,7 @@ def update_application(
     uninstall_args: Optional[str] = None,
     is_visible_in_store: Optional[bool] = None,
     category: Optional[str] = None,
+    target_platform: Optional[str] = None,
     is_active: Optional[bool] = None,
 ) -> Application:
     app = get_application(db, app_id)
@@ -153,6 +181,14 @@ def update_application(
         app.is_visible_in_store = is_visible_in_store
     if category is not None:
         app.category = category
+    if target_platform is not None:
+        normalized_platform = normalize_target_platform(target_platform)
+        if app.file_type not in ALLOWED_FILE_TYPES_BY_PLATFORM[normalized_platform]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Existing file type '{app.file_type}' is incompatible with target_platform '{normalized_platform}'",
+            )
+        app.target_platform = normalized_platform
     if is_active is not None:
         app.is_active = is_active
     db.add(app)

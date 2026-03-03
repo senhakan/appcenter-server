@@ -10,7 +10,7 @@ from uuid import uuid4
 import aiofiles
 from fastapi import HTTPException, UploadFile, status
 
-ALLOWED_EXTENSIONS = {".msi", ".exe"}
+ALLOWED_EXTENSIONS = {".msi", ".exe", ".deb", ".tar.gz", ".sh"}
 ALLOWED_ICON_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".svg"}
 ALLOWED_AVATAR_EXTENSIONS = ALLOWED_ICON_EXTENSIONS
 READ_CHUNK_SIZE = 1024 * 1024  # 1MB
@@ -23,7 +23,10 @@ def ensure_upload_dir(upload_dir: str) -> Path:
 
 
 def get_extension(filename: str) -> str:
-    return Path(filename or "").suffix.lower()
+    raw = (filename or "").lower()
+    if raw.endswith(".tar.gz"):
+        return ".tar.gz"
+    return Path(raw).suffix.lower()
 
 
 def sanitize_filename(app_id: int, file_hash_hex: str, original_filename: str) -> str:
@@ -41,12 +44,16 @@ async def save_upload_to_temp(
     upload_file: UploadFile,
     upload_dir: str,
     max_upload_size: int,
+    allowed_extensions: Optional[set[str]] = None,
 ) -> tuple[Path, str, int, str]:
+    if allowed_extensions is None:
+        allowed_extensions = ALLOWED_EXTENSIONS
     ext = get_extension(upload_file.filename or "")
-    if ext not in ALLOWED_EXTENSIONS:
+    if ext not in allowed_extensions:
+        allowed_list = ", ".join(sorted(allowed_extensions))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid file type. Only .msi and .exe allowed.",
+            detail=f"Invalid file type. Allowed: {allowed_list}",
         )
 
     base_path = ensure_upload_dir(upload_dir)

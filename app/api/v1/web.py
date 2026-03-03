@@ -65,10 +65,12 @@ from app.schemas import (
     SettingsUpdateRequest,
 )
 from app.services.application_service import (
+    ALLOWED_EXTENSIONS_BY_PLATFORM,
     create_application,
     delete_application,
     get_application,
     list_applications,
+    normalize_target_platform,
     remove_application_icon,
     update_application,
     update_application_icon,
@@ -1057,6 +1059,7 @@ async def applications_upload(
     uninstall_args: Optional[str] = Form(None),
     is_visible_in_store: bool = Form(True),
     category: Optional[str] = Form(None),
+    target_platform: str = Form("windows"),
     icon: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("applications.manage")),
@@ -1071,6 +1074,7 @@ async def applications_upload(
         uninstall_args=uninstall_args,
         is_visible_in_store=is_visible_in_store,
         category=category,
+        target_platform=target_platform,
         icon_file=icon,
     )
     audit.record_audit(
@@ -1101,6 +1105,7 @@ def applications_update(
         uninstall_args=payload.uninstall_args,
         is_visible_in_store=payload.is_visible_in_store,
         category=payload.category,
+        target_platform=payload.target_platform,
         is_active=payload.is_active,
     )
     audit.record_audit(
@@ -1341,28 +1346,40 @@ def settings_update(
 @router.post("/agent-update/upload", response_model=AgentUpdateUploadResponse)
 async def upload_agent_update(
     version: str = Form(...),
+    platform: str = Form("windows"),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("settings.manage")),
 ) -> AgentUpdateUploadResponse:
+    platform = normalize_target_platform(platform)
     updates_dir = str(Path(settings.upload_dir) / "agent_updates")
     temp_path, digest_hex, _, file_type = await save_upload_to_temp(
         upload_file=file,
         upload_dir=updates_dir,
         max_upload_size=settings.max_upload_size,
+        allowed_extensions=ALLOWED_EXTENSIONS_BY_PLATFORM[platform],
     )
-    filename = f"agent_{version}_{digest_hex[:8]}.{file_type}"
+    filename = f"agent_{platform}_{version}_{digest_hex[:8]}.{file_type}"
     final_path = Path(updates_dir) / filename
     move_temp_to_final(temp_path, final_path)
 
     now = datetime.now(timezone.utc)
     download_url = f"/api/v1/agent/update/download/{filename}"
     pairs = {
-        "agent_latest_version": version,
-        "agent_download_url": download_url,
-        "agent_hash": f"sha256:{digest_hex}",
-        "agent_update_filename": filename,
+        f"agent_latest_version_{platform}": version,
+        f"agent_download_url_{platform}": download_url,
+        f"agent_hash_{platform}": f"sha256:{digest_hex}",
+        f"agent_update_filename_{platform}": filename,
     }
+    if platform == "windows":
+        pairs.update(
+            {
+                "agent_latest_version": version,
+                "agent_download_url": download_url,
+                "agent_hash": f"sha256:{digest_hex}",
+                "agent_update_filename": filename,
+            }
+        )
     for key, value in pairs.items():
         item = db.query(Setting).filter(Setting.key == key).first()
         if not item:

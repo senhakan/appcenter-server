@@ -55,6 +55,12 @@ DEFAULT_SETTINGS = {
     "agent_latest_version": ("1.0.0", "Latest available agent version"),
     "agent_download_url": ("", "Agent self-update download URL"),
     "agent_hash": ("", "Agent installer SHA256 hash"),
+    "agent_latest_version_windows": ("1.0.0", "Latest available Windows agent version"),
+    "agent_download_url_windows": ("", "Windows agent self-update download URL"),
+    "agent_hash_windows": ("", "Windows agent installer SHA256 hash"),
+    "agent_latest_version_linux": ("", "Latest available Linux agent version"),
+    "agent_download_url_linux": ("", "Linux agent self-update download URL"),
+    "agent_hash_linux": ("", "Linux agent installer SHA256 hash"),
     "server_timezone": ("UTC", "Server timezone (always UTC)"),
     "ui_timezone": ("Europe/Istanbul", "UI timezone (IANA, ex: Europe/Istanbul)"),
     "session_timeout_minutes": ("60", "Web session timeout (minutes)"),
@@ -139,6 +145,9 @@ def _run_startup_migrations() -> None:
     _migrate_users_avatar_column()
     _migrate_users_profile_columns()
     _migrate_groups_dynamic_columns()
+    _migrate_agent_platform_columns()
+    _migrate_application_platform_columns()
+    _migrate_agent_update_platform_settings()
     if is_sqlite:
         _migrate_sqlite_groups_table()
         _migrate_sqlite_applications_table()
@@ -406,6 +415,7 @@ def _migrate_sqlite_applications_table() -> None:
         "category": "VARCHAR",
         "dependencies": "TEXT",
         "min_os_version": "VARCHAR",
+        "target_platform": "VARCHAR NOT NULL DEFAULT 'windows'",
     }
 
     with engine.begin() as conn:
@@ -422,6 +432,89 @@ def _migrate_sqlite_applications_table() -> None:
             if column_name in existing_columns:
                 continue
             conn.execute(text(f"ALTER TABLE applications ADD COLUMN {column_name} {column_type}"))
+
+
+def _migrate_agent_platform_columns() -> None:
+    expected = {
+        "platform": "VARCHAR NOT NULL DEFAULT 'windows'",
+        "arch": "VARCHAR",
+        "distro": "VARCHAR",
+        "distro_version": "VARCHAR",
+    }
+    with engine.begin() as conn:
+        if is_sqlite:
+            table_exists = conn.execute(
+                text("SELECT 1 FROM sqlite_master WHERE type='table' AND name='agents' LIMIT 1")
+            ).first()
+            if not table_exists:
+                return
+            rows = conn.execute(text("PRAGMA table_info(agents)")).mappings().all()
+            existing = {row["name"] for row in rows}
+            for col, sql_type in expected.items():
+                if col not in existing:
+                    conn.execute(text(f"ALTER TABLE agents ADD COLUMN {col} {sql_type}"))
+            return
+
+        table_exists = conn.execute(
+            text("SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='agents' LIMIT 1")
+        ).first()
+        if not table_exists:
+            return
+        rows = conn.execute(
+            text("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='agents'")
+        ).all()
+        existing = {row[0] for row in rows}
+        for col, sql_type in expected.items():
+            if col not in existing:
+                conn.execute(text(f"ALTER TABLE agents ADD COLUMN {col} {sql_type}"))
+
+
+def _migrate_application_platform_columns() -> None:
+    with engine.begin() as conn:
+        if is_sqlite:
+            table_exists = conn.execute(
+                text("SELECT 1 FROM sqlite_master WHERE type='table' AND name='applications' LIMIT 1")
+            ).first()
+            if not table_exists:
+                return
+            rows = conn.execute(text("PRAGMA table_info(applications)")).mappings().all()
+            existing = {row["name"] for row in rows}
+            if "target_platform" not in existing:
+                conn.execute(text("ALTER TABLE applications ADD COLUMN target_platform VARCHAR NOT NULL DEFAULT 'windows'"))
+            return
+
+        table_exists = conn.execute(
+            text("SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='applications' LIMIT 1")
+        ).first()
+        if not table_exists:
+            return
+        rows = conn.execute(
+            text("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='applications'")
+        ).all()
+        existing = {row[0] for row in rows}
+        if "target_platform" not in existing:
+            conn.execute(text("ALTER TABLE applications ADD COLUMN target_platform VARCHAR NOT NULL DEFAULT 'windows'"))
+
+
+def _migrate_agent_update_platform_settings() -> None:
+    setting_pairs = [
+        ("agent_latest_version_windows", "agent_latest_version"),
+        ("agent_download_url_windows", "agent_download_url"),
+        ("agent_hash_windows", "agent_hash"),
+    ]
+    now = datetime.now(timezone.utc)
+    with engine.begin() as conn:
+        for new_key, old_key in setting_pairs:
+            exists = conn.execute(text("SELECT value FROM settings WHERE key = :k LIMIT 1"), {"k": new_key}).first()
+            if exists:
+                continue
+            old = conn.execute(text("SELECT value FROM settings WHERE key = :k LIMIT 1"), {"k": old_key}).first()
+            value = str(old[0]) if old and old[0] is not None else (DEFAULT_SETTINGS.get(new_key) or ("", ""))[0]
+            desc = (DEFAULT_SETTINGS.get(new_key) or ("", ""))[1]
+            conn.execute(
+                text("INSERT INTO settings (key, value, description, updated_at) VALUES (:k, :v, :d, :u)"),
+                {"k": new_key, "v": value, "d": desc, "u": now},
+            )
 
 
 def _migrate_sqlite_agent_groups_table() -> None:
