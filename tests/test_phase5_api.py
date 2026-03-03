@@ -486,3 +486,122 @@ def test_agent_can_belong_to_multiple_groups(client: TestClient, auth_headers: d
     cmd_app_ids = {c.get('app_id') for c in hb.json().get('commands', [])}
     assert app1 in cmd_app_ids
     assert app2 in cmd_app_ids
+
+
+def test_agent_register_accepts_platform_metadata(client: TestClient, auth_headers: dict[str, str]) -> None:
+    reg = client.post(
+        '/api/v1/agent/register',
+        json={
+            'uuid': 'agent-linux-meta-1',
+            'hostname': 'LNX-01',
+            'platform': 'linux',
+            'arch': 'amd64',
+            'distro': 'ubuntu',
+            'distro_version': '24.04',
+            'agent_version': '2.0.0',
+        },
+    )
+    assert reg.status_code == 200
+    details = client.get('/api/v1/agents/agent-linux-meta-1', headers=auth_headers)
+    assert details.status_code == 200
+    data = details.json()
+    assert data['platform'] == 'linux'
+    assert data['arch'] == 'amd64'
+    assert data['distro'] == 'ubuntu'
+    assert data['distro_version'] == '24.04'
+
+
+def test_store_is_filtered_by_agent_platform(client: TestClient, auth_headers: dict[str, str]) -> None:
+    win_upload = client.post(
+        '/api/v1/applications',
+        headers=auth_headers,
+        data={'display_name': 'Platform Win App', 'version': '1.0.0', 'target_platform': 'windows'},
+        files={'file': ('plat_win.msi', b'w' * 4096, 'application/octet-stream')},
+    )
+    assert win_upload.status_code == 200
+    win_id = win_upload.json()['id']
+
+    linux_upload = client.post(
+        '/api/v1/applications',
+        headers=auth_headers,
+        data={'display_name': 'Platform Linux App', 'version': '1.0.0', 'target_platform': 'linux'},
+        files={'file': ('plat_linux.deb', b'l' * 4096, 'application/octet-stream')},
+    )
+    assert linux_upload.status_code == 200
+    linux_id = linux_upload.json()['id']
+
+    win_headers = _register_agent(client, uuid='agent-win-store-1')
+    linux_reg = client.post(
+        '/api/v1/agent/register',
+        json={'uuid': 'agent-linux-store-1', 'hostname': 'LNX-STORE', 'platform': 'linux', 'agent_version': '2.0.0'},
+    )
+    assert linux_reg.status_code == 200
+    linux_headers = {'X-Agent-UUID': 'agent-linux-store-1', 'X-Agent-Secret': linux_reg.json()['secret_key']}
+
+    win_store = client.get('/api/v1/agent/store', headers=win_headers)
+    assert win_store.status_code == 200
+    win_ids = {row['id'] for row in win_store.json()['apps']}
+    assert win_id in win_ids
+    assert linux_id not in win_ids
+
+    linux_store = client.get('/api/v1/agent/store', headers=linux_headers)
+    assert linux_store.status_code == 200
+    linux_ids = {row['id'] for row in linux_store.json()['apps']}
+    assert linux_id in linux_ids
+    assert win_id not in linux_ids
+
+
+def test_heartbeat_uses_platform_specific_update_settings(client: TestClient, auth_headers: dict[str, str]) -> None:
+    win_up = client.post(
+        '/api/v1/agent-update/upload',
+        headers=auth_headers,
+        data={'version': '9.9.9', 'platform': 'windows'},
+        files={'file': ('agent_win.exe', b'win' * 3000, 'application/octet-stream')},
+    )
+    assert win_up.status_code == 200
+    linux_up = client.post(
+        '/api/v1/agent-update/upload',
+        headers=auth_headers,
+        data={'version': '2.2.2', 'platform': 'linux'},
+        files={'file': ('agent_linux.deb', b'lnx' * 3000, 'application/octet-stream')},
+    )
+    assert linux_up.status_code == 200
+
+    win_headers = _register_agent(client, uuid='agent-win-upd-1')
+    linux_reg = client.post(
+        '/api/v1/agent/register',
+        json={'uuid': 'agent-linux-upd-1', 'hostname': 'LNX-UPD', 'platform': 'linux', 'agent_version': '2.0.0'},
+    )
+    assert linux_reg.status_code == 200
+    linux_headers = {'X-Agent-UUID': 'agent-linux-upd-1', 'X-Agent-Secret': linux_reg.json()['secret_key']}
+
+    win_hb = client.post(
+        '/api/v1/agent/heartbeat',
+        headers=win_headers,
+        json={'hostname': 'WIN-UPD', 'apps_changed': False, 'installed_apps': []},
+    )
+    assert win_hb.status_code == 200
+    assert win_hb.json()['config']['latest_agent_version'] == '9.9.9'
+
+    linux_hb = client.post(
+        '/api/v1/agent/heartbeat',
+        headers=linux_headers,
+        json={'hostname': 'LNX-UPD', 'platform': 'linux', 'apps_changed': False, 'installed_apps': []},
+    )
+    assert linux_hb.status_code == 200
+    assert linux_hb.json()['config']['latest_agent_version'] == '2.2.2'
+
+
+def test_download_rejects_platform_mismatch(client: TestClient, auth_headers: dict[str, str]) -> None:
+    linux_upload = client.post(
+        '/api/v1/applications',
+        headers=auth_headers,
+        data={'display_name': 'Linux Download Guard', 'version': '1.0.0', 'target_platform': 'linux'},
+        files={'file': ('dl_guard.deb', b'abc' * 4096, 'application/octet-stream')},
+    )
+    assert linux_upload.status_code == 200
+    linux_app_id = linux_upload.json()['id']
+
+    win_headers = _register_agent(client, uuid='agent-win-dl-guard-1')
+    denied = client.get(f'/api/v1/agent/download/{linux_app_id}', headers=win_headers)
+    assert denied.status_code == 403
