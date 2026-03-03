@@ -1,0 +1,327 @@
+{% extends 'base.html' %}
+{% block title %}Roller{% endblock %}
+{% block page_title %}Rol Profilleri{% endblock %}
+{% block page_actions %}
+<div class="btn-list">
+  <button class="btn btn-outline-primary btn-sm" id="roles-refresh-btn" type="button"><i class="ti ti-refresh me-1"></i>Yenile</button>
+  <button class="btn btn-primary btn-sm" id="roles-new-btn" type="button" data-required-permissions="roles.manage"><i class="ti ti-plus me-1"></i>Yeni Rol</button>
+</div>
+{% endblock %}
+{% block content %}
+<style>
+  .roles-table .col-actions { width: 1%; white-space: nowrap; }
+  .role-modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.48); display: flex; align-items: center; justify-content: center; z-index: 1050; padding: 16px; }
+  .role-modal-backdrop.hidden { display: none; }
+  .role-modal-dialog { width: 100%; max-width: 700px; }
+  .permission-picker {
+    border: 1px solid var(--tblr-border-color, #dce1e7);
+    border-radius: 8px;
+    padding: 10px;
+    max-height: 260px;
+    overflow: auto;
+    background: var(--tblr-bg-surface, #fff);
+  }
+  .permission-group-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--tblr-secondary, #6c7480);
+    text-transform: uppercase;
+    margin: 8px 0;
+  }
+  .permission-item {
+    margin-bottom: 6px;
+  }
+</style>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter roles-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Anahtar</th>
+          <th>Ad</th>
+          <th>Izin Sayisi</th>
+          <th>Durum</th>
+          <th class="col-actions"></th>
+        </tr>
+      </thead>
+      <tbody id="role-rows">
+        <tr><td colspan="6" class="text-secondary">Yukleniyor...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div id="role-create-modal" class="role-modal-backdrop hidden" aria-live="polite">
+  <div class="role-modal-dialog">
+    <div class="card mb-0">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Yeni Rol</h3>
+        <button class="btn btn-outline-secondary btn-sm" id="role-create-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
+      </div>
+      <div class="card-body">
+        <form id="role-create-form" class="row g-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label">Anahtar (key)</label>
+            <input class="form-control" name="key" placeholder="or: saha_destek" required />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Ad</label>
+            <input class="form-control" name="name" placeholder="or: Saha Destek" required />
+          </div>
+          <div class="col-12">
+            <label class="form-label">Aciklama</label>
+            <input class="form-control" name="description" />
+          </div>
+          <div class="col-12">
+            <label class="form-label">Izinler</label>
+            <div class="permission-picker" data-permission-picker="create">
+              <div class="text-secondary small">Yukleniyor...</div>
+            </div>
+          </div>
+          <div class="col-12 col-md-6 d-flex align-items-end">
+            <label class="form-check">
+              <input class="form-check-input" name="is_active" type="checkbox" checked />
+              <span class="form-check-label">Aktif</span>
+            </label>
+          </div>
+          <div class="col-12 d-flex justify-content-end">
+            <button class="btn btn-primary" type="submit"><i class="ti ti-plus me-1"></i>Olustur</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="role-edit-modal" class="role-modal-backdrop hidden" aria-live="polite">
+  <div class="role-modal-dialog">
+    <div class="card mb-0">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Rol Duzenle</h3>
+        <button class="btn btn-outline-secondary btn-sm" id="role-edit-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
+      </div>
+      <div class="card-body">
+        <form id="role-edit-form" class="row g-3">
+          <input type="hidden" name="id" />
+          <div class="col-12 col-md-6">
+            <label class="form-label">Anahtar</label>
+            <input class="form-control" name="key" readonly />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Ad</label>
+            <input class="form-control" name="name" required />
+          </div>
+          <div class="col-12">
+            <label class="form-label">Aciklama</label>
+            <input class="form-control" name="description" />
+          </div>
+          <div class="col-12">
+            <label class="form-label">Izinler</label>
+            <div class="permission-picker" data-permission-picker="edit">
+              <div class="text-secondary small">Yukleniyor...</div>
+            </div>
+          </div>
+          <div class="col-12 col-md-6 d-flex align-items-end">
+            <label class="form-check">
+              <input class="form-check-input" name="is_active" type="checkbox" />
+              <span class="form-check-label">Aktif</span>
+            </label>
+          </div>
+          <div class="col-12 d-flex justify-content-end">
+            <button class="btn btn-primary" type="submit"><i class="ti ti-device-floppy me-1"></i>Kaydet</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+
+  let roles = [];
+  let permissionCatalog = [];
+  const byId = new Map();
+  const createModal = document.getElementById('role-create-modal');
+  const editModal = document.getElementById('role-edit-modal');
+
+  function openModal(el) { el.classList.remove('hidden'); }
+  function closeModal(el) { el.classList.add('hidden'); }
+  function esc(s) { return (s || '').toString().replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;'); }
+
+  function collectPermissions(form) {
+    return Array.from(form.querySelectorAll('input[data-permission-key]:checked')).map((el) => el.value);
+  }
+
+  function setFormPermissions(form, permissions) {
+    const current = new Set((permissions || []).map((x) => (x || '').toString().trim()).filter(Boolean));
+    form.querySelectorAll('input[data-permission-key]').forEach((el) => {
+      el.checked = current.has(el.value);
+    });
+  }
+
+  function renderPermissionCatalog(targetName) {
+    const host = document.querySelector(`[data-permission-picker="${targetName}"]`);
+    if (!host) return;
+    const html = [];
+    (permissionCatalog || []).forEach((group, gIdx) => {
+      html.push(`<div class="permission-group-title">${esc(group.group || `Grup ${gIdx + 1}`)}</div>`);
+      (group.permissions || []).forEach((item, idx) => {
+        const key = (item.key || '').trim();
+        if (!key) return;
+        const id = `perm_${targetName}_${gIdx}_${idx}`;
+        html.push(`
+          <label class="form-check permission-item" for="${id}">
+            <input id="${id}" class="form-check-input" type="checkbox" data-permission-key value="${esc(key)}" />
+            <span class="form-check-label"><code>${esc(key)}</code> - ${esc(item.label || key)}</span>
+          </label>
+        `);
+      });
+    });
+    host.innerHTML = html.join('') || '<div class="text-secondary small">Izin katalogu bos</div>';
+  }
+
+  function render() {
+    const rows = document.getElementById('role-rows');
+    rows.innerHTML = '';
+    byId.clear();
+    if (!roles.length) {
+      rows.innerHTML = '<tr><td colspan="6" class="text-secondary">Kayit yok</td></tr>';
+      return;
+    }
+    roles.forEach((item) => {
+      byId.set(Number(item.id), item);
+      const status = item.is_active
+        ? '<span class="badge bg-green-lt text-green">aktif</span>'
+        : '<span class="badge bg-secondary-lt text-secondary">pasif</span>';
+      const lock = item.is_system ? '<span class="badge bg-yellow-lt text-yellow ms-1">sistem</span>' : '';
+      const disableDel = item.is_system ? 'disabled title="Sistem rol silinemez"' : '';
+      const permCount = Array.isArray(item.permissions) ? item.permissions.length : 0;
+      rows.insertAdjacentHTML('beforeend', `
+        <tr>
+          <td>${item.id}</td>
+          <td><code>${esc(item.key)}</code>${lock}</td>
+          <td>${esc(item.name)}</td>
+          <td><span class="badge bg-azure-lt text-azure">${permCount}</span></td>
+          <td>${status}</td>
+          <td class="col-actions" data-required-permissions="roles.manage">
+            <div class="btn-list flex-nowrap">
+              <button class="btn btn-outline-secondary btn-sm" data-action="edit" data-id="${item.id}"><i class="ti ti-edit me-1"></i>Duzenle</button>
+              <button class="btn btn-outline-danger btn-sm" data-action="delete" data-id="${item.id}" ${disableDel}><i class="ti ti-player-stop me-1"></i>Pasife Al</button>
+            </div>
+          </td>
+        </tr>
+      `);
+    });
+
+    rows.querySelectorAll('button[data-action="edit"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = Number(btn.getAttribute('data-id') || '0');
+        const role = byId.get(id);
+        if (!role) return;
+        const f = document.getElementById('role-edit-form');
+        f.elements.id.value = String(role.id || '');
+        f.elements.key.value = role.key || '';
+        f.elements.name.value = role.name || '';
+        f.elements.description.value = role.description || '';
+        setFormPermissions(f, Array.isArray(role.permissions) ? role.permissions : []);
+        f.elements.is_active.checked = !!role.is_active;
+        openModal(editModal);
+      });
+    });
+
+    rows.querySelectorAll('button[data-action="delete"]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = Number(btn.getAttribute('data-id') || '0');
+        if (!id) return;
+        const ok = confirm(`Rolu pasife almak istiyor musunuz? (#${id})`);
+        if (!ok) return;
+        try {
+          await AppCenterApi.req(`/roles/${id}`, { method: 'DELETE' });
+          AppCenterApi.toast('Rol pasife alindi');
+          await loadRoles();
+        } catch (err) {
+          AppCenterApi.toast(err.message);
+        }
+      });
+    });
+  }
+
+  async function loadRoles() {
+    try {
+      const [data, catalog] = await Promise.all([
+        AppCenterApi.req('/roles?include_inactive=true'),
+        AppCenterApi.req('/roles/catalog'),
+      ]);
+      roles = data.items || [];
+      permissionCatalog = catalog.items || [];
+      renderPermissionCatalog('create');
+      renderPermissionCatalog('edit');
+      render();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  document.getElementById('roles-refresh-btn').addEventListener('click', loadRoles);
+  document.getElementById('roles-new-btn').addEventListener('click', () => openModal(createModal));
+  document.getElementById('role-create-cancel-btn').addEventListener('click', () => closeModal(createModal));
+  document.getElementById('role-edit-cancel-btn').addEventListener('click', () => closeModal(editModal));
+
+  createModal.addEventListener('click', (e) => { if (e.target === createModal) closeModal(createModal); });
+  editModal.addEventListener('click', (e) => { if (e.target === editModal) closeModal(editModal); });
+
+  document.getElementById('role-create-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    try {
+      await AppCenterApi.req('/roles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: (f.elements.key.value || '').trim(),
+          name: (f.elements.name.value || '').trim(),
+          description: (f.elements.description.value || '').trim() || null,
+          permissions: collectPermissions(f),
+          is_active: !!f.elements.is_active.checked,
+        }),
+      });
+      closeModal(createModal);
+      f.reset();
+      AppCenterApi.toast('Rol olusturuldu');
+      await loadRoles();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+
+  document.getElementById('role-edit-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const id = Number(f.elements.id.value || '0');
+    if (!id) return;
+    try {
+      await AppCenterApi.req(`/roles/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: (f.elements.name.value || '').trim(),
+          description: (f.elements.description.value || '').trim() || null,
+          permissions: collectPermissions(f),
+          is_active: !!f.elements.is_active.checked,
+        }),
+      });
+      closeModal(editModal);
+      AppCenterApi.toast('Rol guncellendi');
+      await loadRoles();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+
+  loadRoles();
+</script>
+{% endblock %}

@@ -3,7 +3,7 @@
 {% block page_title %}Ayarlar{% endblock %}
 {% block content %}
 <div class="row row-cards">
-  <div class="col-12 col-xl-8" data-required-roles="admin">
+  <div class="col-12 col-xl-8" data-required-permissions="settings.manage">
     <div class="card">
       <div class="card-header">
         <h3 class="card-title mb-0">Sistem Ayarlari</h3>
@@ -69,6 +69,11 @@
             <label class="form-label">Runtime Update Jitter (sn)</label>
             <input class="form-control" id="s-runtime-jitter" type="number" min="0" />
           </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Dinamik Grup Senkron (sn)</label>
+            <input class="form-control" id="s-dynamic-group-sync" type="number" min="30" />
+            <div class="form-hint">Cron benzeri job bu araliga gore dinamik grup atamalarini yeniler (min: 30 sn).</div>
+          </div>
 
           <div class="col-12"><hr class="my-2" /></div>
           <div class="col-12">
@@ -107,7 +112,7 @@
     </div>
   </div>
 
-  <div class="col-12 col-xl-4" data-required-roles="admin">
+  <div class="col-12 col-xl-4" data-required-permissions="settings.manage">
     <div class="card">
       <div class="card-header">
         <h3 class="card-title mb-0">Agent Guncelleme Paketi</h3>
@@ -151,6 +156,7 @@
       document.getElementById('s-system-retention').value = map.system_history_retention_days || '360';
       document.getElementById('s-runtime-interval').value = map.runtime_update_interval_min || '60';
       document.getElementById('s-runtime-jitter').value = map.runtime_update_jitter_sec || '300';
+      document.getElementById('s-dynamic-group-sync').value = map.dynamic_group_sync_interval_sec || '120';
       document.getElementById('s-session-recording-enabled').checked = ['1', 'true', 'yes', 'on'].includes((map.session_recording_enabled || 'false').toString().toLowerCase());
       document.getElementById('s-session-recording-fps').value = map.session_recording_fps || '10';
       document.getElementById('s-session-recording-watermark-enabled').checked = ['1', 'true', 'yes', 'on'].includes((map.session_recording_watermark_enabled || 'false').toString().toLowerCase());
@@ -209,6 +215,7 @@
             system_history_retention_days: document.getElementById('s-system-retention').value,
             runtime_update_interval_min: document.getElementById('s-runtime-interval').value,
             runtime_update_jitter_sec: document.getElementById('s-runtime-jitter').value,
+            dynamic_group_sync_interval_sec: document.getElementById('s-dynamic-group-sync').value,
             session_recording_enabled: document.getElementById('s-session-recording-enabled').checked ? 'true' : 'false',
             session_recording_fps: document.getElementById('s-session-recording-fps').value,
             session_recording_watermark_enabled: document.getElementById('s-session-recording-watermark-enabled').checked ? 'true' : 'false',

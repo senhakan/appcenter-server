@@ -6,7 +6,7 @@
 {% endblock %}
 {% block content %}
 <div class="card">
-  <div class="card-header" data-required-roles="operator,admin">
+  <div class="card-header" data-required-permissions="inventory.manage">
     <form id="add-form" class="row g-2 w-100 align-items-end">
       <div class="col-12 col-md-4"><label class="form-label">Pattern</label><input id="f-pattern" class="form-control" required /></div>
       <div class="col-12 col-md-3"><label class="form-label">Normalize Adi</label><input id="f-normalized" class="form-control" required /></div>
@@ -34,7 +34,7 @@
 
   async function loadRules() {
     try {
-      const canWrite = AppCenterApi.canAtLeast('operator');
+      const canWrite = AppCenterApi.canPermission('inventory.manage');
       const data = await AppCenterApi.req('/inventory/normalization');
       const body = document.getElementById('rules-body');
       const items = data.items || [];

@@ -8,10 +8,12 @@ from sqlalchemy import text
 
 from app.database import SessionLocal
 from app.models import Agent, AgentStatusHistory, Setting, SoftwareChangeHistory
+from app.services import dynamic_group_service
 from app.services import remote_support_service
 from app.services.system_profile_service import cleanup_old_identity_history, cleanup_old_status_history, cleanup_old_system_history
 
 scheduler: Optional[AsyncIOScheduler] = None
+_last_dynamic_group_sync_at: Optional[datetime] = None
 
 
 def _get_setting(db, key: str, default: str) -> str:
@@ -92,6 +94,27 @@ def cleanup_old_system_history_job() -> None:
         db.close()
 
 
+def sync_dynamic_groups_job() -> None:
+    global _last_dynamic_group_sync_at
+    db = SessionLocal()
+    try:
+        try:
+            interval_sec = int(_get_setting(db, "dynamic_group_sync_interval_sec", "120"))
+        except Exception:
+            interval_sec = 120
+        interval_sec = max(30, interval_sec)
+        now = datetime.now(timezone.utc)
+        if _last_dynamic_group_sync_at is not None:
+            elapsed = (now - _last_dynamic_group_sync_at).total_seconds()
+            if elapsed < interval_sec:
+                return
+        dynamic_group_service.apply_dynamic_groups_for_all_agents(db)
+        db.commit()
+        _last_dynamic_group_sync_at = now
+    finally:
+        db.close()
+
+
 def start_scheduler() -> None:
     global scheduler
     if scheduler is None:
@@ -105,6 +128,7 @@ def start_scheduler() -> None:
     scheduler.add_job(cleanup_old_inventory_history, "cron", hour=3, minute=10, id="inventory_history_cleanup", replace_existing=True)
     scheduler.add_job(cleanup_old_system_history_job, "cron", hour=3, minute=20, id="system_history_cleanup", replace_existing=True)
     scheduler.add_job(check_remote_support_timeouts, "interval", seconds=30, id="rs_timeouts", replace_existing=True)
+    scheduler.add_job(sync_dynamic_groups_job, "interval", seconds=15, id="dynamic_group_sync", replace_existing=True)
     try:
         scheduler.start()
     except RuntimeError:
@@ -115,6 +139,7 @@ def start_scheduler() -> None:
         scheduler.add_job(cleanup_old_inventory_history, "cron", hour=3, minute=10, id="inventory_history_cleanup", replace_existing=True)
         scheduler.add_job(cleanup_old_system_history_job, "cron", hour=3, minute=20, id="system_history_cleanup", replace_existing=True)
         scheduler.add_job(check_remote_support_timeouts, "interval", seconds=30, id="rs_timeouts", replace_existing=True)
+        scheduler.add_job(sync_dynamic_groups_job, "interval", seconds=15, id="dynamic_group_sync", replace_existing=True)
         scheduler.start()
 
 

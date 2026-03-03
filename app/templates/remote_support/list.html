@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
-{% block title %}Ajanlar{% endblock %}
-{% block page_title %}Ajanlar{% endblock %}
+{% block title %}Destek Merkezi{% endblock %}
+{% block page_title %}Destek Merkezi{% endblock %}
 {% block page_actions %}
 <button class="btn btn-outline-primary btn-sm" type="button" onclick="loadAgents()">
   <i class="ti ti-refresh me-1"></i>Yenile
@@ -169,6 +169,14 @@
   .agents-table tbody tr:hover {
     background: var(--tblr-bg-surface-secondary, #f6f8fb);
   }
+  .agents-table .js-connect-remote {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .agents-table .js-connect-remote .icon {
+    flex: 0 0 auto;
+  }
   .rs-request-modal-backdrop {
     position: fixed;
     inset: 0;
@@ -233,12 +241,16 @@
       <div class="form-label">Siralama</div>
       <div class="section-gap" id="agent-sort-radios">
         <label class="form-check">
-          <input type="radio" class="form-check-input" name="agent-sort" value="hostname_asc" checked />
+          <input type="radio" class="form-check-input" name="agent-sort" value="hostname_asc" />
           <span class="form-check-label">A-Z</span>
         </label>
         <label class="form-check">
           <input type="radio" class="form-check-input" name="agent-sort" value="hostname_desc" />
           <span class="form-check-label">Z-A</span>
+        </label>
+        <label class="form-check">
+          <input type="radio" class="form-check-input" name="agent-sort" value="last_remote_desc" checked />
+          <span class="form-check-label">Son baglanti</span>
         </label>
       </div>
       <div class="form-label">Agent Version</div>
@@ -256,7 +268,7 @@
         <table class="table card-table table-vcenter agents-table">
           <thead>
             <tr>
-              <th>Hostname</th><th>Login Kullanici</th><th>IP</th><th>Durum</th><th class="col-remote">Remote</th><th>Helper</th><th>Version</th><th class="col-actions"></th>
+              <th>Hostname</th><th>Login Kullanici</th><th>IP</th><th>Durum</th><th class="col-remote">Remote</th><th>Son</th><th class="col-actions"></th>
             </tr>
           </thead>
           <tbody id="agent-rows"></tbody>
@@ -351,7 +363,7 @@
 
   function selectedSortMode() {
     const selected = document.querySelector('input[name="agent-sort"]:checked');
-    return (selected && selected.value ? selected.value : 'hostname_asc').toLowerCase();
+    return (selected && selected.value ? selected.value : 'last_remote_desc').toLowerCase();
   }
 
   function selectedVersions() {
@@ -448,6 +460,8 @@
     const sortMode = selectedSortMode();
     const versionSet = new Set(selectedVersions().map((v) => v.toLowerCase()));
     filteredAgents = allAgents.filter((agent) => {
+      const inRemoteSupport = !!agent.remote_support_allowed;
+      if (!inRemoteSupport) return false;
       const hostname = (agent.hostname || '').toLowerCase();
       const ip = (agent.ip_address || '').toLowerCase();
       const loginUsers = getSessionEntries(agent).join(' ').toLowerCase();
@@ -460,16 +474,24 @@
       const matchesVersion = versionSet.size === 0 || versionSet.has(version);
       return matchesQ && matchesOnline && matchesGroup && matchesVersion;
     });
+    if (sortMode === 'last_remote_desc') {
+      filteredAgents.sort((a, b) => {
+        const aTs = AppCenterApi.parseDate(a.last_remote_connected_at);
+        const bTs = AppCenterApi.parseDate(b.last_remote_connected_at);
+        const aMs = aTs ? aTs.getTime() : -1;
+        const bMs = bTs ? bTs.getTime() : -1;
+        if (aMs !== bMs) return bMs - aMs;
+        return (a.hostname || '').localeCompare(b.hostname || '');
+      });
+      return;
+    }
     const dir = sortMode.endsWith('_desc') ? -1 : 1;
-    filteredAgents.sort((a, b) => {
-      return (a.hostname || '').localeCompare(b.hostname || '') * dir;
-    });
+    filteredAgents.sort((a, b) => ((a.hostname || '').localeCompare(b.hostname || '')) * dir);
   }
 
   function isRemoteSupportAllowed(agent) {
-    if (!remoteSupportGroupId || !agent) return false;
-    const groupIds = Array.isArray(agent.group_ids) ? agent.group_ids : [];
-    return groupIds.includes(remoteSupportGroupId);
+    if (!agent) return false;
+    return !!agent.remote_support_allowed;
   }
 
   function connectButtonState(agent) {
@@ -537,9 +559,8 @@
       tr.setAttribute('data-agent-uuid', esc(agent.uuid || ''));
       const rsState = agent.remote_support_state || '-';
       const rsUpdated = agent.remote_support_updated_at ? AppCenterApi.formatDate(agent.remote_support_updated_at) : '-';
-      const helperHtml = agent.remote_support_helper_running
-        ? '<span class="badge bg-green-lt text-green">ok</span>'
-        : '<span class="badge bg-secondary-lt text-secondary">-</span>';
+      const lastRemoteRel = relAgo(agent.last_remote_connected_at);
+      const lastRemoteTitle = agent.last_remote_connected_at ? AppCenterApi.formatDate(agent.last_remote_connected_at) : '-';
       const connectState = connectButtonState(agent);
       tr.innerHTML = `
         <td class="js-col-host">
@@ -552,13 +573,11 @@
         <td class="js-col-ip">${esc(agent.ip_address || '-')}</td>
         <td class="js-col-status"><span class="badge ${agent.status === 'online' ? 'bg-green-lt text-green' : 'bg-red-lt text-red'}" title="${esc(seenRel)}" style="cursor: help;">${esc(agent.status || '-')}</span></td>
         <td class="js-col-remote" title="${esc(rsUpdated)}" style="cursor: help;"><span class="badge bg-blue-lt text-blue">${esc(rsState)}</span></td>
-        <td class="js-col-helper">${helperHtml}</td>
-        <td class="js-col-version">${esc(agent.version || '-')}</td>
+        <td class="js-col-last-remote" title="${esc(lastRemoteTitle)}" style="cursor: help;">${lastRemoteBadgeHtml(lastRemoteRel)}</td>
         <td>
           <div class="btn-list flex-nowrap">
-            <a class="btn btn-outline-secondary btn-sm" href="/agents/${encodeURIComponent(agent.uuid)}"><i class="ti ti-eye me-1"></i>Detay</a>
             ${canRemote ? `<button
-              class="${connectState.enabled ? 'btn btn-primary btn-sm' : 'btn btn-outline-secondary btn-sm'} js-connect-remote"
+              class="${connectState.enabled ? 'btn btn-primary btn-sm btn-animate-icon btn-animate-icon-shake' : 'btn btn-outline-secondary btn-sm btn-animate-icon btn-animate-icon-shake'} js-connect-remote"
               type="button"
               data-agent-uuid="${esc(agent.uuid || '')}"
               data-agent-hostname="${esc(agent.hostname || '')}"
@@ -566,7 +585,7 @@
               data-connect-enabled="${connectState.enabled ? '1' : '0'}"
               ${connectState.title ? `title="${esc(connectState.title)}"` : ''}
               ${connectState.enabled ? '' : 'disabled'}
-            ><i class="ti ti-plug-connected me-1"></i>Baglan</button>` : ''}
+            ><i class="ti ti-device-laptop icon icon-1"></i>Baglan</button>` : ''}
           </div>
         </td>
       `;
@@ -574,7 +593,7 @@
     });
 
     if (!pageItems.length) {
-      rows.innerHTML = '<tr><td colspan="8" class="text-secondary">Kayit yok</td></tr>';
+      rows.innerHTML = '<tr><td colspan="7" class="text-secondary">Kayit yok</td></tr>';
     }
 
     const from = total ? (start + 1) : 0;
@@ -584,11 +603,12 @@
     nextBtn.disabled = currentPage >= totalPages;
   }
 
-  function relLastSeen(value) {
+  function relAgo(value) {
     const dt = AppCenterApi.parseDate(value);
     if (!dt) return '-';
     const ms = Date.now() - dt.getTime();
     const sec = Math.floor(ms / 1000);
+    if (sec < 0) return 'simdi';
     if (sec < 60) return `${sec}sn önce`;
     const min = Math.floor(sec / 60);
     if (min < 60) return `${min}dk önce`;
@@ -596,6 +616,18 @@
     if (hr < 24) return `${hr}s önce`;
     const day = Math.floor(hr / 24);
     return `${day}gün önce`;
+  }
+
+  function relLastSeen(value) {
+    return relAgo(value);
+  }
+
+  function lastRemoteBadgeHtml(relText) {
+    const txt = (relText || '-').toString();
+    if (txt === '-') {
+      return '<span class="badge bg-secondary-lt text-secondary">-</span>';
+    }
+    return `<span class="badge bg-azure-lt text-azure">${esc(txt)}</span>`;
   }
 
   function pageSlice(items) {
@@ -610,9 +642,8 @@
       const seenRel = relLastSeen(agent.last_seen);
       const rsState = agent.remote_support_state || '-';
       const rsUpdated = agent.remote_support_updated_at ? AppCenterApi.formatDate(agent.remote_support_updated_at) : '-';
-      const helperHtml = agent.remote_support_helper_running
-        ? '<span class="badge bg-green-lt text-green">ok</span>'
-        : '<span class="badge bg-secondary-lt text-secondary">-</span>';
+      const lastRemoteRel = relAgo(agent.last_remote_connected_at);
+      const lastRemoteTitle = agent.last_remote_connected_at ? AppCenterApi.formatDate(agent.last_remote_connected_at) : '-';
 
       const statusCol = row.querySelector('.js-col-status');
       if (statusCol) {
@@ -623,18 +654,19 @@
         remoteCol.innerHTML = `<span class="badge bg-blue-lt text-blue">${esc(rsState)}</span>`;
         remoteCol.title = rsUpdated;
       }
-      const helperCol = row.querySelector('.js-col-helper');
-      if (helperCol) helperCol.innerHTML = helperHtml;
+      const lastRemoteCol = row.querySelector('.js-col-last-remote');
+      if (lastRemoteCol) {
+        lastRemoteCol.innerHTML = lastRemoteBadgeHtml(lastRemoteRel);
+        lastRemoteCol.title = lastRemoteTitle;
+      }
       const loginCol = row.querySelector('.js-col-login');
       if (loginCol) loginCol.textContent = getLoginUsers(agent);
       const ipCol = row.querySelector('.js-col-ip');
       if (ipCol) ipCol.textContent = agent.ip_address || '-';
-      const verCol = row.querySelector('.js-col-version');
-      if (verCol) verCol.textContent = agent.version || '-';
       const btn = row.querySelector('.js-connect-remote');
       if (btn) {
         const connectState = connectButtonState(agent);
-        btn.className = `${connectState.enabled ? 'btn btn-primary btn-sm' : 'btn btn-outline-secondary btn-sm'} js-connect-remote`;
+        btn.className = `${connectState.enabled ? 'btn btn-primary btn-sm btn-animate-icon btn-animate-icon-shake' : 'btn btn-outline-secondary btn-sm btn-animate-icon btn-animate-icon-shake'} js-connect-remote`;
         btn.setAttribute('data-agent-status', agent.status || '');
         btn.setAttribute('data-connect-enabled', connectState.enabled ? '1' : '0');
         if (connectState.title) btn.setAttribute('title', connectState.title);
@@ -713,10 +745,10 @@
       const prevFiltered = [...filteredAgents];
       const prevPage = pageSlice(prevFiltered);
       const [agentData, groupData] = await Promise.all([
-        AppCenterApi.req('/agents'),
-        AppCenterApi.req('/groups'),
+        AppCenterApi.req('/agents?remote_support_only=true'),
+        AppCenterApi.req('/groups').catch(() => ({ items: [] })),
       ]);
-      allAgents = agentData.items || [];
+      allAgents = (agentData.items || []).filter((x) => !!x && !!x.remote_support_allowed);
       allGroups = groupData.items || [];
       renderGroupFilter(allGroups);
       renderVersionFilters(allAgents);
@@ -819,8 +851,8 @@
       document.getElementById('agent-search').value = '';
       document.getElementById('agent-online-switch').checked = false;
       document.getElementById('agent-group-filter').value = 'all';
-      const asc = document.querySelector('input[name="agent-sort"][value="hostname_asc"]');
-      if (asc) asc.checked = true;
+      const lastRemote = document.querySelector('input[name="agent-sort"][value="last_remote_desc"]');
+      if (lastRemote) lastRemote.checked = true;
       document.querySelectorAll('.js-agent-version-filter').forEach((el) => {
         el.checked = true;
       });

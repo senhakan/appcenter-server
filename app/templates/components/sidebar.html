@@ -19,7 +19,7 @@
                 {% set ns.has_active_child = true %}
               {% endif %}
             {% endfor %}
-            <li class="nav-item dropdown" data-nav-item data-roles="{{ (item.roles or [])|join(',') }}">
+            <li class="nav-item dropdown" data-nav-item data-roles="{{ (item.roles or [])|join(',') }}" data-permissions="{{ item.permission|default('') }}">
               <a class="nav-link dropdown-toggle{% if ns.has_active_child %} show{% endif %}" href="#nav-{{ item.key }}" data-bs-toggle="dropdown" data-bs-auto-close="false" role="button" aria-expanded="{{ 'true' if ns.has_active_child else 'false' }}">
                 <span class="nav-link-icon">
                   {% if item.key == 'management' %}<i class="ti ti-settings"></i>
@@ -31,21 +31,22 @@
               <div class="dropdown-menu{% if ns.has_active_child %} show{% endif %}">
                 {% for child in item.children %}
                   {% if child.path %}
-                    <a class="dropdown-item{% if active_page in child.active_pages %} active{% endif %}" href="{{ child.path }}" data-nav-item data-roles="{{ (child.roles or [])|join(',') }}">
+                    <a class="dropdown-item{% if active_page in child.active_pages %} active{% endif %}" href="{{ child.path }}" data-nav-item data-roles="{{ (child.roles or [])|join(',') }}" data-permissions="{{ child.permission|default('') }}">
                       {{ child.title }}
                     </a>
                   {% else %}
-                    <span class="dropdown-item disabled" data-nav-item data-roles="{{ (child.roles or [])|join(',') }}">{{ child.title }}</span>
+                    <span class="dropdown-item disabled" data-nav-item data-roles="{{ (child.roles or [])|join(',') }}" data-permissions="{{ child.permission|default('') }}">{{ child.title }}</span>
                   {% endif %}
                 {% endfor %}
               </div>
             </li>
           {% else %}
-            <li class="nav-item" data-nav-item data-roles="{{ (item.roles or [])|join(',') }}">
+            <li class="nav-item" data-nav-item data-roles="{{ (item.roles or [])|join(',') }}" data-permissions="{{ item.permission|default('') }}">
               <a class="nav-link{% if active_page in item.active_pages %} active{% endif %}" href="{{ item.path }}">
                 <span class="nav-link-icon">
                   {% if item.key == 'dashboard' %}<i class="ti ti-dashboard"></i>
                   {% elif item.key == 'agents' %}<i class="ti ti-devices"></i>
+                  {% elif item.key == 'remote_support' %}<i class="ti ti-plug-connected"></i>
                   {% elif item.key == 'groups' %}<i class="ti ti-users-group"></i>
                   {% elif item.key == 'applications' %}<i class="ti ti-apps"></i>
                   {% elif item.key == 'deployments' %}<i class="ti ti-rocket"></i>

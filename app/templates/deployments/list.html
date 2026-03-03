@@ -3,7 +3,7 @@
 {% block page_title %}Dagitimlar{% endblock %}
 {% block page_actions %}
 <div class="btn-list">
-  <button class="btn btn-primary btn-sm" id="dep-new-btn" type="button" data-required-roles="operator,admin">
+  <button class="btn btn-primary btn-sm" id="dep-new-btn" type="button" data-required-permissions="deployments.manage">
     <i class="ti ti-plus me-1"></i>Yeni Dagitim
   </button>
   <button class="btn btn-outline-primary btn-sm" id="dep-refresh-btn" type="button">
@@ -135,12 +135,11 @@
   </div>
 </div>
 
-<div id="dep-create-modal" class="dep-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
+<div id="dep-create-modal" class="dep-modal-backdrop hidden" aria-live="polite" data-required-permissions="deployments.manage">
   <div class="dep-modal-dialog">
     <div class="card mb-0 ac-modal-warning">
       <div class="card-header d-flex align-items-center justify-content-between">
         <h3 class="card-title mb-0">Yeni Dagitim</h3>
-        <button class="btn btn-outline-secondary btn-sm" id="dep-create-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
       </div>
       <div class="card-body">
         <div class="ac-modal-status-block">
@@ -212,12 +211,11 @@
   </div>
 </div>
 
-<div id="dep-edit-modal" class="dep-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
+<div id="dep-edit-modal" class="dep-modal-backdrop hidden" aria-live="polite" data-required-permissions="deployments.manage">
   <div class="dep-modal-dialog">
     <div class="card mb-0 ac-modal-warning">
       <div class="card-header d-flex align-items-center justify-content-between">
         <h3 class="card-title mb-0">Dagitim Duzenle</h3>
-        <button class="btn btn-outline-secondary btn-sm" id="dep-edit-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
       </div>
       <div class="card-body">
         <div class="ac-modal-status-block">
@@ -399,7 +397,7 @@
   function renderTable() {
     const rows = document.getElementById('dep-rows');
     rows.innerHTML = '';
-    const canWrite = AppCenterApi.canAtLeast('operator');
+    const canWrite = AppCenterApi.canPermission('deployments.manage');
     const searchQ = (document.getElementById('dep-search').value || '').toLowerCase().trim();
     const activeFilter = (document.getElementById('dep-filter-active').value || 'all').toLowerCase();
     const sortMode = (document.getElementById('dep-sort').value || 'id_desc').toLowerCase();
@@ -595,9 +593,7 @@
   document.getElementById('dep-search').addEventListener('input', renderTable);
   document.getElementById('dep-filter-active').addEventListener('change', renderTable);
   document.getElementById('dep-sort').addEventListener('change', renderTable);
-  document.getElementById('dep-create-cancel-btn').addEventListener('click', () => closeModal(createModal));
   document.getElementById('dep-create-cancel-btn-2').addEventListener('click', () => closeModal(createModal));
-  document.getElementById('dep-edit-cancel-btn').addEventListener('click', () => closeModal(editModal));
   document.getElementById('dep-edit-cancel-btn-2').addEventListener('click', () => closeModal(editModal));
   createModal.addEventListener('click', (e) => { if (e.target === createModal) closeModal(createModal); });
   editModal.addEventListener('click', (e) => { if (e.target === editModal) closeModal(editModal); });

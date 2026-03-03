@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="/static/css/app-overrides.css?v={{ ASSET_VERSION }}" />
     {% block extra_css %}{% endblock %}
   </head>
-  <body class="app-shell" data-page-roles="{{ page_roles|default('') }}">
+  <body class="app-shell" data-page-roles="{{ page_roles|default('') }}" data-page-permissions="{{ page_permissions|default('') }}">
     <a href="#content" class="visually-hidden skip-link">Skip to main content</a>
     <div class="page">
       {% include 'components/topbar.html' %}

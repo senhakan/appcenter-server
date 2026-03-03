@@ -12,6 +12,7 @@ from fastapi import HTTPException, UploadFile, status
 
 ALLOWED_EXTENSIONS = {".msi", ".exe"}
 ALLOWED_ICON_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".svg"}
+ALLOWED_AVATAR_EXTENSIONS = ALLOWED_ICON_EXTENSIONS
 READ_CHUNK_SIZE = 1024 * 1024  # 1MB
 
 
@@ -123,6 +124,49 @@ async def save_icon_file(
         await icon_file.close()
 
     return safe_name, f"/uploads/icons/{safe_name}"
+
+
+async def save_avatar_file(
+    avatar_file: UploadFile,
+    upload_dir: str,
+    max_avatar_size: int,
+    user_id: int,
+) -> tuple[str, str]:
+    ext = get_extension(avatar_file.filename or "")
+    if ext not in ALLOWED_AVATAR_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid avatar type. Allowed: .png, .jpg, .jpeg, .webp, .svg",
+        )
+
+    avatars_dir = ensure_upload_dir(str(Path(upload_dir) / "avatars"))
+    safe_name = f"user_{user_id}_{uuid4().hex[:12]}{ext}"
+    temp_path = avatars_dir / f"temp_{uuid4().hex}{ext}"
+    final_path = avatars_dir / safe_name
+    total_size = 0
+
+    try:
+        async with aiofiles.open(temp_path, "wb") as out_file:
+            while True:
+                chunk = await avatar_file.read(READ_CHUNK_SIZE)
+                if not chunk:
+                    break
+                total_size += len(chunk)
+                if total_size > max_avatar_size:
+                    raise HTTPException(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail="Avatar too large. Max 5MB.",
+                    )
+                await out_file.write(chunk)
+        move_temp_to_final(temp_path, final_path)
+    except Exception:
+        temp_path.unlink(missing_ok=True)
+        final_path.unlink(missing_ok=True)
+        raise
+    finally:
+        await avatar_file.close()
+
+    return safe_name, f"/uploads/avatars/{safe_name}"
 
 
 def parse_range_header(range_header: Optional[str], file_size: int) -> Optional[tuple[int, int]]:

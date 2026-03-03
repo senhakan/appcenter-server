@@ -3,7 +3,7 @@
 {% block page_title %}Ajan Detay{% endblock %}
 {% block page_actions %}
 <div class="btn-list">
-  <button class="btn btn-danger btn-sm" id="agent-delete-btn" type="button" data-required-roles="operator,admin"><i class="ti ti-trash me-1"></i>Ajani Sil</button>
+  <button class="btn btn-danger btn-sm" id="agent-delete-btn" type="button" data-required-permissions="agents.manage"><i class="ti ti-trash me-1"></i>Ajani Sil</button>
   <a class="btn btn-outline-primary btn-sm" href="/agents"><i class="ti ti-arrow-left me-1"></i>Listeye Don</a>
 </div>
 {% endblock %}
@@ -236,7 +236,7 @@
   </div>
 </div>
 
-<div id="agent-delete-modal" class="agent-delete-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
+<div id="agent-delete-modal" class="agent-delete-modal-backdrop hidden" aria-live="polite" data-required-permissions="agents.manage">
   <div class="agent-delete-modal ac-modal-danger">
     <div class="d-flex align-items-center justify-content-between mb-2">
       <h3 class="card-title mb-0">Ajan Silme Onayi</h3>
@@ -363,7 +363,7 @@
 
   async function loadAgentDetail() {
     try {
-      const canWrite = AppCenterApi.canAtLeast('operator');
+      const canWrite = AppCenterApi.canPermission('agents.manage');
       await AppCenterApi.initUi();
       const data = await AppCenterApi.req(`/agents/${agentId}`);
       agentHostname = data.hostname || '';
@@ -430,8 +430,11 @@
         <div class="agent-overview-groups">
           <div>
             <div class="card">
-              <div class="card-header"><h3 class="card-title mb-0">Kimlik ve Erisim</h3></div>
+              <div class="ribbon ribbon-top bg-azure" title="Kimlik ve Erisim">
+                <i class="ti ti-shield-lock"></i>
+              </div>
               <div class="card-body">
+                <h3 class="card-title mb-3">Kimlik ve Erisim</h3>
                 <div class="datagrid">
                   <div class="datagrid-item"><div class="datagrid-title">UUID</div><div class="datagrid-content">${escHtml(data.uuid || '-')}</div></div>
                   <div class="datagrid-item"><div class="datagrid-title">IP</div><div class="datagrid-content">${escHtml(data.ip_address || '-')}</div></div>

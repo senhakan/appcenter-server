@@ -2,7 +2,7 @@
 {% block title %}Audit Log{% endblock %}
 {% block page_title %}Audit Log{% endblock %}
 {% block page_actions %}
-<div class="btn-list" data-required-roles="admin">
+<div class="btn-list" data-required-permissions="audit.view">
   <button class="btn btn-outline-primary btn-sm" id="audit-refresh-btn" type="button">
     <i class="ti ti-refresh me-1"></i>Yenile
   </button>
@@ -23,7 +23,7 @@
   }
 </style>
 
-<div class="card" data-required-roles="admin">
+<div class="card" data-required-permissions="audit.view">
   <div class="card-header">
     <div class="row g-2 w-100 audit-toolbar">
       <div class="col-12 col-md-3">

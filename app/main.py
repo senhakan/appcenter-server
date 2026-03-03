@@ -22,6 +22,7 @@ from app.api.v1.audit import router as audit_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.inventory import router as inventory_router
 from app.api.v1.remote_support import router as remote_support_router
+from app.api.v1.roles import router as roles_router
 from app.api.v1.users import router as users_router
 from app.api.v1.web import router as web_router
 from app.config import get_settings
@@ -47,6 +48,7 @@ NAV_SCHEMA: list[dict[str, Any]] = [
         "active_pages": ["dashboard"],
         "roles": ["admin", "operator", "viewer"],
         "feature_flag": None,
+        "permission": "ui.menu.dashboard",
     },
     {
         "key": "agents",
@@ -55,6 +57,16 @@ NAV_SCHEMA: list[dict[str, Any]] = [
         "active_pages": ["agents"],
         "roles": ["admin", "operator", "viewer"],
         "feature_flag": None,
+        "permission": "ui.menu.agents",
+    },
+    {
+        "key": "remote_support",
+        "title": "Destek Merkezi",
+        "path": "/remote-support",
+        "active_pages": ["remote_support"],
+        "roles": ["admin", "operator", "viewer"],
+        "feature_flag": None,
+        "permission": "ui.menu.remote_support",
     },
     {
         "key": "groups",
@@ -63,6 +75,7 @@ NAV_SCHEMA: list[dict[str, Any]] = [
         "active_pages": ["groups"],
         "roles": ["admin", "operator", "viewer"],
         "feature_flag": None,
+        "permission": "ui.menu.groups",
     },
     {
         "key": "applications",
@@ -71,6 +84,7 @@ NAV_SCHEMA: list[dict[str, Any]] = [
         "active_pages": ["applications"],
         "roles": ["admin", "operator", "viewer"],
         "feature_flag": None,
+        "permission": "ui.menu.applications",
     },
     {
         "key": "deployments",
@@ -79,6 +93,7 @@ NAV_SCHEMA: list[dict[str, Any]] = [
         "active_pages": ["deployments"],
         "roles": ["admin", "operator", "viewer"],
         "feature_flag": None,
+        "permission": "ui.menu.deployments",
     },
     {
         "key": "inventory",
@@ -87,6 +102,7 @@ NAV_SCHEMA: list[dict[str, Any]] = [
         "active_pages": ["inventory"],
         "roles": ["admin", "operator", "viewer"],
         "feature_flag": None,
+        "permission": "ui.menu.inventory",
     },
     {
         "key": "licenses",
@@ -95,34 +111,29 @@ NAV_SCHEMA: list[dict[str, Any]] = [
         "active_pages": ["licenses"],
         "roles": ["admin", "operator", "viewer"],
         "feature_flag": "licenses",
+        "permission": "ui.menu.licenses",
     },
     {
         "key": "management",
         "title": "Yonetim",
         "roles": ["admin", "operator", "viewer"],
         "feature_flag": None,
+        "permission": "ui.menu.management",
         "children": [
             {
                 "key": "settings",
                 "title": "Ayarlar",
                 "path": "/settings",
                 "active_pages": ["settings"],
-                "roles": ["admin"],
+                "roles": ["admin", "operator", "viewer"],
                 "feature_flag": None,
+                "permission": "ui.menu.settings",
             },
-            {"key": "users", "title": "Kullanicilar", "path": "/users", "active_pages": ["users"], "roles": ["admin"], "feature_flag": "users"},
-            {"key": "roles", "title": "Roller (Yakinda)", "path": None, "active_pages": [], "roles": ["admin"], "feature_flag": "rbac"},
-        ],
-    },
-    {
-        "key": "infrastructure",
-        "title": "Altyapi",
-        "roles": ["admin", "operator", "viewer"],
-        "feature_flag": None,
-        "children": [
-            {"key": "infra_health", "title": "Sistem Durumu (Yakinda)", "path": None, "active_pages": [], "roles": ["admin"], "feature_flag": "infra"},
-            {"key": "infra_config", "title": "Konfigurasyon (Yakinda)", "path": None, "active_pages": [], "roles": ["admin"], "feature_flag": "infra"},
-            {"key": "infra_integrations", "title": "Entegrasyonlar (Yakinda)", "path": None, "active_pages": [], "roles": ["admin"], "feature_flag": "infra"},
+            {"key": "users", "title": "Kullanicilar", "path": "/users", "active_pages": ["users"], "roles": ["admin", "operator", "viewer"], "feature_flag": "users", "permission": "ui.menu.users"},
+            {"key": "roles", "title": "Roller", "path": "/roles", "active_pages": ["roles"], "roles": ["admin", "operator", "viewer"], "feature_flag": "rbac", "permission": "ui.menu.roles"},
+            {"key": "infra_health", "title": "Sistem Durumu (Yakinda)", "path": None, "active_pages": [], "roles": ["admin"], "feature_flag": "infra", "permission": "infra.view"},
+            {"key": "infra_config", "title": "Konfigurasyon (Yakinda)", "path": None, "active_pages": [], "roles": ["admin"], "feature_flag": "infra", "permission": "infra.manage"},
+            {"key": "infra_integrations", "title": "Entegrasyonlar (Yakinda)", "path": None, "active_pages": [], "roles": ["admin"], "feature_flag": "infra", "permission": "infra.manage"},
             {
                 "key": "infra_session_recordings",
                 "title": "Session Recordings",
@@ -130,12 +141,38 @@ NAV_SCHEMA: list[dict[str, Any]] = [
                 "active_pages": ["infra_recordings"],
                 "roles": ["admin", "operator", "viewer"],
                 "feature_flag": "infra",
+                "permission": "ui.menu.infra_recordings",
             },
-            {"key": "infra_audit", "title": "Audit Log", "path": "/audit", "active_pages": ["audit"], "roles": ["admin"], "feature_flag": "audit"},
-            {"key": "infra_diag", "title": "Tanilama (Yakinda)", "path": None, "active_pages": [], "roles": ["admin"], "feature_flag": "infra"},
+            {"key": "infra_audit", "title": "Audit Log", "path": "/audit", "active_pages": ["audit"], "roles": ["admin", "operator", "viewer"], "feature_flag": "audit", "permission": "ui.menu.audit"},
+            {"key": "infra_diag", "title": "Tanilama (Yakinda)", "path": None, "active_pages": [], "roles": ["admin"], "feature_flag": "infra", "permission": "infra.view"},
         ],
     },
 ]
+
+PAGE_PERMISSION_BY_ACTIVE: dict[str, str] = {
+    "dashboard": "ui.page.dashboard",
+    "agents": "ui.page.agents",
+    "remote_support": "ui.page.remote_support",
+    "groups": "ui.page.groups",
+    "applications": "ui.page.applications",
+    "deployments": "ui.page.deployments",
+    "inventory": "ui.page.inventory",
+    "licenses": "ui.page.licenses",
+    "settings": "ui.page.settings",
+    "users": "ui.page.users",
+    "roles": "ui.page.roles",
+    "audit": "ui.page.audit",
+    "infra_recordings": "ui.page.infra_recordings",
+}
+
+
+def _page_ctx(request: Request, active_page: str, **extra: Any) -> dict[str, Any]:
+    ctx: dict[str, Any] = {"request": request, "active_page": active_page}
+    permission = PAGE_PERMISSION_BY_ACTIVE.get(active_page, "")
+    if permission:
+        ctx["page_permissions"] = permission
+    ctx.update(extra)
+    return ctx
 
 
 def _enabled_menu_features() -> set[str]:
@@ -146,9 +183,6 @@ def _enabled_menu_features() -> set[str]:
 
 
 def _item_visible(item: dict[str, Any], role: str, enabled_features: set[str]) -> bool:
-    roles = item.get("roles") or []
-    if roles and role not in roles:
-        return False
     feature_flag = item.get("feature_flag")
     if feature_flag and feature_flag not in enabled_features:
         return False
@@ -215,6 +249,7 @@ app.include_router(web_router, prefix=settings.api_v1_prefix)
 app.include_router(inventory_router, prefix=settings.api_v1_prefix)
 app.include_router(remote_support_router, prefix=settings.api_v1_prefix)
 app.include_router(users_router, prefix=settings.api_v1_prefix)
+app.include_router(roles_router, prefix=settings.api_v1_prefix)
 app.include_router(audit_router, prefix=settings.api_v1_prefix)
 
 
@@ -413,41 +448,41 @@ def login_page(request: Request):
 
 @app.get("/dashboard")
 def dashboard_page(request: Request):
-    return templates.TemplateResponse("dashboard.html", {"request": request, "active_page": "dashboard"})
+    return templates.TemplateResponse("dashboard.html", _page_ctx(request, "dashboard"))
 
 
 @app.get("/dashboard-v2")
 def dashboard_v2_page(request: Request):
-    return templates.TemplateResponse("dashboard_v2.html", {"request": request, "active_page": "dashboard"})
+    return templates.TemplateResponse("dashboard_v2.html", _page_ctx(request, "dashboard"))
 
 
 @app.get("/agents")
 def agents_page(request: Request):
-    return templates.TemplateResponse("agents/list.html", {"request": request, "active_page": "agents"})
+    return templates.TemplateResponse("agents/list.html", _page_ctx(request, "agents"))
+
+
+@app.get("/remote-support")
+def remote_support_list_page(request: Request):
+    return templates.TemplateResponse("remote_support/list.html", _page_ctx(request, "remote_support"))
 
 
 @app.get("/groups")
 def groups_page(request: Request):
-    return templates.TemplateResponse("groups/list.html", {"request": request, "active_page": "groups"})
+    return templates.TemplateResponse("groups/list.html", _page_ctx(request, "groups"))
 
 
 @app.get("/agents/{agent_uuid}")
 def agent_detail_page(request: Request, agent_uuid: str):
     return templates.TemplateResponse(
         "agents/detail.html",
-        {"request": request, "active_page": "agents", "agent_uuid": agent_uuid},
+        _page_ctx(request, "agents", agent_uuid=agent_uuid),
     )
 
 @app.get("/remote-support/sessions/{session_id}")
 def remote_support_session_page(request: Request, session_id: int):
     return templates.TemplateResponse(
         "remote_support/session.html",
-        {
-            "request": request,
-            "active_page": "agents",
-            "session_id": session_id,
-            "novnc_mode": settings.remote_support_novnc_mode,
-        },
+        _page_ctx(request, "remote_support", session_id=session_id, novnc_mode=settings.remote_support_novnc_mode),
     )
 
 
@@ -455,7 +490,7 @@ def remote_support_session_page(request: Request, session_id: int):
 def applications_page(request: Request):
     return templates.TemplateResponse(
         "applications/list.html",
-        {"request": request, "active_page": "applications"},
+        _page_ctx(request, "applications"),
     )
 
 
@@ -463,7 +498,7 @@ def applications_page(request: Request):
 def applications_edit_page(request: Request, app_id: int):
     return templates.TemplateResponse(
         "applications/edit.html",
-        {"request": request, "active_page": "applications", "app_id": app_id, "page_roles": "operator,admin"},
+        _page_ctx(request, "applications", app_id=app_id, page_permissions="applications.manage"),
     )
 
 
@@ -471,7 +506,7 @@ def applications_edit_page(request: Request, app_id: int):
 def applications_upload_page(request: Request):
     return templates.TemplateResponse(
         "applications/upload.html",
-        {"request": request, "active_page": "applications", "page_roles": "operator,admin"},
+        _page_ctx(request, "applications", page_permissions="applications.manage"),
     )
 
 
@@ -479,7 +514,7 @@ def applications_upload_page(request: Request):
 def deployments_page(request: Request):
     return templates.TemplateResponse(
         "deployments/list.html",
-        {"request": request, "active_page": "deployments"},
+        _page_ctx(request, "deployments"),
     )
 
 
@@ -487,7 +522,7 @@ def deployments_page(request: Request):
 def deployments_create_page(request: Request):
     return templates.TemplateResponse(
         "deployments/create.html",
-        {"request": request, "active_page": "deployments", "page_roles": "operator,admin"},
+        _page_ctx(request, "deployments", page_permissions="deployments.manage"),
     )
 
 
@@ -495,25 +530,20 @@ def deployments_create_page(request: Request):
 def deployments_edit_page(request: Request, deployment_id: int):
     return templates.TemplateResponse(
         "deployments/edit.html",
-        {
-            "request": request,
-            "active_page": "deployments",
-            "deployment_id": deployment_id,
-            "page_roles": "operator,admin",
-        },
+        _page_ctx(request, "deployments", deployment_id=deployment_id, page_permissions="deployments.manage"),
     )
 
 
 @app.get("/inventory")
 def inventory_page(request: Request):
-    return templates.TemplateResponse("inventory/list.html", {"request": request, "active_page": "inventory"})
+    return templates.TemplateResponse("inventory/list.html", _page_ctx(request, "inventory"))
 
 
 @app.get("/inventory/software/{software_name}/agents")
 def inventory_software_detail_page(request: Request, software_name: str):
     return templates.TemplateResponse(
         "inventory/software_detail.html",
-        {"request": request, "active_page": "inventory", "software_name": software_name},
+        _page_ctx(request, "inventory", software_name=software_name),
     )
 
 
@@ -521,20 +551,20 @@ def inventory_software_detail_page(request: Request, software_name: str):
 def inventory_normalization_page(request: Request):
     return templates.TemplateResponse(
         "inventory/normalization.html",
-        {"request": request, "active_page": "inventory", "page_roles": "operator,admin"},
+        _page_ctx(request, "inventory", page_permissions="inventory.manage"),
     )
 
 
 @app.get("/licenses")
 def licenses_page(request: Request):
-    return templates.TemplateResponse("licenses/list.html", {"request": request, "active_page": "licenses"})
+    return templates.TemplateResponse("licenses/list.html", _page_ctx(request, "licenses"))
 
 
 @app.get("/licenses/create")
 def licenses_create_page(request: Request):
     return templates.TemplateResponse(
         "licenses/form.html",
-        {"request": request, "active_page": "licenses", "license_id": None, "page_roles": "operator,admin"},
+        _page_ctx(request, "licenses", license_id=None, page_permissions="licenses.manage"),
     )
 
 
@@ -542,7 +572,7 @@ def licenses_create_page(request: Request):
 def licenses_edit_page(request: Request, license_id: int):
     return templates.TemplateResponse(
         "licenses/form.html",
-        {"request": request, "active_page": "licenses", "license_id": license_id, "page_roles": "operator,admin"},
+        _page_ctx(request, "licenses", license_id=license_id, page_permissions="licenses.manage"),
     )
 
 
@@ -550,7 +580,7 @@ def licenses_edit_page(request: Request, license_id: int):
 def settings_page(request: Request):
     return templates.TemplateResponse(
         "settings.html",
-        {"request": request, "active_page": "settings", "page_roles": "admin"},
+        _page_ctx(request, "settings"),
     )
 
 
@@ -558,7 +588,23 @@ def settings_page(request: Request):
 def users_page(request: Request):
     return templates.TemplateResponse(
         "users/list.html",
-        {"request": request, "active_page": "users", "page_roles": "admin"},
+        _page_ctx(request, "users"),
+    )
+
+
+@app.get("/profile")
+def profile_page(request: Request):
+    return templates.TemplateResponse(
+        "profile.html",
+        _page_ctx(request, ""),
+    )
+
+
+@app.get("/roles")
+def roles_page(request: Request):
+    return templates.TemplateResponse(
+        "roles/list.html",
+        _page_ctx(request, "roles"),
     )
 
 
@@ -566,7 +612,7 @@ def users_page(request: Request):
 def audit_page(request: Request):
     return templates.TemplateResponse(
         "audit/list.html",
-        {"request": request, "active_page": "audit", "page_roles": "admin"},
+        _page_ctx(request, "audit"),
     )
 
 
@@ -574,7 +620,7 @@ def audit_page(request: Request):
 def infra_recordings_page(request: Request):
     return templates.TemplateResponse(
         "infrastructure/recordings.html",
-        {"request": request, "active_page": "infra_recordings", "page_roles": "viewer,operator,admin"},
+        _page_ctx(request, "infra_recordings"),
     )
 
 
@@ -582,5 +628,5 @@ def infra_recordings_page(request: Request):
 def groups_edit_page(request: Request, group_id: int):
     return templates.TemplateResponse(
         "groups/edit.html",
-        {"request": request, "active_page": "groups", "group_id": group_id, "page_roles": "operator,admin"},
+        _page_ctx(request, "groups", group_id=group_id, page_permissions="groups.manage"),
     )

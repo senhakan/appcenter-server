@@ -249,11 +249,19 @@
     return "viewer";
   }
 
+  function isCustomRoleProfile() {
+    const key = (_currentUser && _currentUser.role_profile_key ? _currentUser.role_profile_key : "").toString().trim().toLowerCase();
+    const role = getCurrentRole();
+    if (!key) return false;
+    return key !== role;
+  }
+
   function getCurrentRole() {
     return normalizeRole(_currentUser && _currentUser.role ? _currentUser.role : "viewer");
   }
 
   function roleAllowed(role, allowedCsv) {
+    if (isCustomRoleProfile()) return true;
     const allowed = (allowedCsv || "")
       .toString()
       .split(",")
@@ -263,7 +271,27 @@
     return allowed.includes(role);
   }
 
+  function currentPermissions() {
+    const arr = (_currentUser && Array.isArray(_currentUser.permissions)) ? _currentUser.permissions : [];
+    return arr
+      .map((x) => (x || "").toString().trim())
+      .filter(Boolean);
+  }
+
+  function permissionAllowed(requiredCsvOrKey) {
+    const required = (requiredCsvOrKey || "")
+      .toString()
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean);
+    if (!required.length) return true;
+    const perms = currentPermissions();
+    if (perms.includes("*")) return true;
+    return required.some((p) => perms.includes(p));
+  }
+
   function canAny(roles) {
+    if (isCustomRoleProfile()) return true;
     const normalized = getCurrentRole();
     const allowed = Array.isArray(roles) ? roles : [roles];
     return allowed
@@ -277,13 +305,50 @@
     return currentWeight >= minWeight;
   }
 
+  function initialsFromUser(me) {
+    const fullName = (me && me.full_name ? me.full_name : "").toString().trim();
+    const username = (me && me.username ? me.username : "").toString().trim();
+    const source = fullName || username || "AC";
+    const parts = source.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
+    }
+    return (parts[0] || "AC").slice(0, 2).toUpperCase();
+  }
+
+  function applyCurrentUserToTopbar(me) {
+    const nameEl = document.getElementById("topbar-user-name");
+    const roleEl = document.getElementById("topbar-user-role");
+    const avatarEl = document.getElementById("topbar-user-avatar");
+    if (!nameEl && !roleEl && !avatarEl) return;
+    const displayName = (me && (me.full_name || me.username)) ? (me.full_name || me.username) : "AppCenter";
+    const roleProfile = (me && me.role_profile_name ? me.role_profile_name : (me && me.role ? me.role : "-"));
+    const avatarUrl = (me && me.avatar_url ? me.avatar_url : "").toString().trim();
+    if (nameEl) nameEl.textContent = displayName;
+    if (roleEl) roleEl.textContent = roleProfile || "-";
+    if (avatarEl) {
+      if (avatarUrl) {
+        avatarEl.textContent = "";
+        avatarEl.style.backgroundImage = `url('${avatarUrl}')`;
+        avatarEl.style.backgroundSize = "cover";
+        avatarEl.style.backgroundPosition = "center";
+      } else {
+        avatarEl.style.backgroundImage = "";
+        avatarEl.style.backgroundSize = "";
+        avatarEl.style.backgroundPosition = "";
+        avatarEl.textContent = initialsFromUser(me);
+      }
+    }
+  }
+
   function applyNavPermissions(role) {
     const resolvedRole = normalizeRole(role);
     document.body.setAttribute("data-user-role", resolvedRole);
 
     document.querySelectorAll("[data-nav-item]").forEach((el) => {
       const allowedCsv = el.getAttribute("data-roles") || "";
-      el.hidden = !roleAllowed(resolvedRole, allowedCsv);
+      const permissionKey = el.getAttribute("data-permissions") || "";
+      el.hidden = !roleAllowed(resolvedRole, allowedCsv) || !permissionAllowed(permissionKey);
     });
 
     document.querySelectorAll(".nav-dropdown").forEach((dropdown) => {
@@ -298,6 +363,14 @@
     document.querySelectorAll("[data-required-roles]").forEach((el) => {
       const allowedCsv = el.getAttribute("data-required-roles") || "";
       const visible = roleAllowed(resolvedRole, allowedCsv);
+      el.hidden = !visible;
+      if (!visible && (el instanceof HTMLInputElement || el instanceof HTMLButtonElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement)) {
+        el.disabled = true;
+      }
+    });
+    document.querySelectorAll("[data-required-permissions]").forEach((el) => {
+      const permissionKey = el.getAttribute("data-required-permissions") || "";
+      const visible = permissionAllowed(permissionKey);
       el.hidden = !visible;
       if (!visible && (el instanceof HTMLInputElement || el instanceof HTMLButtonElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement)) {
         el.disabled = true;
@@ -327,6 +400,25 @@
     return guardPageRoles(required);
   }
 
+  function guardPagePermissions(requiredPermissions, redirectPath) {
+    const target = (redirectPath || "/remote-support").toString();
+    const raw = Array.isArray(requiredPermissions) ? requiredPermissions : [requiredPermissions];
+    const needed = raw.map((x) => (x || "").toString().trim()).filter(Boolean);
+    if (!needed.length) return true;
+    if (permissionAllowed(needed.join(","))) return true;
+    window.location.href = target;
+    return false;
+  }
+
+  function guardPagePermissionsFromDom() {
+    const body = document.body;
+    if (!body) return true;
+    const raw = (body.getAttribute("data-page-permissions") || "").trim();
+    if (!raw) return true;
+    const required = raw.split(",").map((x) => x.trim()).filter(Boolean);
+    return guardPagePermissions(required);
+  }
+
   async function getCurrentUser(force) {
     if (!getToken()) return null;
     if (!force && _currentUser) return _currentUser;
@@ -335,8 +427,10 @@
       try {
         const me = await req("/auth/me");
         _currentUser = me || null;
+        applyCurrentUserToTopbar(_currentUser);
       } catch (_) {
         _currentUser = null;
+        applyCurrentUserToTopbar(null);
       } finally {
         _currentUserLoading = null;
       }
@@ -502,14 +596,18 @@
     bindGlobalModalHotkeysOnce();
     const me = await getCurrentUser();
     if (me && me.role) {
+      applyCurrentUserToTopbar(me);
       applyNavPermissions(me.role);
       applyRoleControls(me.role);
       guardPageRolesFromDom();
+      guardPagePermissionsFromDom();
       return me;
     } else {
+      applyCurrentUserToTopbar(null);
       applyNavPermissions("viewer");
       applyRoleControls("viewer");
       guardPageRolesFromDom();
+      guardPagePermissionsFromDom();
       return null;
     }
   }
@@ -532,8 +630,11 @@
     getCurrentRole,
     canAny,
     canAtLeast,
+    canPermission: permissionAllowed,
     guardPageRoles,
     guardPageRolesFromDom,
+    guardPagePermissions,
+    guardPagePermissionsFromDom,
     protectPage,
   };
 })();

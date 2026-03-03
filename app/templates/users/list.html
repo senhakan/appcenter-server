@@ -6,7 +6,7 @@
   <button class="btn btn-outline-primary btn-sm" id="users-refresh-btn" type="button">
     <i class="ti ti-refresh me-1"></i>Yenile
   </button>
-  <button class="btn btn-primary btn-sm" id="users-new-btn" type="button" data-required-roles="admin">
+  <button class="btn btn-primary btn-sm" id="users-new-btn" type="button" data-required-permissions="users.manage">
     <i class="ti ti-user-plus me-1"></i>Yeni Kullanici
   </button>
 </div>
@@ -102,7 +102,6 @@
     <div class="card mb-0 ac-modal-success">
       <div class="card-header d-flex align-items-center justify-content-between">
         <h3 class="card-title mb-0">Yeni Kullanici</h3>
-        <button class="btn btn-outline-secondary btn-sm" id="user-create-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
       </div>
       <div class="card-body">
         <div class="ac-modal-status-block">
@@ -127,11 +126,8 @@
             <input class="form-control" name="email" />
           </div>
           <div class="col-12 col-md-6">
-            <label class="form-label">Rol</label>
-            <select class="form-select" name="role">
-              <option value="viewer">viewer</option>
-              <option value="operator">operator</option>
-              <option value="admin">admin</option>
+            <label class="form-label">Rol Profili</label>
+            <select class="form-select" name="role_profile_id">
             </select>
           </div>
           <div class="col-12 col-md-6 d-flex align-items-end">
@@ -157,7 +153,6 @@
     <div class="card mb-0 ac-modal-warning">
       <div class="card-header d-flex align-items-center justify-content-between">
         <h3 class="card-title mb-0">Kullanici Duzenle</h3>
-        <button class="btn btn-outline-secondary btn-sm" id="user-edit-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
       </div>
       <div class="card-body">
         <div class="ac-modal-status-block">
@@ -183,11 +178,8 @@
             <input class="form-control" name="email" />
           </div>
           <div class="col-12 col-md-6">
-            <label class="form-label">Rol</label>
-            <select class="form-select" name="role">
-              <option value="viewer">viewer</option>
-              <option value="operator">operator</option>
-              <option value="admin">admin</option>
+            <label class="form-label">Rol Profili</label>
+            <select class="form-select" name="role_profile_id">
             </select>
           </div>
           <div class="col-12 col-md-6 d-flex align-items-end">
@@ -216,6 +208,7 @@
   const editModal = document.getElementById('user-edit-modal');
   const usersById = new Map();
   let allUsers = [];
+  let roleProfiles = [];
 
   function openModal(modal) { modal.classList.remove('hidden'); }
   function closeModal(modal) { modal.classList.add('hidden'); }
@@ -225,13 +218,40 @@
     const username = (form.elements.username.value || '').trim();
     const password = (form.elements.password.value || '').trim();
     const email = (form.elements.email.value || '').trim();
-    const role = (form.elements.role.value || '').trim();
     if (username.length < 3) return 'Kullanici adi en az 3 karakter olmali';
-    if (!['admin', 'operator', 'viewer'].includes(role)) return 'Gecersiz rol';
+    const roleProfileId = Number(form.elements.role_profile_id.value || '0');
+    if (!roleProfileId) return 'Rol profili seciniz';
     if (isCreate && password.length < 6) return 'Sifre en az 6 karakter olmali';
     if (!isCreate && password && password.length < 6) return 'Yeni sifre en az 6 karakter olmali';
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'E-posta formati gecersiz';
     return '';
+  }
+
+  function roleProfileLabel(item) {
+    const name = item && item.role_profile_name ? item.role_profile_name : '-';
+    const key = item && item.role_profile_key ? item.role_profile_key : '-';
+    return `${name} (${key})`;
+  }
+
+  function renderRoleProfileSelects() {
+    const activeProfiles = (roleProfiles || []).filter((x) => !!x.is_active);
+    ['user-create-form', 'user-edit-form'].forEach((formId) => {
+      const form = document.getElementById(formId);
+      if (!form) return;
+      const select = form.elements.role_profile_id;
+      if (!select) return;
+      const prev = Number(select.value || 0);
+      select.innerHTML = '';
+      activeProfiles.forEach((rp) => {
+        const op = document.createElement('option');
+        op.value = String(rp.id);
+        op.textContent = `${rp.name} (${rp.key})`;
+        select.appendChild(op);
+      });
+      if (prev && activeProfiles.some((x) => Number(x.id) === prev)) {
+        select.value = String(prev);
+      }
+    });
   }
 
   function applyFilters(items) {
@@ -287,9 +307,12 @@
         <td class="fw-medium">${esc(item.username || '-')}</td>
         <td>${esc(item.full_name || '-')}</td>
         <td class="text-secondary">${esc(item.email || '-')}</td>
-        <td><span class="badge ${roleBadgeClass}">${esc(item.role || '-')}</span></td>
+        <td>
+          <div><span class="badge ${roleBadgeClass}">${esc(item.role || '-')}</span></div>
+          <div class="text-secondary small mt-1">${esc(roleProfileLabel(item))}</div>
+        </td>
         <td>${statusBadge}</td>
-        <td class="col-actions" data-required-roles="admin">
+        <td class="col-actions" data-required-permissions="users.manage">
           <div class="btn-list flex-nowrap">
             <button class="btn btn-outline-secondary btn-sm" type="button" data-action="edit" data-id="${item.id}"><i class="ti ti-edit me-1"></i>Duzenle</button>
             <button class="btn btn-outline-danger btn-sm" type="button" data-action="delete" data-id="${item.id}"><i class="ti ti-trash me-1"></i>Sil</button>
@@ -310,7 +333,7 @@
         form.elements.password.value = '';
         form.elements.full_name.value = user.full_name || '';
         form.elements.email.value = user.email || '';
-        form.elements.role.value = user.role || 'viewer';
+        form.elements.role_profile_id.value = user.role_profile_id ? String(user.role_profile_id) : '';
         form.elements.is_active.checked = !!user.is_active;
         openModal(editModal);
       });
@@ -337,8 +360,13 @@
 
   async function loadUsers() {
     try {
-      const data = await AppCenterApi.req('/users');
+      const [data, rolesData] = await Promise.all([
+        AppCenterApi.req('/users'),
+        AppCenterApi.req('/roles'),
+      ]);
       allUsers = data.items || [];
+      roleProfiles = rolesData.items || [];
+      renderRoleProfileSelects();
       renderUsers();
       AppCenterApi.applyNavPermissions(AppCenterApi.getCurrentRole());
     } catch (err) {
@@ -348,9 +376,7 @@
 
   document.getElementById('users-refresh-btn').addEventListener('click', loadUsers);
   document.getElementById('users-new-btn').addEventListener('click', () => openModal(createModal));
-  document.getElementById('user-create-cancel-btn').addEventListener('click', () => closeModal(createModal));
   document.getElementById('user-create-cancel-btn-2').addEventListener('click', () => closeModal(createModal));
-  document.getElementById('user-edit-cancel-btn').addEventListener('click', () => closeModal(editModal));
   document.getElementById('user-edit-cancel-btn-2').addEventListener('click', () => closeModal(editModal));
   createModal.addEventListener('click', (e) => { if (e.target === createModal) closeModal(createModal); });
   editModal.addEventListener('click', (e) => { if (e.target === editModal) closeModal(editModal); });
@@ -377,7 +403,7 @@
           password: form.elements.password.value,
           full_name: form.elements.full_name.value || null,
           email: form.elements.email.value || null,
-          role: form.elements.role.value,
+          role_profile_id: Number(form.elements.role_profile_id.value || 0),
           is_active: !!form.elements.is_active.checked,
         }),
       });
@@ -404,7 +430,7 @@
       username: form.elements.username.value,
       full_name: form.elements.full_name.value || null,
       email: form.elements.email.value || null,
-      role: form.elements.role.value,
+      role_profile_id: Number(form.elements.role_profile_id.value || 0),
       is_active: !!form.elements.is_active.checked,
     };
     if ((form.elements.password.value || '').trim()) {

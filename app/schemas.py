@@ -18,6 +18,20 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class ProfileUpdateRequest(BaseModel):
+    full_name: Optional[str] = Field(default=None, max_length=200)
+    email: Optional[str] = Field(default=None, max_length=200)
+    phone: Optional[str] = Field(default=None, max_length=50)
+    phone_ext: Optional[str] = Field(default=None, max_length=20)
+    organization: Optional[str] = Field(default=None, max_length=200)
+    department: Optional[str] = Field(default=None, max_length=200)
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=6, max_length=256)
+
+
 class MessageResponse(BaseModel):
     status: str
     message: str
@@ -192,7 +206,16 @@ class UserPublic(BaseModel):
     username: str
     full_name: Optional[str] = None
     email: Optional[str] = None
+    phone: Optional[str] = None
+    phone_ext: Optional[str] = None
+    organization: Optional[str] = None
+    department: Optional[str] = None
+    avatar_url: Optional[str] = None
     role: str
+    role_profile_id: Optional[int] = None
+    role_profile_key: Optional[str] = None
+    role_profile_name: Optional[str] = None
+    permissions: list[str] = Field(default_factory=list)
     is_active: bool
 
 
@@ -201,7 +224,8 @@ class UserCreateRequest(BaseModel):
     password: str = Field(min_length=6, max_length=256)
     full_name: Optional[str] = Field(default=None, max_length=200)
     email: Optional[str] = Field(default=None, max_length=200)
-    role: str = Field(default="viewer")
+    role: Optional[str] = None
+    role_profile_id: Optional[int] = None
     is_active: bool = True
 
 
@@ -211,12 +235,47 @@ class UserUpdateRequest(BaseModel):
     full_name: Optional[str] = Field(default=None, max_length=200)
     email: Optional[str] = Field(default=None, max_length=200)
     role: Optional[str] = None
+    role_profile_id: Optional[int] = None
     is_active: Optional[bool] = None
 
 
 class UserListResponse(BaseModel):
     items: list[UserPublic]
     total: int
+
+
+class RoleProfileResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    key: str
+    name: str
+    description: Optional[str] = None
+    permissions: list[str] = Field(default_factory=list)
+    is_system: bool
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class RoleProfileListResponse(BaseModel):
+    items: list[RoleProfileResponse]
+    total: int
+
+
+class RoleProfileCreateRequest(BaseModel):
+    key: str = Field(min_length=2, max_length=80)
+    name: str = Field(min_length=2, max_length=120)
+    description: Optional[str] = Field(default=None, max_length=500)
+    permissions: list[str] = Field(default_factory=list)
+    is_active: bool = True
+
+
+class RoleProfileUpdateRequest(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=2, max_length=120)
+    description: Optional[str] = Field(default=None, max_length=500)
+    permissions: Optional[list[str]] = None
+    is_active: Optional[bool] = None
 
 
 class AuditLogItemResponse(BaseModel):
@@ -350,6 +409,8 @@ class AgentResponse(BaseModel):
     remote_support_helper_running: bool = False
     remote_support_helper_pid: Optional[int] = None
     remote_support_updated_at: Optional[datetime] = None
+    remote_support_allowed: bool = False
+    last_remote_connected_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 
@@ -431,6 +492,8 @@ class GroupResponse(BaseModel):
     name: str
     description: Optional[str] = None
     is_active: bool
+    is_dynamic: bool = False
+    dynamic_rules: Optional[dict] = None
     created_at: datetime
     is_system: bool = False
 
@@ -443,16 +506,38 @@ class GroupListResponse(BaseModel):
 class GroupCreateRequest(BaseModel):
     name: str
     description: Optional[str] = None
+    is_dynamic: bool = False
+    dynamic_rules: Optional[dict] = None
 
 
 class GroupUpdateRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     is_active: Optional[bool] = None
+    is_dynamic: Optional[bool] = None
+    dynamic_rules: Optional[dict] = None
 
 
 class GroupAssignAgentsRequest(BaseModel):
     agent_uuids: list[str] = Field(default_factory=list)
+
+
+class GroupDynamicPreviewRequest(BaseModel):
+    hostname_patterns: list[str] = Field(default_factory=list)
+    ip_patterns: list[str] = Field(default_factory=list)
+    sample_limit: int = Field(default=5, ge=1, le=20)
+
+
+class GroupDynamicPreviewItem(BaseModel):
+    uuid: str
+    hostname: str
+    ip_address: Optional[str] = None
+    status: str
+
+
+class GroupDynamicPreviewResponse(BaseModel):
+    total: int
+    items: list[GroupDynamicPreviewItem]
 
 
 class DashboardStatsResponse(BaseModel):

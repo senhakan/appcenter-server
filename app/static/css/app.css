@@ -216,7 +216,7 @@ td {
   font-size: 0.93rem;
 }
 
-.badge {
+body:not(.app-shell) .badge {
   display: inline-flex;
   align-items: center;
   padding: 3px 8px;
@@ -226,27 +226,27 @@ td {
   background: #fff;
 }
 
-.badge.ok {
+body:not(.app-shell) .badge.ok {
   color: var(--ok);
   border-color: rgba(42, 157, 143, 0.35);
 }
 
-.badge.warn {
+body:not(.app-shell) .badge.warn {
   color: #9a6700;
   border-color: rgba(154, 103, 0, 0.3);
 }
 
-.row {
+body:not(.app-shell) .row {
   display: flex;
   gap: 10px;
   align-items: center;
 }
 
-.row.wrap {
+body:not(.app-shell) .row.wrap {
   flex-wrap: wrap;
 }
 
-.spread {
+body:not(.app-shell) .spread {
   justify-content: space-between;
 }
 

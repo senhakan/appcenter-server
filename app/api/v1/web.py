@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
-from app.auth import require_role
+from app.auth import require_permission
 from app.config import get_settings
 from app.database import get_db
 from app.group_policy import is_system_group_name
@@ -54,6 +54,8 @@ from app.schemas import (
     DeploymentUpdateRequest,
     GroupAssignAgentsRequest,
     GroupCreateRequest,
+    GroupDynamicPreviewRequest,
+    GroupDynamicPreviewResponse,
     GroupListResponse,
     GroupResponse,
     GroupUpdateRequest,
@@ -72,6 +74,7 @@ from app.services.application_service import (
     update_application_icon,
 )
 from app.services import audit_service as audit
+from app.services import dynamic_group_service
 from app.services.deployment_service import (
     create_deployment,
     delete_deployment,
@@ -87,6 +90,7 @@ MIN_SESSION_TIMEOUT_MINUTES = 1
 MAX_SESSION_TIMEOUT_MINUTES = 1440
 MIN_RECORDING_FPS = 1
 MAX_RECORDING_FPS = 30
+MIN_DYNAMIC_GROUP_SYNC_INTERVAL_SEC = 30
 
 
 def _as_utc(dt_value):
@@ -112,10 +116,46 @@ def _as_utc(dt_value):
 
 @router.get("/agents", response_model=AgentListResponse)
 def agents_list(
+    remote_support_only: bool = False,
     db: Session = Depends(get_db),
-    _: User = Depends(require_role("viewer", "operator", "admin")),
+    _: User = Depends(require_permission("agents.view")),
 ) -> AgentListResponse:
-    items = db.query(Agent).order_by(Agent.created_at.desc()).all()
+    agents = db.query(Agent).order_by(Agent.created_at.desc()).all()
+    rs_group = (
+        db.query(Group.id)
+        .filter(func.lower(Group.name) == "remote support", Group.is_active.is_(True))
+        .first()
+    )
+    rs_group_id = int(rs_group[0]) if rs_group and rs_group[0] is not None else 0
+    agent_ids = [a.uuid for a in agents]
+    last_connected_map: dict[str, datetime] = {}
+    if agent_ids:
+        rows = (
+            db.query(
+                RemoteSupportSession.agent_uuid,
+                func.max(RemoteSupportSession.connected_at).label("last_connected_at"),
+            )
+            .filter(
+                RemoteSupportSession.agent_uuid.in_(agent_ids),
+                RemoteSupportSession.connected_at.isnot(None),
+            )
+            .group_by(RemoteSupportSession.agent_uuid)
+            .all()
+        )
+        for agent_uuid, last_connected_at in rows:
+            ts = _as_utc(last_connected_at)
+            if ts is not None:
+                last_connected_map[str(agent_uuid)] = ts
+
+    items: list[AgentResponse] = []
+    for agent in agents:
+        item = AgentResponse.model_validate(agent)
+        if rs_group_id > 0:
+            item.remote_support_allowed = rs_group_id in (item.group_ids or [])
+        if remote_support_only and not item.remote_support_allowed:
+            continue
+        item.last_remote_connected_at = last_connected_map.get(agent.uuid)
+        items.append(item)
     return AgentListResponse(items=items, total=len(items))
 
 
@@ -123,12 +163,30 @@ def agents_list(
 def agents_detail(
     agent_uuid: str,
     db: Session = Depends(get_db),
-    _: User = Depends(require_role("viewer", "operator", "admin")),
+    _: User = Depends(require_permission("agents.view")),
 ) -> AgentResponse:
     agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
     if not agent:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
-    return AgentResponse.model_validate(agent)
+    item = AgentResponse.model_validate(agent)
+    rs_group = (
+        db.query(Group.id)
+        .filter(func.lower(Group.name) == "remote support", Group.is_active.is_(True))
+        .first()
+    )
+    rs_group_id = int(rs_group[0]) if rs_group and rs_group[0] is not None else 0
+    if rs_group_id > 0:
+        item.remote_support_allowed = rs_group_id in (item.group_ids or [])
+    last_connected_at = (
+        db.query(func.max(RemoteSupportSession.connected_at))
+        .filter(
+            RemoteSupportSession.agent_uuid == agent_uuid,
+            RemoteSupportSession.connected_at.isnot(None),
+        )
+        .scalar()
+    )
+    item.last_remote_connected_at = _as_utc(last_connected_at)
+    return item
 
 
 @router.put("/agents/{agent_uuid}/group", response_model=AgentResponse)
@@ -136,7 +194,7 @@ def agents_update_group(
     agent_uuid: str,
     group_id: Optional[int] = Form(None),
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("operator", "admin")),
+    user: User = Depends(require_permission("agents.manage")),
 ) -> AgentResponse:
     agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
     if not agent:
@@ -166,7 +224,7 @@ def agents_update_notes(
     agent_uuid: str,
     payload: AgentNotesUpdateRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("operator", "admin")),
+    user: User = Depends(require_permission("agents.manage")),
 ) -> AgentResponse:
     agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
     if not agent:
@@ -195,7 +253,7 @@ def agents_update_notes(
 def agents_delete(
     agent_uuid: str,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("operator", "admin")),
+    user: User = Depends(require_permission("agents.manage")),
 ) -> MessageResponse:
     agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
     if not agent:
@@ -244,7 +302,7 @@ def agents_delete(
 def groups_list(
     include_inactive: bool = False,
     db: Session = Depends(get_db),
-    _: User = Depends(require_role("viewer", "operator", "admin")),
+    _: User = Depends(require_permission("groups.view")),
 ) -> GroupListResponse:
     q = db.query(Group)
     if not include_inactive:
@@ -253,11 +311,29 @@ def groups_list(
     return GroupListResponse(items=items, total=len(items))
 
 
+@router.post("/groups/dynamic/preview", response_model=GroupDynamicPreviewResponse)
+def groups_dynamic_preview(
+    payload: GroupDynamicPreviewRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("groups.view")),
+) -> GroupDynamicPreviewResponse:
+    rules = dynamic_group_service.normalize_rules(
+        {
+            "hostname_patterns": payload.hostname_patterns,
+            "ip_patterns": payload.ip_patterns,
+        }
+    )
+    if not rules:
+        return GroupDynamicPreviewResponse(total=0, items=[])
+    result = dynamic_group_service.preview_agents(db, rules=rules, limit=payload.sample_limit)
+    return GroupDynamicPreviewResponse(total=int(result.get("total") or 0), items=result.get("items") or [])
+
+
 @router.get("/groups/{group_id}", response_model=GroupResponse)
 def groups_detail(
     group_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_role("viewer", "operator", "admin")),
+    _: User = Depends(require_permission("groups.view")),
 ) -> GroupResponse:
     group = db.query(Group).filter(Group.id == group_id).first()
     if not group:
@@ -269,7 +345,7 @@ def groups_detail(
 def groups_create(
     payload: GroupCreateRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("operator", "admin")),
+    user: User = Depends(require_permission("groups.manage")),
 ) -> GroupResponse:
     name = payload.name.strip()
     if not name:
@@ -277,17 +353,32 @@ def groups_create(
     exists = db.query(Group.id).filter(func.lower(Group.name) == name.lower()).first()
     if exists:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Group name already exists")
-    group = Group(name=name, description=(payload.description or "").strip() or None)
+    is_dynamic = bool(payload.is_dynamic)
+    dynamic_rules = dynamic_group_service.normalize_rules(payload.dynamic_rules)
+    if is_dynamic and not dynamic_rules:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Dynamic group requires at least one hostname/ip pattern",
+        )
+    group = Group(
+        name=name,
+        description=(payload.description or "").strip() or None,
+        is_dynamic=is_dynamic,
+        dynamic_rules_json=dynamic_group_service.rules_to_json(dynamic_rules),
+    )
     db.add(group)
     db.commit()
     db.refresh(group)
+    if group.is_dynamic:
+        dynamic_group_service.apply_dynamic_group_membership_for_group(db, group)
+        db.commit()
     audit.record_audit(
         db,
         user_id=user.id,
         action="group.create",
         resource_type="group",
         resource_id=str(group.id),
-        details={"name": group.name},
+        details={"name": group.name, "is_dynamic": bool(group.is_dynamic)},
     )
     return GroupResponse.model_validate(group)
 
@@ -297,7 +388,7 @@ def groups_update(
     group_id: int,
     payload: GroupUpdateRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("operator", "admin")),
+    user: User = Depends(require_permission("groups.manage")),
 ) -> GroupResponse:
     group = db.query(Group).filter(Group.id == group_id).first()
     if not group:
@@ -324,8 +415,45 @@ def groups_update(
         group.description = payload.description.strip() or None
     if payload.is_active is not None:
         group.is_active = bool(payload.is_active)
+
+    effective_is_dynamic = group.is_dynamic if payload.is_dynamic is None else bool(payload.is_dynamic)
+    effective_rules = group.dynamic_rules
+    if payload.dynamic_rules is not None:
+        effective_rules = dynamic_group_service.normalize_rules(payload.dynamic_rules)
+    if effective_is_dynamic and not effective_rules:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Dynamic group requires at least one hostname/ip pattern",
+        )
+    if not effective_is_dynamic:
+        effective_rules = None
+    group.is_dynamic = effective_is_dynamic
+    group.dynamic_rules_json = dynamic_group_service.rules_to_json(effective_rules)
+
+    if not group.is_active:
+        touched = [row.agent_uuid for row in db.query(AgentGroup).filter(AgentGroup.group_id == group.id).all()]
+        if touched:
+            db.query(AgentGroup).filter(AgentGroup.group_id == group.id).delete(synchronize_session=False)
+            for agent_uuid in set(touched):
+                agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
+                if not agent:
+                    continue
+                group_ids = sorted(
+                    {
+                        row.group_id
+                        for row in db.query(AgentGroup)
+                        .filter(AgentGroup.agent_uuid == agent.uuid)
+                        .all()
+                    }
+                )
+                agent.group_id = group_ids[0] if group_ids else None
+                db.add(agent)
+
     db.add(group)
     db.commit()
+    if group.is_dynamic and group.is_active:
+        dynamic_group_service.apply_dynamic_group_membership_for_group(db, group)
+        db.commit()
     db.refresh(group)
     audit.record_audit(
         db,
@@ -333,7 +461,11 @@ def groups_update(
         action="group.update",
         resource_type="group",
         resource_id=str(group.id),
-        details={"name": group.name, "is_active": bool(group.is_active)},
+        details={
+            "name": group.name,
+            "is_active": bool(group.is_active),
+            "is_dynamic": bool(group.is_dynamic),
+        },
     )
     return GroupResponse.model_validate(group)
 
@@ -343,13 +475,15 @@ def groups_assign_agents(
     group_id: int,
     payload: GroupAssignAgentsRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("operator", "admin")),
+    user: User = Depends(require_permission("groups.manage")),
 ) -> MessageResponse:
     group = db.query(Group).filter(Group.id == group_id).first()
     if not group:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
     if not group.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Group is inactive")
+    if group.is_dynamic:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Dynamic groups cannot be assigned manually")
 
     target_uuids = {uuid.strip() for uuid in payload.agent_uuids if uuid and uuid.strip()}
     if target_uuids:
@@ -404,7 +538,7 @@ def groups_assign_agents(
 def groups_delete(
     group_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("operator", "admin")),
+    user: User = Depends(require_permission("groups.manage")),
 ) -> MessageResponse:
     group = db.query(Group).filter(Group.id == group_id).first()
     if not group:
@@ -432,10 +566,52 @@ def groups_delete(
     return MessageResponse(status="success", message="Group set to inactive")
 
 
+@router.delete("/groups/{group_id}/hard", response_model=MessageResponse)
+def groups_hard_delete(
+    group_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("groups.manage")),
+) -> MessageResponse:
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+    if is_system_group_name(group.name):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="System group cannot be deleted")
+
+    dep_count = (
+        db.query(func.count(Deployment.id))
+        .filter(Deployment.target_type == "Group", Deployment.target_id == str(group_id))
+        .scalar()
+        or 0
+    )
+    if int(dep_count) > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Group has deployments. Remove or retarget deployments before deleting group.",
+        )
+
+    # Keep legacy single-group field consistent before hard delete.
+    db.query(AgentGroup).filter(AgentGroup.group_id == group_id).delete(synchronize_session=False)
+    db.query(Agent).filter(Agent.group_id == group_id).update({Agent.group_id: None}, synchronize_session=False)
+
+    group_name = (group.name or "").strip()
+    db.delete(group)
+    db.commit()
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="group.delete_hard",
+        resource_type="group",
+        resource_id=str(group_id),
+        details={"name": group_name},
+    )
+    return MessageResponse(status="success", message="Group permanently deleted")
+
+
 @router.get("/dashboard/stats", response_model=DashboardStatsResponse)
 def dashboard_stats(
     db: Session = Depends(get_db),
-    _: User = Depends(require_role("viewer", "operator", "admin")),
+    _: User = Depends(require_permission("dashboard.view")),
 ) -> DashboardStatsResponse:
     total_agents = db.query(func.count(Agent.uuid)).scalar() or 0
     online_agents = db.query(func.count(Agent.uuid)).filter(Agent.status == "online").scalar() or 0
@@ -464,7 +640,7 @@ def dashboard_stats(
 @router.get("/dashboard/timeline", response_model=DashboardTimelineListResponse)
 def dashboard_timeline(
     db: Session = Depends(get_db),
-    _: User = Depends(require_role("viewer", "operator", "admin")),
+    _: User = Depends(require_permission("dashboard.view")),
 ) -> DashboardTimelineListResponse:
     rows = db.execute(
         text(
@@ -618,7 +794,7 @@ def dashboard_timeline(
 @router.get("/dashboard/top-clients", response_model=DashboardTopClientListResponse)
 def dashboard_top_clients(
     db: Session = Depends(get_db),
-    _: User = Depends(require_role("viewer", "operator", "admin")),
+    _: User = Depends(require_permission("dashboard.view")),
 ) -> DashboardTopClientListResponse:
     rows = (
         db.query(
@@ -655,7 +831,7 @@ def dashboard_top_clients(
 @router.get("/dashboard/trends", response_model=DashboardTrendsResponse)
 def dashboard_trends(
     db: Session = Depends(get_db),
-    _: User = Depends(require_role("viewer", "operator", "admin")),
+    _: User = Depends(require_permission("dashboard.view")),
 ) -> DashboardTrendsResponse:
     today = datetime.now(timezone.utc).date()
     days = [today - timedelta(days=i) for i in range(6, -1, -1)]
@@ -730,7 +906,7 @@ def dashboard_trends(
 @router.get("/dashboard/compliance-breakdown", response_model=DashboardComplianceBreakdownResponse)
 def dashboard_compliance_breakdown(
     db: Session = Depends(get_db),
-    _: User = Depends(require_role("viewer", "operator", "admin")),
+    _: User = Depends(require_permission("dashboard.view")),
 ) -> DashboardComplianceBreakdownResponse:
     licenses = db.query(SoftwareLicense).filter(SoftwareLicense.is_active.is_(True)).all()
     agents = db.query(Agent.uuid, Agent.hostname, Agent.status).all()
@@ -807,7 +983,7 @@ def dashboard_compliance_breakdown(
 @router.get("/dashboard/remote-metrics", response_model=DashboardRemoteMetricsResponse)
 def dashboard_remote_metrics(
     db: Session = Depends(get_db),
-    _: User = Depends(require_role("viewer", "operator", "admin")),
+    _: User = Depends(require_permission("dashboard.view")),
 ) -> DashboardRemoteMetricsResponse:
     now = datetime.now(timezone.utc)
     start_dt = now - timedelta(days=7)
@@ -855,7 +1031,7 @@ def dashboard_remote_metrics(
 def applications_list(
     only_active: bool = False,
     db: Session = Depends(get_db),
-    _: User = Depends(require_role("viewer", "operator", "admin")),
+    _: User = Depends(require_permission("applications.view")),
 ) -> ApplicationListResponse:
     items = list_applications(db, only_active=only_active)
     return ApplicationListResponse(items=items, total=len(items))
@@ -865,7 +1041,7 @@ def applications_list(
 def applications_detail(
     app_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_role("viewer", "operator", "admin")),
+    _: User = Depends(require_permission("applications.view")),
 ) -> ApplicationResponse:
     app = get_application(db, app_id)
     return ApplicationResponse.model_validate(app)
@@ -883,7 +1059,7 @@ async def applications_upload(
     category: Optional[str] = Form(None),
     icon: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("operator", "admin")),
+    user: User = Depends(require_permission("applications.manage")),
 ) -> ApplicationResponse:
     app = await create_application(
         db=db,
@@ -913,7 +1089,7 @@ def applications_update(
     app_id: int,
     payload: ApplicationUpdateRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("operator", "admin")),
+    user: User = Depends(require_permission("applications.manage")),
 ) -> ApplicationResponse:
     app = update_application(
         db=db,
@@ -943,7 +1119,7 @@ async def applications_update_icon(
     app_id: int,
     icon: UploadFile = File(...),
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("operator", "admin")),
+    user: User = Depends(require_permission("applications.manage")),
 ) -> ApplicationResponse:
     app = await update_application_icon(db=db, app_id=app_id, icon_file=icon)
     audit.record_audit(
@@ -960,7 +1136,7 @@ async def applications_update_icon(
 def applications_delete_icon(
     app_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("operator", "admin")),
+    user: User = Depends(require_permission("applications.manage")),
 ) -> ApplicationResponse:
     app = remove_application_icon(db=db, app_id=app_id)
     audit.record_audit(
@@ -977,7 +1153,7 @@ def applications_delete_icon(
 def applications_delete(
     app_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("operator", "admin")),
+    user: User = Depends(require_permission("applications.manage")),
 ) -> MessageResponse:
     delete_application(db, app_id)
     audit.record_audit(
@@ -993,7 +1169,7 @@ def applications_delete(
 @router.get("/deployments", response_model=DeploymentListResponse)
 def deployments_list(
     db: Session = Depends(get_db),
-    _: User = Depends(require_role("viewer", "operator", "admin")),
+    _: User = Depends(require_permission("deployments.view")),
 ) -> DeploymentListResponse:
     items = list_deployments(db)
     return DeploymentListResponse(items=items, total=len(items))
@@ -1003,7 +1179,7 @@ def deployments_list(
 def deployments_detail(
     deployment_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_role("viewer", "operator", "admin")),
+    _: User = Depends(require_permission("deployments.view")),
 ) -> DeploymentResponse:
     item = get_deployment(db, deployment_id)
     return DeploymentResponse.model_validate(item)
@@ -1013,7 +1189,7 @@ def deployments_detail(
 def deployments_create(
     payload: DeploymentCreateRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("operator", "admin")),
+    user: User = Depends(require_permission("deployments.manage")),
 ) -> DeploymentResponse:
     item = create_deployment(db, payload, created_by=user.username)
     audit.record_audit(
@@ -1032,7 +1208,7 @@ def deployments_update(
     deployment_id: int,
     payload: DeploymentUpdateRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("operator", "admin")),
+    user: User = Depends(require_permission("deployments.manage")),
 ) -> DeploymentResponse:
     item = update_deployment(db, deployment_id, payload)
     audit.record_audit(
@@ -1050,7 +1226,7 @@ def deployments_update(
 def deployments_delete(
     deployment_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("operator", "admin")),
+    user: User = Depends(require_permission("deployments.manage")),
 ) -> MessageResponse:
     delete_deployment(db, deployment_id)
     audit.record_audit(
@@ -1066,7 +1242,7 @@ def deployments_delete(
 @router.get("/settings", response_model=SettingsListResponse)
 def settings_list(
     db: Session = Depends(get_db),
-    _: User = Depends(require_role("admin")),
+    _: User = Depends(require_permission("settings.manage")),
 ) -> SettingsListResponse:
     items = db.query(Setting).order_by(Setting.key.asc()).all()
     mapped = [SettingItem(key=s.key, value=s.value, description=s.description, updated_at=s.updated_at) for s in items]
@@ -1077,7 +1253,7 @@ def settings_list(
 def settings_update(
     payload: SettingsUpdateRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("admin")),
+    user: User = Depends(require_permission("settings.manage")),
 ) -> SettingsListResponse:
     now = datetime.now(timezone.utc)
     for key, value in payload.values.items():
@@ -1131,6 +1307,19 @@ def settings_update(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"{key} must be >= 0",
                 )
+        if key == "dynamic_group_sync_interval_sec":
+            try:
+                num = int((value or "").strip())
+            except Exception:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid dynamic_group_sync_interval_sec",
+                )
+            if num < MIN_DYNAMIC_GROUP_SYNC_INTERVAL_SEC:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"dynamic_group_sync_interval_sec must be >= {MIN_DYNAMIC_GROUP_SYNC_INTERVAL_SEC}",
+                )
         item = db.query(Setting).filter(Setting.key == key).first()
         if not item:
             item = Setting(key=key, value=value, description="Updated via API", updated_at=now)
@@ -1154,7 +1343,7 @@ async def upload_agent_update(
     version: str = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("admin")),
+    user: User = Depends(require_permission("settings.manage")),
 ) -> AgentUpdateUploadResponse:
     updates_dir = str(Path(settings.upload_dir) / "agent_updates")
     temp_path, digest_hex, _, file_type = await save_upload_to_temp(

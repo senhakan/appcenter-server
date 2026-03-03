@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.auth import require_role
+from app.auth import require_permission
 from app.database import get_db
 from app.models import AuditLog, User
 from app.schemas import AuditLogItemResponse, AuditLogListResponse
@@ -42,7 +42,7 @@ def list_audit_logs(
     username: str = Query(default="", max_length=120),
     created_from: str = Query(default="", max_length=40),
     created_to: str = Query(default="", max_length=40),
-    _: User = Depends(require_role("admin")),
+    _: User = Depends(require_permission("audit.view")),
     db: Session = Depends(get_db),
 ) -> AuditLogListResponse:
     q = db.query(AuditLog)

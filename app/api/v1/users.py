@@ -4,25 +4,68 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.auth import get_password_hash, require_role
+from app.auth import get_password_hash, require_permission, user_permissions
 from app.database import get_db
-from app.models import User
+from app.models import RoleProfile, User
 from app.schemas import MessageResponse, UserCreateRequest, UserListResponse, UserPublic, UserUpdateRequest
 from app.services import audit_service as audit
 
 router = APIRouter(prefix="/users", tags=["users"])
-ADMIN_ROLE = Depends(require_role("admin"))
+ADMIN_ROLE = Depends(require_permission("users.manage"))
 VALID_ROLES = {"admin", "operator", "viewer"}
 
 
-def _normalize_role(raw_role: str | None) -> str:
-    role = (raw_role or "").strip().lower()
-    if role not in VALID_ROLES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid role",
-        )
+def _legacy_role_from_profile_key(profile_key: str | None) -> str:
+    key = (profile_key or "").strip().lower()
+    if key in VALID_ROLES:
+        return key
+    return "viewer"
+
+
+def _resolve_role_profile(db: Session, role_profile_id: int | None) -> RoleProfile | None:
+    if role_profile_id is None:
+        return None
+    role = db.query(RoleProfile).filter(RoleProfile.id == int(role_profile_id)).first()
+    if not role:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role profile not found")
+    if not role.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role profile is inactive")
     return role
+
+
+def _resolve_role_profile_by_key(db: Session, role_key: str | None) -> RoleProfile | None:
+    key = (role_key or "").strip().lower()
+    if not key:
+        return None
+    role = db.query(RoleProfile).filter(func.lower(RoleProfile.key) == key).first()
+    if not role:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role profile not found")
+    if not role.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role profile is inactive")
+    return role
+
+
+def _to_user_public(db: Session, user: User) -> UserPublic:
+    role_profile = None
+    if user.role_profile_id:
+        role_profile = db.query(RoleProfile).filter(RoleProfile.id == user.role_profile_id).first()
+    return UserPublic(
+        id=user.id,
+        username=user.username,
+        full_name=user.full_name,
+        email=user.email,
+        phone=user.phone,
+        phone_ext=user.phone_ext,
+        organization=user.organization,
+        department=user.department,
+        avatar_url=user.avatar_url,
+        role=user.role,
+        role_profile_id=role_profile.id if role_profile else None,
+        role_profile_key=role_profile.key if role_profile else None,
+        role_profile_name=role_profile.name if role_profile else None,
+        permissions=sorted(list(user_permissions(db, user))),
+        is_active=user.is_active,
+    )
 
 
 def _active_admin_count(db: Session) -> int:
@@ -52,7 +95,7 @@ def list_users(
     _: User = ADMIN_ROLE,
 ) -> UserListResponse:
     items = db.query(User).order_by(User.username.asc()).all()
-    mapped = [UserPublic.model_validate(item) for item in items]
+    mapped = [_to_user_public(db, item) for item in items]
     return UserListResponse(items=mapped, total=len(mapped))
 
 
@@ -69,13 +112,19 @@ def create_user(
     if exists:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already exists")
 
-    role = _normalize_role(payload.role)
+    role_profile = _resolve_role_profile(db, payload.role_profile_id)
+    if role_profile is None:
+        role_profile = _resolve_role_profile_by_key(db, payload.role)
+    if role_profile is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role profile is required")
+    role = _legacy_role_from_profile_key(role_profile.key)
     user = User(
         username=username,
         password_hash=get_password_hash(payload.password),
         full_name=(payload.full_name or "").strip() or None,
         email=(payload.email or "").strip() or None,
         role=role,
+        role_profile_id=role_profile.id,
         is_active=bool(payload.is_active),
     )
     db.add(user)
@@ -87,9 +136,14 @@ def create_user(
         action="user.create",
         resource_type="user",
         resource_id=str(user.id),
-        details={"username": user.username, "role": user.role, "is_active": user.is_active},
+        details={
+            "username": user.username,
+            "role": user.role,
+            "role_profile_id": user.role_profile_id,
+            "is_active": user.is_active,
+        },
     )
-    return UserPublic.model_validate(user)
+    return _to_user_public(db, user)
 
 
 @router.put("/{user_id}", response_model=UserPublic)
@@ -117,8 +171,19 @@ def update_user(
         target.username = username
 
     next_role: str | None = None
-    if payload.role is not None:
-        next_role = _normalize_role(payload.role)
+    next_role_profile_id: int | None = None
+    if payload.role_profile_id is not None:
+        role_profile = _resolve_role_profile(db, payload.role_profile_id)
+        if role_profile is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role profile not found")
+        next_role = _legacy_role_from_profile_key(role_profile.key)
+        next_role_profile_id = role_profile.id
+    elif payload.role is not None:
+        role_profile = _resolve_role_profile_by_key(db, payload.role)
+        if role_profile is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role profile not found")
+        next_role = _legacy_role_from_profile_key(role_profile.key)
+        next_role_profile_id = role_profile.id
 
     next_active: bool | None = None
     if payload.is_active is not None:
@@ -128,6 +193,7 @@ def update_user(
 
     if next_role is not None:
         target.role = next_role
+        target.role_profile_id = next_role_profile_id
     if next_active is not None:
         target.is_active = next_active
     if payload.password is not None:
@@ -146,9 +212,14 @@ def update_user(
         action="user.update",
         resource_type="user",
         resource_id=str(target.id),
-        details={"username": target.username, "role": target.role, "is_active": target.is_active},
+        details={
+            "username": target.username,
+            "role": target.role,
+            "role_profile_id": target.role_profile_id,
+            "is_active": target.is_active,
+        },
     )
-    return UserPublic.model_validate(target)
+    return _to_user_public(db, target)
 
 
 @router.delete("/{user_id}", response_model=MessageResponse)

@@ -1,0 +1,253 @@
+{% extends 'base.html' %}
+{% block title %}Profilim{% endblock %}
+{% block page_title %}Profilim{% endblock %}
+{% block content %}
+<style>
+  #profile-avatar-preview {
+    background-color: var(--tblr-primary-lt, #e9f2fd);
+    color: var(--tblr-primary, #066fd1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 700;
+    background-size: cover;
+    background-position: center;
+  }
+</style>
+
+<div class="row row-cards" data-page-layout="profile-tabler">
+  <div class="col-12">
+    <div class="card">
+      <div class="row g-0">
+        <div class="col-12 col-lg-4 border-end">
+          <div class="card-body">
+            <h3 class="card-title">Profil Detaylari</h3>
+            <div class="row align-items-center g-2 mb-3">
+              <div class="col-auto">
+                <div id="profile-avatar-preview" class="avatar avatar-xl">AC</div>
+              </div>
+              <div class="col">
+                <div class="fw-semibold" id="profile-name-badge">-</div>
+                <div class="text-secondary small">
+                  <span class="badge bg-azure-lt text-azure" id="profile-role-badge">-</span>
+                </div>
+              </div>
+            </div>
+            <form id="avatar-form" class="row g-2 mb-4">
+              <div class="col-12">
+                <input class="form-control" id="profile-avatar-file" type="file" accept=".png,.jpg,.jpeg,.webp,.svg" />
+              </div>
+              <div class="col-12 d-flex gap-2 flex-wrap">
+                <button class="btn btn-primary btn-animate-icon btn-animate-icon-shake" type="submit">
+                  <i class="ti ti-upload icon icon-1"></i>Yukle
+                </button>
+                <button class="btn btn-outline-danger btn-animate-icon btn-animate-icon-shake" id="avatar-delete-btn" type="button">
+                  <i class="ti ti-trash icon icon-1"></i>Kaldir
+                </button>
+              </div>
+              <div class="col-12">
+                <div class="form-hint">Maksimum 5MB. Desteklenen formatlar: PNG, JPG, WEBP, SVG.</div>
+              </div>
+            </form>
+
+            <h3 class="card-title mt-4">Sifre Degistir</h3>
+            <form id="password-form" class="row g-3">
+              <div class="col-12">
+                <label class="form-label">Mevcut Sifre</label>
+                <input class="form-control" id="current-password" type="password" required minlength="1" />
+              </div>
+              <div class="col-12">
+                <label class="form-label">Yeni Sifre</label>
+                <input class="form-control" id="new-password" type="password" required minlength="6" />
+              </div>
+              <div class="col-12">
+                <label class="form-label">Yeni Sifre (Tekrar)</label>
+                <input class="form-control" id="new-password-2" type="password" required minlength="6" />
+              </div>
+              <div class="col-12 d-flex justify-content-end">
+                <button class="btn btn-primary btn-animate-icon btn-animate-icon-shake" type="submit">
+                  <i class="ti ti-lock icon icon-1"></i>Sifreyi Guncelle
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="col-12 col-lg-8 d-flex flex-column">
+          <form id="profile-form" class="card-body">
+            <h3 class="card-title">Profil Bilgileri</h3>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Ad Soyad</label>
+                <input class="form-control" id="profile-full-name" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">E-posta</label>
+                <input class="form-control" id="profile-email" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Telefon</label>
+                <input class="form-control" id="profile-phone" placeholder="+90 5xx xxx xx xx" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Dahili</label>
+                <input class="form-control" id="profile-phone-ext" placeholder="101" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Kurum</label>
+                <input class="form-control" id="profile-organization" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Birim</label>
+                <input class="form-control" id="profile-department" />
+              </div>
+            </div>
+            <div class="card-footer bg-transparent mt-4 px-0 pb-0">
+              <div class="btn-list justify-content-end">
+                <button class="btn btn-primary btn-animate-icon btn-animate-icon-shake" type="submit">
+                  <i class="ti ti-device-floppy icon icon-1"></i>Kaydet
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+
+  let currentMe = null;
+
+  function initials(text) {
+    const src = (text || '').toString().trim();
+    if (!src) return 'AC';
+    const parts = src.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) return ((parts[0][0] || '') + (parts[1][0] || '')).toUpperCase();
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+
+  function renderAvatar(url, name) {
+    const box = document.getElementById('profile-avatar-preview');
+    if (!box) return;
+    const avatarUrl = (url || '').toString().trim();
+    if (avatarUrl) {
+      box.textContent = '';
+      box.style.backgroundImage = `url('${avatarUrl}')`;
+    } else {
+      box.style.backgroundImage = '';
+      box.textContent = initials(name || 'AC');
+    }
+  }
+
+  async function loadProfile() {
+    try {
+      const me = await AppCenterApi.req('/auth/me');
+      currentMe = me;
+      const displayName = me.full_name || me.username || '-';
+      const roleName = me.role_profile_name || me.role_profile_key || '-';
+
+      document.getElementById('profile-name-badge').textContent = displayName;
+      document.getElementById('profile-role-badge').textContent = roleName;
+      document.getElementById('profile-full-name').value = me.full_name || '';
+      document.getElementById('profile-email').value = me.email || '';
+      document.getElementById('profile-phone').value = me.phone || '';
+      document.getElementById('profile-phone-ext').value = me.phone_ext || '';
+      document.getElementById('profile-organization').value = me.organization || '';
+      document.getElementById('profile-department').value = me.department || '';
+      renderAvatar(me.avatar_url, displayName);
+      document.getElementById('avatar-delete-btn').disabled = !(me.avatar_url || '').toString().trim();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  document.getElementById('profile-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await AppCenterApi.req('/auth/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          full_name: document.getElementById('profile-full-name').value || null,
+          email: document.getElementById('profile-email').value || null,
+          phone: document.getElementById('profile-phone').value || null,
+          phone_ext: document.getElementById('profile-phone-ext').value || null,
+          organization: document.getElementById('profile-organization').value || null,
+          department: document.getElementById('profile-department').value || null,
+        }),
+      });
+      await AppCenterApi.getCurrentUser(true);
+      await loadProfile();
+      AppCenterApi.toast('Profil guncellendi');
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+
+  document.getElementById('avatar-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fileInput = document.getElementById('profile-avatar-file');
+    const file = fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+    if (!file) {
+      AppCenterApi.toast('Lutfen bir dosya secin');
+      return;
+    }
+    const fd = new FormData();
+    fd.append('avatar', file);
+    try {
+      await AppCenterApi.req('/auth/avatar', { method: 'PUT', body: fd });
+      fileInput.value = '';
+      await AppCenterApi.getCurrentUser(true);
+      await loadProfile();
+      AppCenterApi.toast('Profil fotografi guncellendi');
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+
+  document.getElementById('avatar-delete-btn').addEventListener('click', async () => {
+    if (!currentMe || !currentMe.avatar_url) return;
+    try {
+      await AppCenterApi.req('/auth/avatar', { method: 'DELETE' });
+      await AppCenterApi.getCurrentUser(true);
+      await loadProfile();
+      AppCenterApi.toast('Profil fotografi kaldirildi');
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+
+  document.getElementById('password-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const currentPassword = document.getElementById('current-password').value || '';
+    const newPassword = document.getElementById('new-password').value || '';
+    const newPassword2 = document.getElementById('new-password-2').value || '';
+    if (newPassword.length < 6) {
+      AppCenterApi.toast('Yeni sifre en az 6 karakter olmali');
+      return;
+    }
+    if (newPassword !== newPassword2) {
+      AppCenterApi.toast('Yeni sifre tekrar alani eslesmiyor');
+      return;
+    }
+    try {
+      await AppCenterApi.req('/auth/password', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+      });
+      document.getElementById('password-form').reset();
+      AppCenterApi.toast('Sifre guncellendi');
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+
+  loadProfile();
+</script>
+{% endblock %}

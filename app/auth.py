@@ -11,12 +11,15 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import get_db
-from app.models import User
+from app.models import RoleProfile, User
+from app.permissions import SYSTEM_ROLE_DEFAULTS
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 settings = get_settings()
 ROLE_LEVELS = {"viewer": 10, "operator": 20, "admin": 30}
+
+DEFAULT_PERMISSIONS_BY_ROLE = SYSTEM_ROLE_DEFAULTS
 
 
 class TokenPayload(dict):
@@ -88,19 +91,60 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     return user
 
 
+def _load_role_profile(db: Session, user: User) -> RoleProfile | None:
+    if user.role_profile is not None:
+        return user.role_profile
+    if not user.role_profile_id:
+        return None
+    return db.query(RoleProfile).filter(RoleProfile.id == user.role_profile_id).first()
+
+
+def user_permissions(db: Session, user: User) -> set[str]:
+    rp = _load_role_profile(db, user)
+    if not rp:
+        return set()
+    return {p.strip() for p in (rp.permissions or []) if p and str(p).strip()}
+
+
 def require_role(*roles: str) -> Callable[..., User]:
     allowed = {role.strip().lower() for role in roles if role and role.strip()}
     if not allowed:
         raise ValueError("At least one role must be provided")
 
-    def _dependency(user: User = Depends(get_current_user)) -> User:
+    def _dependency(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> User:
         role = (user.role or "").strip().lower()
         if role not in ROLE_LEVELS:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Insufficient permissions",
             )
+        rp = _load_role_profile(db, user)
+        if rp is not None and not rp.is_system:
+            # Custom profiles must pass explicit permission checks.
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions",
+            )
         if role not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions",
+            )
+        return user
+
+    return _dependency
+
+
+def require_permission(*permissions: str) -> Callable[..., User]:
+    needed = {p.strip() for p in permissions if p and p.strip()}
+    if not needed:
+        raise ValueError("At least one permission must be provided")
+
+    def _dependency(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> User:
+        perms = user_permissions(db, user)
+        if "*" in perms:
+            return user
+        if not any(p in perms for p in needed):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Insufficient permissions",

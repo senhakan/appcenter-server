@@ -41,6 +41,8 @@ class Group(Base):
     name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_dynamic: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    dynamic_rules_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     agents: Mapped[list["Agent"]] = relationship(back_populates="group")
@@ -49,6 +51,16 @@ class Group(Base):
     @property
     def is_system(self) -> bool:
         return is_system_group_name(self.name)
+
+    @property
+    def dynamic_rules(self) -> Optional[dict]:
+        if not self.dynamic_rules_json:
+            return None
+        try:
+            data = json.loads(self.dynamic_rules_json)
+            return data if isinstance(data, dict) else None
+        except Exception:
+            return None
 
 
 class Agent(Base):
@@ -253,10 +265,47 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
     full_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     email: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    phone_ext: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    organization: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    department: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    avatar_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     role: Mapped[str] = mapped_column(String, default="viewer", nullable=False)
+    role_profile_id: Mapped[Optional[int]] = mapped_column(ForeignKey("role_profiles.id", ondelete="SET NULL"), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_login: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    role_profile: Mapped[Optional["RoleProfile"]] = relationship()
+
+
+class RoleProfile(Base):
+    __tablename__ = "role_profiles"
+    __table_args__ = (
+        CheckConstraint("base_role IN ('admin', 'operator', 'viewer')", name="ck_role_profile_base_role"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    key: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    base_role: Mapped[str] = mapped_column(String, nullable=False, default="viewer")
+    permissions_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    @property
+    def permissions(self) -> list[str]:
+        if not self.permissions_json:
+            return []
+        try:
+            data = json.loads(self.permissions_json)
+            if isinstance(data, list):
+                return [str(x).strip() for x in data if str(x).strip()]
+            return []
+        except Exception:
+            return []
 
 
 class AuditLog(Base):
@@ -325,6 +374,7 @@ class RemoteSupportRecording(Base):
 
 Index("idx_settings_key", Setting.key)
 Index("idx_group_name", Group.name)
+Index("idx_group_is_dynamic", Group.is_dynamic)
 Index("idx_agent_status", Agent.status)
 Index("idx_agent_last_seen", Agent.last_seen)
 Index("idx_agent_group", Agent.group_id)
@@ -344,6 +394,9 @@ Index("idx_task_app", TaskHistory.app_id)
 Index("idx_task_status", TaskHistory.status)
 Index("idx_task_created", TaskHistory.created_at)
 Index("idx_user_username", User.username)
+Index("idx_user_role_profile", User.role_profile_id)
+Index("idx_role_profile_key", RoleProfile.key)
+Index("idx_role_profile_active", RoleProfile.is_active)
 Index("idx_audit_user", AuditLog.user_id)
 Index("idx_audit_action", AuditLog.action)
 Index("idx_audit_resource", AuditLog.resource_type, AuditLog.resource_id)

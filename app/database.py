@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
 from typing import Generator
 
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from app.config import get_settings
+from app.permissions import (
+    ADMIN_DEFAULT_PERMISSIONS,
+    OPERATOR_DEFAULT_PERMISSIONS,
+    SUPPORT_CENTER_ONLY_PERMISSIONS,
+    VIEWER_DEFAULT_PERMISSIONS,
+)
 
 settings = get_settings()
 
@@ -56,10 +63,46 @@ DEFAULT_SETTINGS = {
     "system_history_retention_days": ("360", "Sistem profili degisim gecmisi saklama suresi (gun)"),
     "runtime_update_interval_min": ("60", "Agent runtime update kontrol araligi (dakika)"),
     "runtime_update_jitter_sec": ("300", "Agent runtime update jitter (saniye)"),
+    "dynamic_group_sync_interval_sec": ("120", "Dinamik grup uyeliklerinin otomatik kontrol araligi (saniye)"),
     "session_recording_enabled": ("false", "Remote support session recording auto-start"),
     "session_recording_fps": ("10", "Remote support session recording target FPS"),
     "session_recording_watermark_enabled": ("false", "Remote support session recording watermark"),
 }
+
+DEFAULT_ROLE_PROFILES = [
+    {
+        "key": "viewer",
+        "name": "Viewer",
+        "description": "Salt okuma erisimi",
+        "base_role": "viewer",
+        "permissions": sorted(list(VIEWER_DEFAULT_PERMISSIONS)),
+        "is_system": True,
+    },
+    {
+        "key": "operator",
+        "name": "Operator",
+        "description": "Operasyonel degisiklik yapabilir",
+        "base_role": "operator",
+        "permissions": sorted(list(OPERATOR_DEFAULT_PERMISSIONS)),
+        "is_system": True,
+    },
+    {
+        "key": "admin",
+        "name": "Admin",
+        "description": "Tam yonetim erisimi",
+        "base_role": "admin",
+        "permissions": sorted(list(ADMIN_DEFAULT_PERMISSIONS)),
+        "is_system": True,
+    },
+    {
+        "key": "support_center_only",
+        "name": "Destek Merkezi Operatoru",
+        "description": "Yalnizca Destek Merkezi ve baglanti akislarina erisim",
+        "base_role": "operator",
+        "permissions": sorted(list(SUPPORT_CENTER_ONLY_PERMISSIONS)),
+        "is_system": False,
+    },
+]
 
 DEFAULT_GROUPS = {
     "Store": "AppCenter Store tray uygulamasinin zorunlu oldugu ajanlar",
@@ -90,6 +133,12 @@ def init_db() -> None:
 
 
 def _run_startup_migrations() -> None:
+    _migrate_role_profiles_table()
+    _migrate_role_profiles_permissions_column()
+    _migrate_users_role_profile_column()
+    _migrate_users_avatar_column()
+    _migrate_users_profile_columns()
+    _migrate_groups_dynamic_columns()
     if is_sqlite:
         _migrate_sqlite_groups_table()
         _migrate_sqlite_applications_table()
@@ -106,8 +155,230 @@ def _run_startup_migrations() -> None:
         _migrate_sqlite_audit_logs_table()
 
 
+def _migrate_role_profiles_table() -> None:
+    with engine.begin() as conn:
+        if is_sqlite:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS role_profiles (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        key VARCHAR NOT NULL UNIQUE,
+                        name VARCHAR NOT NULL UNIQUE,
+                        description TEXT,
+                        base_role VARCHAR NOT NULL DEFAULT 'viewer',
+                        is_system INTEGER NOT NULL DEFAULT 0,
+                        is_active INTEGER NOT NULL DEFAULT 1,
+                        created_at DATETIME,
+                        updated_at DATETIME,
+                        CONSTRAINT ck_role_profile_base_role CHECK (base_role IN ('admin','operator','viewer'))
+                    )
+                    """
+                )
+            )
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_role_profile_key ON role_profiles(key)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_role_profile_active ON role_profiles(is_active)"))
+            return
+
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS role_profiles (
+                    id SERIAL PRIMARY KEY,
+                    key VARCHAR NOT NULL UNIQUE,
+                    name VARCHAR NOT NULL UNIQUE,
+                    description TEXT NULL,
+                    base_role VARCHAR NOT NULL DEFAULT 'viewer',
+                    is_system BOOLEAN NOT NULL DEFAULT FALSE,
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_at TIMESTAMPTZ,
+                    updated_at TIMESTAMPTZ,
+                    CONSTRAINT ck_role_profile_base_role CHECK (base_role IN ('admin','operator','viewer'))
+                )
+                """
+            )
+        )
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_role_profile_key ON role_profiles(key)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_role_profile_active ON role_profiles(is_active)"))
+
+
+def _migrate_users_role_profile_column() -> None:
+    with engine.begin() as conn:
+        if is_sqlite:
+            table_exists = conn.execute(
+                text("SELECT 1 FROM sqlite_master WHERE type='table' AND name='users' LIMIT 1")
+            ).first()
+            if not table_exists:
+                return
+            rows = conn.execute(text("PRAGMA table_info(users)")).mappings().all()
+            existing = {row["name"] for row in rows}
+            if "role_profile_id" not in existing:
+                conn.execute(text("ALTER TABLE users ADD COLUMN role_profile_id INTEGER"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_user_role_profile ON users(role_profile_id)"))
+            return
+
+        table_exists = conn.execute(
+            text("SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='users' LIMIT 1")
+        ).first()
+        if not table_exists:
+            return
+        rows = conn.execute(
+            text("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='users'")
+        ).all()
+        existing = {row[0] for row in rows}
+        if "role_profile_id" not in existing:
+            conn.execute(text("ALTER TABLE users ADD COLUMN role_profile_id INTEGER NULL"))
+        # best-effort FK and index, idempotent guards
+        fk_exists = conn.execute(
+            text(
+                """
+                SELECT 1
+                FROM information_schema.table_constraints tc
+                WHERE tc.table_schema='public'
+                  AND tc.table_name='users'
+                  AND tc.constraint_type='FOREIGN KEY'
+                  AND tc.constraint_name='fk_users_role_profile_id'
+                LIMIT 1
+                """
+            )
+        ).first()
+        if not fk_exists:
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE users
+                    ADD CONSTRAINT fk_users_role_profile_id
+                    FOREIGN KEY (role_profile_id) REFERENCES role_profiles(id) ON DELETE SET NULL
+                    """
+                )
+            )
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_user_role_profile ON users(role_profile_id)"))
+
+
+def _migrate_role_profiles_permissions_column() -> None:
+    with engine.begin() as conn:
+        if is_sqlite:
+            table_exists = conn.execute(
+                text("SELECT 1 FROM sqlite_master WHERE type='table' AND name='role_profiles' LIMIT 1")
+            ).first()
+            if not table_exists:
+                return
+            rows = conn.execute(text("PRAGMA table_info(role_profiles)")).mappings().all()
+            existing = {row["name"] for row in rows}
+            if "permissions_json" not in existing:
+                conn.execute(text("ALTER TABLE role_profiles ADD COLUMN permissions_json TEXT"))
+            return
+
+        table_exists = conn.execute(
+            text("SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='role_profiles' LIMIT 1")
+        ).first()
+        if not table_exists:
+            return
+        rows = conn.execute(
+            text("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='role_profiles'")
+        ).all()
+        existing = {row[0] for row in rows}
+        if "permissions_json" not in existing:
+            conn.execute(text("ALTER TABLE role_profiles ADD COLUMN permissions_json TEXT"))
+
+
+def _migrate_users_avatar_column() -> None:
+    with engine.begin() as conn:
+        if is_sqlite:
+            table_exists = conn.execute(
+                text("SELECT 1 FROM sqlite_master WHERE type='table' AND name='users' LIMIT 1")
+            ).first()
+            if not table_exists:
+                return
+            rows = conn.execute(text("PRAGMA table_info(users)")).mappings().all()
+            existing = {row["name"] for row in rows}
+            if "avatar_url" not in existing:
+                conn.execute(text("ALTER TABLE users ADD COLUMN avatar_url VARCHAR"))
+            return
+
+        table_exists = conn.execute(
+            text("SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='users' LIMIT 1")
+        ).first()
+        if not table_exists:
+            return
+        rows = conn.execute(
+            text("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='users'")
+        ).all()
+        existing = {row[0] for row in rows}
+        if "avatar_url" not in existing:
+            conn.execute(text("ALTER TABLE users ADD COLUMN avatar_url VARCHAR NULL"))
+
+
+def _migrate_users_profile_columns() -> None:
+    with engine.begin() as conn:
+        expected = {
+            "phone": "VARCHAR",
+            "phone_ext": "VARCHAR",
+            "organization": "VARCHAR",
+            "department": "VARCHAR",
+        }
+        if is_sqlite:
+            table_exists = conn.execute(
+                text("SELECT 1 FROM sqlite_master WHERE type='table' AND name='users' LIMIT 1")
+            ).first()
+            if not table_exists:
+                return
+            rows = conn.execute(text("PRAGMA table_info(users)")).mappings().all()
+            existing = {row["name"] for row in rows}
+            for col, sql_type in expected.items():
+                if col not in existing:
+                    conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {sql_type}"))
+            return
+
+        table_exists = conn.execute(
+            text("SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='users' LIMIT 1")
+        ).first()
+        if not table_exists:
+            return
+        rows = conn.execute(
+            text("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='users'")
+        ).all()
+        existing = {row[0] for row in rows}
+        for col, sql_type in expected.items():
+            if col not in existing:
+                conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {sql_type} NULL"))
+
+
+def _migrate_groups_dynamic_columns() -> None:
+    with engine.begin() as conn:
+        if is_sqlite:
+            table_exists = conn.execute(
+                text("SELECT 1 FROM sqlite_master WHERE type='table' AND name='groups' LIMIT 1")
+            ).first()
+            if not table_exists:
+                return
+            rows = conn.execute(text("PRAGMA table_info(groups)")).mappings().all()
+            existing = {row["name"] for row in rows}
+            if "is_dynamic" not in existing:
+                conn.execute(text("ALTER TABLE groups ADD COLUMN is_dynamic INTEGER NOT NULL DEFAULT 0"))
+            if "dynamic_rules_json" not in existing:
+                conn.execute(text("ALTER TABLE groups ADD COLUMN dynamic_rules_json TEXT"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_group_is_dynamic ON groups(is_dynamic)"))
+            return
+
+        table_exists = conn.execute(
+            text("SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='groups' LIMIT 1")
+        ).first()
+        if not table_exists:
+            return
+        rows = conn.execute(
+            text("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='groups'")
+        ).all()
+        existing = {row[0] for row in rows}
+        if "is_dynamic" not in existing:
+            conn.execute(text("ALTER TABLE groups ADD COLUMN is_dynamic BOOLEAN NOT NULL DEFAULT FALSE"))
+        if "dynamic_rules_json" not in existing:
+            conn.execute(text("ALTER TABLE groups ADD COLUMN dynamic_rules_json TEXT"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_group_is_dynamic ON groups(is_dynamic)"))
+
+
 def _migrate_sqlite_groups_table() -> None:
-    """Add is_active column to groups table for soft-delete support."""
+    """Add group lifecycle/dynamic columns to groups table."""
     with engine.begin() as conn:
         table_exists = conn.execute(
             text("SELECT 1 FROM sqlite_master WHERE type='table' AND name='groups' LIMIT 1")
@@ -119,6 +390,11 @@ def _migrate_sqlite_groups_table() -> None:
         existing_columns = {row["name"] for row in rows}
         if "is_active" not in existing_columns:
             conn.execute(text("ALTER TABLE groups ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1"))
+        if "is_dynamic" not in existing_columns:
+            conn.execute(text("ALTER TABLE groups ADD COLUMN is_dynamic INTEGER NOT NULL DEFAULT 0"))
+        if "dynamic_rules_json" not in existing_columns:
+            conn.execute(text("ALTER TABLE groups ADD COLUMN dynamic_rules_json TEXT"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_group_is_dynamic ON groups(is_dynamic)"))
 
 
 def _migrate_sqlite_applications_table() -> None:
@@ -471,6 +747,29 @@ def seed_initial_data() -> None:
                     )
                 )
 
+        role_key_to_id: dict[str, int] = {}
+        for item in DEFAULT_ROLE_PROFILES:
+            existing = db.query(models.RoleProfile).filter(models.RoleProfile.key == item["key"]).first()
+            if not existing:
+                existing = models.RoleProfile(
+                    key=item["key"],
+                    name=item["name"],
+                    description=item["description"],
+                    base_role=item["base_role"],
+                    permissions_json=json.dumps(item.get("permissions") or [], ensure_ascii=True),
+                    is_system=bool(item["is_system"]),
+                    is_active=True,
+                )
+                db.add(existing)
+                db.flush()
+            else:
+                existing.base_role = item["base_role"]
+                existing.permissions_json = json.dumps(item.get("permissions") or [], ensure_ascii=True)
+                existing.is_system = bool(item["is_system"])
+                existing.is_active = True
+                db.add(existing)
+            role_key_to_id[item["key"]] = int(existing.id)
+
         for group_name, description in DEFAULT_GROUPS.items():
             exists = db.query(models.Group).filter(models.Group.name == group_name).first()
             if not exists:
@@ -484,9 +783,18 @@ def seed_initial_data() -> None:
                     password_hash=DEFAULT_ADMIN_PASSWORD_HASH,
                     full_name="Sistem Yoneticisi",
                     role="admin",
+                    role_profile_id=role_key_to_id.get("admin"),
                     is_active=True,
                 )
             )
+
+        # Backfill system role profile links for legacy users.
+        users_without_profile = db.query(models.User).filter(models.User.role_profile_id.is_(None)).all()
+        for user in users_without_profile:
+            role_key = (user.role or "").strip().lower()
+            if role_key in role_key_to_id:
+                user.role_profile_id = role_key_to_id[role_key]
+                db.add(user)
 
         db.commit()
     except Exception:

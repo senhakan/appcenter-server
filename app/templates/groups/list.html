@@ -6,7 +6,7 @@
   <button class="btn btn-outline-primary btn-sm" id="groups-refresh-btn" type="button">
     <i class="ti ti-refresh me-1"></i>Yenile
   </button>
-  <button class="btn btn-primary btn-sm" id="groups-new-btn" type="button" data-required-roles="operator,admin">
+  <button class="btn btn-primary btn-sm" id="groups-new-btn" type="button" data-required-permissions="groups.manage">
     <i class="ti ti-plus me-1"></i>Yeni Grup
   </button>
 </div>
@@ -43,6 +43,8 @@
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
+    font-weight: 600;
+    color: var(--tblr-blue, #066fd1);
   }
   .group-lock {
     color: var(--tblr-yellow, #f59f00);
@@ -80,7 +82,17 @@
   }
   .group-modal-dialog {
     width: 100%;
-    max-width: 560px;
+    max-width: 920px;
+  }
+  .dynamic-rules-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 0.75rem;
+    row-gap: 0.5rem;
+    align-items: start;
+  }
+  .dynamic-rules-grid .dynamic-rules-full {
+    grid-column: 1 / -1;
   }
 </style>
 
@@ -95,8 +107,8 @@
       </div>
       <div class="toolbar-item toolbar-active">
         <select id="group-active-filter" class="form-select">
-          <option value="active">Sadece Aktif</option>
           <option value="all">Tum Gruplar</option>
+          <option value="active">Sadece Aktif</option>
           <option value="inactive">Sadece Pasif</option>
         </select>
       </div>
@@ -119,13 +131,14 @@
         <tr>
           <th>ID</th>
           <th>Grup Adi</th>
+          <th>Tip</th>
           <th>Aciklama</th>
           <th>Ajan Sayisi</th>
           <th class="col-actions"></th>
         </tr>
       </thead>
       <tbody id="group-rows">
-        <tr><td colspan="5" class="text-secondary">Yukleniyor...</td></tr>
+        <tr><td colspan="6" class="text-secondary">Yukleniyor...</td></tr>
       </tbody>
     </table>
   </div>
@@ -134,7 +147,7 @@
   </div>
 </div>
 
-<div class="card mt-3" data-required-roles="operator,admin">
+<div class="card mt-3" data-required-permissions="groups.manage">
   <div class="card-header">
     <h3 class="card-title mb-0">Gruba Ajan Ata</h3>
   </div>
@@ -163,19 +176,21 @@
         </div>
       </div>
       <div class="col-12 text-secondary" id="assign-summary"></div>
+      <div class="col-12 text-warning d-none" id="assign-dynamic-note">
+        Bu grup dinamiktir. Bu kutucuk secildiginde ajan bilgilerine gore grup otomatik guncellenecektir; manuel atama kapatilir.
+      </div>
       <div class="col-12 d-flex justify-content-end">
-        <button class="btn btn-primary" type="submit"><i class="ti ti-device-floppy me-1"></i>Atamalari Kaydet</button>
+        <button class="btn btn-primary" id="group-assign-save-btn" type="submit"><i class="ti ti-device-floppy me-1"></i>Atamalari Kaydet</button>
       </div>
     </form>
   </div>
 </div>
 
-<div id="group-create-modal" class="group-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
+<div id="group-create-modal" class="group-modal-backdrop hidden" aria-live="polite" data-required-permissions="groups.manage">
   <div class="group-modal-dialog">
     <div class="card mb-0 ac-modal-success">
       <div class="card-header d-flex align-items-center justify-content-between">
         <h3 class="card-title mb-0">Yeni Grup</h3>
-        <button class="btn btn-outline-secondary btn-sm" id="group-modal-close-btn" type="button"><i class="ti ti-x me-1"></i>Kapat</button>
       </div>
       <div class="card-body">
         <div class="ac-modal-status-block">
@@ -191,6 +206,30 @@
             <label class="form-label">Aciklama</label>
             <input class="form-control" name="description" />
           </div>
+          <div class="col-12">
+            <label class="form-check">
+              <input class="form-check-input" id="gc-is-dynamic" name="is_dynamic" type="checkbox" />
+              <span class="form-check-label">Dinamik (Otomatik grup)</span>
+            </label>
+            <div class="form-hint">Bu kutucuk secilirse ajan bilgilerine gore grup otomatik guncellenecektir.</div>
+          </div>
+          <div class="col-12 d-none" id="gc-dynamic-rules">
+            <div class="dynamic-rules-grid">
+              <div>
+                <label class="form-label">Hostname Kosullari</label>
+                <textarea class="form-control" id="gc-hostname-patterns" rows="3" placeholder="Ornek: PC-*\nBRANCH-01-*"></textarea>
+              </div>
+              <div>
+                <label class="form-label">IP Kosullari</label>
+                <textarea class="form-control" id="gc-ip-patterns" rows="3" placeholder="Ornek: 10.10.*\n192.168.1.*"></textarea>
+              </div>
+              <div class="dynamic-rules-full d-flex justify-content-between align-items-center">
+                <button class="btn btn-outline-azure btn-sm" id="gc-preview-btn" type="button"><i class="ti ti-search me-1"></i>Kosulu Kontrol Et</button>
+                <div class="text-secondary small">Wildcard desteklenir: <code>*</code></div>
+              </div>
+              <div class="dynamic-rules-full text-secondary small" id="gc-preview-result"></div>
+            </div>
+          </div>
           <div class="col-12 d-flex justify-content-end">
             <div class="btn-list">
               <button class="btn btn-outline-secondary" id="group-modal-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
@@ -203,12 +242,11 @@
   </div>
 </div>
 
-<div id="group-edit-modal" class="group-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
+<div id="group-edit-modal" class="group-modal-backdrop hidden" aria-live="polite" data-required-permissions="groups.manage">
   <div class="group-modal-dialog">
     <div class="card mb-0 ac-modal-warning">
       <div class="card-header d-flex align-items-center justify-content-between">
         <h3 class="card-title mb-0">Grup Duzenle</h3>
-        <button class="btn btn-outline-secondary btn-sm" id="group-edit-modal-close-btn" type="button"><i class="ti ti-x me-1"></i>Kapat</button>
       </div>
       <div class="card-body">
         <div class="ac-modal-status-block">
@@ -225,13 +263,62 @@
             <label class="form-label">Aciklama</label>
             <input class="form-control" name="description" />
           </div>
+          <div class="col-12">
+            <label class="form-check">
+              <input class="form-check-input" id="ge-is-dynamic" name="is_dynamic" type="checkbox" />
+              <span class="form-check-label">Dinamik (Otomatik grup)</span>
+            </label>
+            <div class="form-hint">Bu kutucuk secilirse ajan bilgilerine gore grup otomatik guncellenecektir.</div>
+          </div>
+          <div class="col-12 d-none" id="ge-dynamic-rules">
+            <div class="dynamic-rules-grid">
+              <div>
+                <label class="form-label">Hostname Kosullari</label>
+                <textarea class="form-control" id="ge-hostname-patterns" rows="3" placeholder="Ornek: PC-*"></textarea>
+              </div>
+              <div>
+                <label class="form-label">IP Kosullari</label>
+                <textarea class="form-control" id="ge-ip-patterns" rows="3" placeholder="Ornek: 10.10.*"></textarea>
+              </div>
+              <div class="dynamic-rules-full d-flex justify-content-between align-items-center">
+                <button class="btn btn-outline-azure btn-sm" id="ge-preview-btn" type="button"><i class="ti ti-search me-1"></i>Kosulu Kontrol Et</button>
+                <div class="text-secondary small">Wildcard desteklenir: <code>*</code></div>
+              </div>
+              <div class="dynamic-rules-full text-secondary small" id="ge-preview-result"></div>
+            </div>
+          </div>
           <div class="col-12 d-flex justify-content-end">
-            <div class="btn-list">
-              <button class="btn btn-outline-secondary" id="group-edit-modal-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
-              <button class="btn btn-primary" type="submit"><i class="ti ti-device-floppy me-1"></i>Kaydet</button>
+            <div class="btn-list w-100 d-flex justify-content-between">
+              <button class="btn btn-outline-danger" id="group-edit-delete-btn" type="button"><i class="ti ti-trash me-1"></i>Sil</button>
+              <div class="btn-list">
+                <button class="btn btn-outline-secondary" id="group-edit-modal-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
+                <button class="btn btn-primary" type="submit"><i class="ti ti-device-floppy me-1"></i>Kaydet</button>
+              </div>
             </div>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="group-status-modal" class="group-modal-backdrop hidden" aria-live="polite" data-required-permissions="groups.manage">
+  <div class="group-modal-dialog" style="max-width: 560px;">
+    <div class="card mb-0 ac-modal-warning">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Grup Durum Degisikligi</h3>
+      </div>
+      <div class="card-body">
+        <div class="ac-modal-status-block">
+          <span class="ac-modal-status-icon warning"><i class="ti ti-alert-triangle"></i></span>
+          <div class="text-secondary" id="group-status-modal-message">-</div>
+        </div>
+        <div class="d-flex justify-content-end mt-3">
+          <div class="btn-list">
+            <button class="btn btn-outline-secondary" id="group-status-modal-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Vazgec</button>
+            <button class="btn btn-primary" id="group-status-modal-confirm-btn" type="button"><i class="ti ti-check me-1"></i>Onayla</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -245,9 +332,55 @@
   let agents = [];
   const groupCreateModal = document.getElementById('group-create-modal');
   const groupEditModal = document.getElementById('group-edit-modal');
+  const groupStatusModal = document.getElementById('group-status-modal');
   let groupSearchQuery = '';
-  let groupActiveFilter = 'active';
+  let groupActiveFilter = 'all';
   let groupSortMode = 'name_asc';
+  let pendingStatusChange = null;
+
+  function parsePatterns(raw) {
+    return (raw || '')
+      .toString()
+      .split(/[\n,;]+/g)
+      .map((x) => x.trim())
+      .filter((x) => !!x);
+  }
+
+  function setDynamicRulesVisibility(prefix, isDynamic) {
+    const box = document.getElementById(`${prefix}-dynamic-rules`);
+    if (!box) return;
+    box.classList.toggle('d-none', !isDynamic);
+  }
+
+  function setDynamicPreviewResult(prefix, text, isError = false) {
+    const el = document.getElementById(`${prefix}-preview-result`);
+    if (!el) return;
+    el.classList.toggle('text-danger', !!isError);
+    el.classList.toggle('text-secondary', !isError);
+    el.textContent = text || '';
+  }
+
+  async function runDynamicPreview(prefix) {
+    const hostnamePatterns = parsePatterns(document.getElementById(`${prefix}-hostname-patterns`)?.value || '');
+    const ipPatterns = parsePatterns(document.getElementById(`${prefix}-ip-patterns`)?.value || '');
+    if (!hostnamePatterns.length && !ipPatterns.length) {
+      setDynamicPreviewResult(prefix, 'En az bir hostname veya IP kosulu giriniz.', true);
+      return;
+    }
+    try {
+      const data = await AppCenterApi.req('/groups/dynamic/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hostname_patterns: hostnamePatterns, ip_patterns: ipPatterns, sample_limit: 5 }),
+      });
+      const total = Number((data && data.total) || 0);
+      const sample = Array.isArray(data && data.items) ? data.items : [];
+      const previewTxt = sample.map((x) => `${x.hostname || '-'} (${x.ip_address || '-'})`).join(', ');
+      setDynamicPreviewResult(prefix, `Eslesen ajan: ${total}${previewTxt ? ` | Ornek: ${previewTxt}` : ''}`);
+    } catch (err) {
+      setDynamicPreviewResult(prefix, err.message || 'Kosul kontrolu basarisiz', true);
+    }
+  }
 
   function toOption(agent, selected = false) {
     const o = document.createElement('option');
@@ -282,7 +415,7 @@
     const rows = document.getElementById('group-rows');
     const tableWrap = document.getElementById('group-table-wrap');
     const emptyState = document.getElementById('groups-empty-state');
-    const canWrite = AppCenterApi.canAtLeast('operator');
+    const canWrite = AppCenterApi.canPermission('groups.manage');
     rows.innerHTML = '';
 
     if (!Array.isArray(groups) || groups.length === 0) {
@@ -320,36 +453,46 @@
     });
 
     if (!rowsData.length) {
-      rows.innerHTML = '<tr><td colspan="5" class="text-secondary">Filtreye uygun kayit yok</td></tr>';
+      rows.innerHTML = '<tr><td colspan="6" class="text-secondary">Filtreye uygun kayit yok</td></tr>';
       return;
     }
 
     rowsData.forEach((g) => {
-      const count = agents.filter((a) => {
+      const groupAgents = agents.filter((a) => {
         if (Array.isArray(a.group_ids)) return a.group_ids.includes(g.id);
         return Number(a.group_id || 0) === g.id;
-      }).length;
+      });
+      const count = groupAgents.length;
+      const passiveCount = groupAgents.filter((a) => (a.status || '').toLowerCase() !== 'online').length;
 
       const tr = document.createElement('tr');
       const isSystem = Boolean(g.is_system);
       const isActive = !!g.is_active;
       const lockIcon = isSystem ? '<span class="group-lock" title="Sistem grubu">&#128274;</span>' : '';
-      const statusBadge = isActive
-        ? '<span class="badge bg-green-lt text-green ms-1">aktif</span>'
-        : '<span class="badge bg-secondary-lt text-secondary ms-1">pasif</span>';
+      const typeBadge = g.is_dynamic
+        ? '<span class="badge bg-azure-lt text-azure">Dinamik</span>'
+        : '<span class="badge bg-blue-lt text-blue">Manuel</span>';
       const editDisabled = isSystem ? 'disabled title="Sistem grubu duzenlenemez"' : '';
-      const deleteDisabled = (isSystem || !isActive) ? 'disabled title="Bu grup pasife alinamaz"' : '';
+      const toggleDisabled = isSystem ? 'disabled title="Sistem grubu aktif/pasif degistirilemez"' : '';
+      const statusLabel = isActive ? 'Aktif' : 'Pasif';
 
       tr.innerHTML = `
         <td>${g.id}</td>
-        <td><span class="group-name">${g.name}${lockIcon}</span>${statusBadge}</td>
+        <td><span class="group-name">${g.name}${lockIcon}</span></td>
+        <td>${typeBadge}</td>
         <td class="text-secondary">${g.description || '-'}</td>
-        <td><span class="badge bg-blue-lt text-blue">${count}</span></td>
+        <td>
+          <span class="badge bg-blue text-blue-fg" title="Toplam ajan">${count}</span>
+          <span class="badge bg-red text-red-fg ms-1" title="Pasif ajan">${passiveCount}</span>
+        </td>
         <td class="col-actions">
           ${canWrite
             ? `<div class="btn-list flex-nowrap">
                  <button class="btn btn-outline-secondary btn-sm" type="button" data-action="edit-group" data-group-id="${g.id}" ${editDisabled}><i class="ti ti-edit me-1"></i>Duzenle</button>
-                 <button class="btn btn-outline-danger btn-sm" type="button" data-action="delete-group" data-group-id="${g.id}" data-group-name="${(g.name || '').replace(/"/g, '&quot;')}" ${deleteDisabled}><i class="ti ti-player-stop me-1"></i>Pasife Al</button>
+                 <label class="form-check form-switch m-0 d-flex align-items-center gap-2">
+                   <input class="form-check-input" type="checkbox" data-action="toggle-group-active" data-group-id="${g.id}" data-group-name="${(g.name || '').replace(/"/g, '&quot;')}" ${isActive ? 'checked' : ''} ${toggleDisabled}>
+                   <span class="form-check-label">${statusLabel}</span>
+                 </label>
                </div>`
             : '-'}
         </td>
@@ -366,37 +509,35 @@
       });
     });
 
-    rows.querySelectorAll('button[data-action="delete-group"]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const groupId = Number(btn.getAttribute('data-group-id') || '0');
-        const groupName = btn.getAttribute('data-group-name') || `#${groupId}`;
-        if (!groupId) return;
+    rows.querySelectorAll('input[data-action="toggle-group-active"]').forEach((inputEl) => {
+      inputEl.addEventListener('change', () => {
+        const groupId = Number(inputEl.getAttribute('data-group-id') || '0');
+        const groupName = inputEl.getAttribute('data-group-name') || `#${groupId}`;
+        const group = groups.find((x) => Number(x.id) === groupId);
+        if (!group) return;
+        const nextActive = !!inputEl.checked;
+        const currentActive = !!group.is_active;
+        if (nextActive === currentActive) return;
+
         const affectedAgentCount = agents.filter((a) => {
           if (Array.isArray(a.group_ids)) return a.group_ids.includes(groupId);
           return Number(a.group_id || 0) === groupId;
         }).length;
 
-        const ok = window.confirm(
-          `'${groupName}' grubunu silmek istiyor musunuz?\n\n` +
-          `Etkilenecek ajan sayisi: ${affectedAgentCount}\n` +
-          `Bu gruptaki ajanlar gruptan cikarilacak.\n\n` +
-          `Grup pasif duruma alinacak.`
-        );
-        if (!ok) return;
+        const message = nextActive
+          ? `'${groupName}' grubu <strong>aktif</strong> yapilacak.<br/>Onayliyor musunuz?`
+          : `'${groupName}' grubu <strong>pasif</strong> yapilacak.<br/>` +
+            `Etkilenecek ajan sayisi: <strong>${affectedAgentCount}</strong><br/>` +
+            `Bu gruptaki ajanlar gruptan cikarilacaktir.`;
 
-        const confirmText = window.prompt(`Pasife alma onayi icin PASIF ${groupId} yazin:`, '');
-        if ((confirmText || '').trim() !== `PASIF ${groupId}`) {
-          AppCenterApi.toast('Pasife alma onayi iptal edildi');
-          return;
-        }
-
-        try {
-          await AppCenterApi.req(`/groups/${groupId}`, { method: 'DELETE' });
-          await loadData();
-          AppCenterApi.toast('Grup pasife alindi');
-        } catch (err) {
-          AppCenterApi.toast(err.message);
-        }
+        openGroupStatusModal({
+          action: 'toggle',
+          groupId,
+          nextActive,
+          currentActive,
+          checkboxEl: inputEl,
+          message,
+        });
       });
     });
   }
@@ -408,7 +549,7 @@
     groups.filter((g) => !!g.is_active).forEach((g) => {
       const op = document.createElement('option');
       op.value = String(g.id);
-      op.textContent = `${g.name} (#${g.id})`;
+      op.textContent = `${g.name} (#${g.id})${g.is_dynamic ? ' [Dinamik]' : ''}`;
       groupSelect.appendChild(op);
     });
     if (previousSelected && groups.some((g) => Number(g.id) === previousSelected)) {
@@ -420,6 +561,8 @@
 
   function syncSelectedAgentsForCurrentGroup() {
     const groupId = Number(document.getElementById('assign-group-id').value || 0);
+    const selectedGroup = groups.find((g) => Number(g.id) === groupId);
+    const isDynamic = !!(selectedGroup && selectedGroup.is_dynamic);
     const availableEl = document.getElementById('available-agent-uuids');
     const assignedEl = document.getElementById('assigned-agent-uuids');
     const inGroup = agents.filter((a) => Array.isArray(a.group_ids) && a.group_ids.includes(groupId));
@@ -428,8 +571,21 @@
     assignedEl.innerHTML = '';
     outGroup.forEach((a) => availableEl.appendChild(toOption(a)));
     inGroup.forEach((a) => assignedEl.appendChild(toOption(a)));
-    document.getElementById('assign-summary').textContent =
-      `Secili grup icin mevcut atama: ${inGroup.length} ajan | Atanmamis: ${outGroup.length}`;
+    const summaryEl = document.getElementById('assign-summary');
+    const dynamicNote = document.getElementById('assign-dynamic-note');
+    const saveBtn = document.getElementById('group-assign-save-btn');
+    const toggleIds = ['available-agent-uuids', 'assigned-agent-uuids', 'move-right-all', 'move-right', 'move-left', 'move-left-all'];
+    toggleIds.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = isDynamic;
+    });
+    if (saveBtn) saveBtn.disabled = isDynamic;
+    if (dynamicNote) dynamicNote.classList.toggle('d-none', !isDynamic);
+    if (summaryEl) {
+      summaryEl.textContent = isDynamic
+        ? `Dinamik grup: ${inGroup.length} ajan kosula gore otomatik atanmis. Manuel atama kapali.`
+        : `Secili grup icin mevcut atama: ${inGroup.length} ajan | Atanmamis: ${outGroup.length}`;
+    }
   }
 
   async function loadData() {
@@ -449,6 +605,10 @@
 
   function openGroupCreateModal() {
     groupCreateModal.classList.remove('hidden');
+    const form = document.getElementById('group-create-form');
+    if (form) form.reset();
+    setDynamicRulesVisibility('gc', false);
+    setDynamicPreviewResult('gc', '');
     const nameInput = document.querySelector('#group-create-form input[name="name"]');
     if (nameInput) nameInput.focus();
   }
@@ -459,18 +619,90 @@
 
   function openGroupEditModal(group) {
     const form = document.getElementById('group-edit-form');
+    const rules = (group && group.dynamic_rules) ? group.dynamic_rules : {};
     form.group_id.value = String(group.id || '');
     form.name.value = (group.name || '').toString();
     form.description.value = (group.description || '').toString();
+    form.is_dynamic.checked = !!group.is_dynamic;
+    document.getElementById('ge-hostname-patterns').value = Array.isArray(rules.hostname_patterns) ? rules.hostname_patterns.join('\n') : '';
+    document.getElementById('ge-ip-patterns').value = Array.isArray(rules.ip_patterns) ? rules.ip_patterns.join('\n') : '';
+    setDynamicRulesVisibility('ge', !!group.is_dynamic);
+    setDynamicPreviewResult('ge', '');
+    const deleteBtn = document.getElementById('group-edit-delete-btn');
+    if (deleteBtn) {
+      deleteBtn.disabled = !!group.is_system;
+      deleteBtn.dataset.groupId = String(group.id || '');
+      deleteBtn.dataset.groupName = (group.name || '').toString();
+      deleteBtn.title = group.is_system ? 'Sistem grubu silinemez' : '';
+    }
     groupEditModal.classList.remove('hidden');
     form.name.focus();
   }
 
+  function closeGroupStatusModal(revert = true) {
+    if (revert && pendingStatusChange && pendingStatusChange.action === 'toggle' && pendingStatusChange.checkboxEl) {
+      pendingStatusChange.checkboxEl.checked = !!pendingStatusChange.currentActive;
+    }
+    pendingStatusChange = null;
+    groupStatusModal.classList.add('hidden');
+  }
+
+  function openGroupStatusModal(payload) {
+    pendingStatusChange = payload;
+    const msgEl = document.getElementById('group-status-modal-message');
+    if (msgEl) msgEl.innerHTML = payload.message || '';
+    groupStatusModal.classList.remove('hidden');
+  }
+
+  function openHardDeleteConfirm(groupId, groupName) {
+    if (!groupId) return;
+    const message =
+      `'${groupName || `#${groupId}`}' grubu <strong>kalici olarak silinecek</strong>.<br/>` +
+      'Bu islem geri alinamaz.<br/>' +
+      'Bagli deployment varsa silme engellenir.';
+    openGroupStatusModal({
+      action: 'delete',
+      groupId,
+      message,
+    });
+  }
+
   document.getElementById('groups-new-btn').addEventListener('click', openGroupCreateModal);
-  document.getElementById('group-modal-close-btn').addEventListener('click', closeGroupCreateModal);
   document.getElementById('group-modal-cancel-btn').addEventListener('click', closeGroupCreateModal);
-  document.getElementById('group-edit-modal-close-btn').addEventListener('click', closeGroupEditModal);
   document.getElementById('group-edit-modal-cancel-btn').addEventListener('click', closeGroupEditModal);
+  document.getElementById('group-edit-delete-btn').addEventListener('click', () => {
+    const btn = document.getElementById('group-edit-delete-btn');
+    const groupId = Number((btn?.dataset.groupId || '0').toString());
+    const groupName = (btn?.dataset.groupName || '').toString();
+    if (!groupId) return;
+    openHardDeleteConfirm(groupId, groupName);
+  });
+  document.getElementById('group-status-modal-cancel-btn').addEventListener('click', () => closeGroupStatusModal(true));
+  document.getElementById('group-status-modal-confirm-btn').addEventListener('click', async () => {
+    if (!pendingStatusChange) return;
+    const payload = pendingStatusChange;
+    try {
+      if (payload.action === 'delete') {
+        await AppCenterApi.req(`/groups/${payload.groupId}/hard`, { method: 'DELETE' });
+        closeGroupStatusModal(false);
+        closeGroupEditModal();
+        await loadData();
+        AppCenterApi.toast('Grup kalici olarak silindi');
+      } else {
+        await AppCenterApi.req(`/groups/${payload.groupId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_active: !!payload.nextActive }),
+        });
+        closeGroupStatusModal(false);
+        await loadData();
+        AppCenterApi.toast(payload.nextActive ? 'Grup aktif yapildi' : 'Grup pasif yapildi');
+      }
+    } catch (err) {
+      closeGroupStatusModal(true);
+      AppCenterApi.toast(err.message);
+    }
+  });
   document.getElementById('groups-refresh-btn').addEventListener('click', () => {
     loadData().catch((err) => AppCenterApi.toast(err.message));
   });
@@ -479,7 +711,7 @@
     renderGroupsTable();
   });
   document.getElementById('group-active-filter').addEventListener('change', (evt) => {
-    groupActiveFilter = (evt.target.value || 'active').toString();
+    groupActiveFilter = (evt.target.value || 'all').toString();
     renderGroupsTable();
   });
   document.getElementById('group-sort').addEventListener('change', (evt) => {
@@ -492,13 +724,34 @@
   groupEditModal.addEventListener('click', (evt) => {
     if (evt.target === groupEditModal) closeGroupEditModal();
   });
+  groupStatusModal.addEventListener('click', (evt) => {
+    if (evt.target === groupStatusModal) closeGroupStatusModal(true);
+  });
+  document.getElementById('gc-is-dynamic').addEventListener('change', (evt) => {
+    setDynamicRulesVisibility('gc', !!evt.target.checked);
+    if (!evt.target.checked) setDynamicPreviewResult('gc', '');
+  });
+  document.getElementById('ge-is-dynamic').addEventListener('change', (evt) => {
+    setDynamicRulesVisibility('ge', !!evt.target.checked);
+    if (!evt.target.checked) setDynamicPreviewResult('ge', '');
+  });
+  document.getElementById('gc-preview-btn').addEventListener('click', () => runDynamicPreview('gc'));
+  document.getElementById('ge-preview-btn').addEventListener('click', () => runDynamicPreview('ge'));
 
   document.getElementById('group-create-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
+    const isDynamic = f.get('is_dynamic') === 'on';
     const payload = {
       name: (f.get('name') || '').toString(),
       description: (f.get('description') || '').toString(),
+      is_dynamic: isDynamic,
+      dynamic_rules: isDynamic
+        ? {
+            hostname_patterns: parsePatterns(document.getElementById('gc-hostname-patterns').value),
+            ip_patterns: parsePatterns(document.getElementById('gc-ip-patterns').value),
+          }
+        : null,
     };
     try {
       await AppCenterApi.req('/groups', {
@@ -523,9 +776,17 @@
       AppCenterApi.toast('Gecerli grup secilemedi');
       return;
     }
+    const isDynamic = f.get('is_dynamic') === 'on';
     const payload = {
       name: (f.get('name') || '').toString(),
       description: (f.get('description') || '').toString(),
+      is_dynamic: isDynamic,
+      dynamic_rules: isDynamic
+        ? {
+            hostname_patterns: parsePatterns(document.getElementById('ge-hostname-patterns').value),
+            ip_patterns: parsePatterns(document.getElementById('ge-ip-patterns').value),
+          }
+        : null,
     };
     try {
       await AppCenterApi.req(`/groups/${groupId}`, {

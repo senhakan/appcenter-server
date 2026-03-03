@@ -174,6 +174,98 @@ Bu dokuman production ortami icin deploy, smoke ve rollback adimlarini tanimlar.
 - Beklenen sonuc:
   - Endpoint `200` doner, dashboard timeline karti bos/500'e dusmez.
 
+### 1.11 Ust Navigasyon Notu (2026-03-03)
+
+- Ust bardaki `Altyapi` ana menusu kaldirildi.
+- `Altyapi` altindaki tum linkler `Yonetim` dropdown'i altina tasindi.
+- Beklenen davranis:
+  - Topbar'da ayri bir `Altyapi` menusu gorunmez.
+  - `Yonetim` acildiginda altyapi linkleri buradan erisilebilir.
+  - Role/feature-flag filtreleme kurallari degismeden calismaya devam eder.
+
+### 1.12 Uzak Destek Liste Sayfasi (2026-03-03)
+
+- Ust menuye `Destek Merkezi` ana linki eklendi: `/remote-support`.
+- Sayfa title/page header metni `Destek Merkezi` olarak guncellendi.
+- Ilk surumde sayfa icerigi `Ajanlar` sayfasinin bire bir kopyasidir:
+  - `app/templates/remote_support/list.html` <- `app/templates/agents/list.html`
+- Uzak destek listesinde istenen sadeleştirme uygulandi:
+  - `Helper` ve `Version` kolonlari kaldirildi.
+  - Satir aksiyonlarindan `Detay` butonu kaldirildi.
+  - Satir aksiyonu `Baglan`:
+    - Ikon `ti-device-laptop` olarak guncellendi.
+    - Tabler `Buttons with icon` animasyon siniflari (`btn-animate-icon`, `btn-animate-icon-shake`) kullanilir.
+- Uzak destek listesine `Son` kolonu eklendi:
+  - Veri kaynagi: `/api/v1/agents` icinde `last_remote_connected_at` alanidir.
+  - UI gosterimi: goreli sure (`1dk once`, `1 gun once` vb.).
+  - Siralama secenegi: `Son baglanti` (en yeni baglanti ustte, varsayilan secim).
+  - Renk/stil: `Light badge` Azure (`badge bg-azure-lt text-azure`).
+- Tema uyumlulugu:
+  - `app/static/css/app.css` icindeki global `.badge` kurali sadece `app-shell` disina alindi.
+  - Tabler tabanli tum sayfalarda badge radius/padding temadaki varsayilan ile uyumludur.
+- Session detay sayfasi (`/remote-support/sessions/{id}`) acikken aktif menu anahtari `remote_support` olur.
+
+### 1.13 Ajan Detay Kart Gorsel Guncellemesi (2026-03-03)
+
+- `Ajan Detay` ekraninda `Kimlik ve Erisim` karti Tabler `Card with top ribbon` yapisina alindi.
+- Ust ribbon:
+  - Renk: `bg-azure`
+  - Ikon: `ti ti-shield-lock`
+- Kart icerigi (`UUID`, `IP`, `Versiyon`, `Login kullanici`, remote alanlari) degistirilmedi; sadece gorsel sunum guncellendi.
+
+### 1.14 Dinamik Grup Kurallari (2026-03-03)
+
+- Gruplar ekraninda `Dinamik (Otomatik grup)` secenegi eklendi.
+- Kural alanlari:
+  - `Hostname Kosullari` (wildcard destekli)
+  - `IP Kosullari` (wildcard destekli, or: `10.10.*`)
+- `Kosulu Kontrol Et` aksiyonu:
+  - Eslesen toplam ajan sayisini gosterir.
+  - Ilk 5 ajan ornek olarak listelenir.
+- UI:
+  - Grup create/edit modal genisletildi.
+  - Dinamik kural alanlarinda `Hostname Kosullari` ve `IP Kosullari` yan yana gosterilir.
+  - Uygulamadaki global `.row` stil ezmesine karsi bu alanlar `CSS grid` ile sabitlendi (her zaman yan yana).
+- Dinamik grup davranisi:
+  - Ajan uyelikleri scheduler tarafinda otomatik guncellenir.
+  - Manuel grup atama akisi dinamik gruplar icin kapatilir.
+- Genel ayar:
+  - `dynamic_group_sync_interval_sec` (min `30`, varsayilan `120`)
+  - Ayarlar ekraninda yonetilebilir.
+
+### 1.15 Rol Profilleri (2026-03-03)
+
+- `/roles` ekrani ile rol profili yonetimi aktif (`roles.manage` izni).
+- Sistem rol profilleri:
+  - `viewer`
+  - `operator`
+  - `admin`
+- Ozel rol profilleri olusturulabilir:
+  - Her profil dogrudan `permissions` listesi ile tanimlanir.
+  - Yetki enforcement endpoint bazinda `require_permission(...)` ile calisir.
+  - UI yetkileri API yetkilerinden ayridir:
+    - `ui.menu.*`: menu gorunurlugu
+    - `ui.page.*`: sayfa route erisimi
+    - API izinleri: `*.view/manage`
+  - Varsayilan ozel preset: `support_center_only` (yalnizca Destek Merkezi akislari).
+- Kullanici yonetimi:
+  - `/users` ekraninda kullanici olustur/duzenle akisi `Rol Profili` secimi ile calisir.
+  - Rol profili listesi `roles.manage` veya `users.manage` izniyle okunabilir.
+  - Rol profili kullanimda ise pasife alma/silme backend tarafinda engellenir.
+
+### 1.16 Gruplar Ekrani Durum/Silme Akisi (2026-03-03)
+
+- Gruplar listesinde aktif/pasif yonetimi satir ici checkbox switch ile yapilir.
+  - Durum degisikligi modal onayi ile uygulanir (`Onayla` / `Vazgec`).
+- Varsayilan filtre secimi `Tum Gruplar` oldugu icin pasif gruplar da ilk acilista listelenir.
+- Grup duzenleme modalina sol tarafta `Sil` aksiyonu eklendi.
+  - Bu aksiyon kalici silme yapar: `DELETE /api/v1/groups/{group_id}/hard`
+  - Sistem gruplari silinemez.
+  - Gruba bagli deployment varsa backend `400` doner; once deployment hedefleri temizlenmelidir.
+- Grup tablosu `Ajan Sayisi` kolonunda iki adet Tabler `Basic badge` kullanir:
+  - Toplam ajan: `bg-blue text-blue-fg`
+  - Pasif ajan: `bg-red text-red-fg`
+
 ### 1.1 Bu Sunucuda Aktif Deployment Profili
 
 - Kaynak repo dizini: `/root/appcenter/server`

@@ -3,7 +3,7 @@
 {% block page_title %}Uygulamalar{% endblock %}
 {% block page_actions %}
 <div class="btn-list">
-  <button class="btn btn-primary btn-sm" id="apps-new-btn" type="button" data-required-roles="operator,admin">
+  <button class="btn btn-primary btn-sm" id="apps-new-btn" type="button" data-required-permissions="applications.manage">
     <i class="ti ti-upload me-1"></i>Yeni Yukle
   </button>
   <button class="btn btn-outline-primary btn-sm" id="apps-refresh-btn" type="button">
@@ -117,12 +117,11 @@
   </div>
 </div>
 
-<div id="app-create-modal" class="apps-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
+<div id="app-create-modal" class="apps-modal-backdrop hidden" aria-live="polite" data-required-permissions="applications.manage">
   <div class="apps-modal-dialog">
     <div class="card mb-0 ac-modal-success">
       <div class="card-header d-flex align-items-center justify-content-between">
         <h3 class="card-title mb-0">Yeni Uygulama Yukle</h3>
-        <button class="btn btn-outline-secondary btn-sm" id="app-create-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
       </div>
       <div class="card-body">
         <div class="ac-modal-status-block">
@@ -170,12 +169,11 @@
   </div>
 </div>
 
-<div id="app-edit-modal" class="apps-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
+<div id="app-edit-modal" class="apps-modal-backdrop hidden" aria-live="polite" data-required-permissions="applications.manage">
   <div class="apps-modal-dialog">
     <div class="card mb-0 ac-modal-warning">
       <div class="card-header d-flex align-items-center justify-content-between">
         <h3 class="card-title mb-0">Uygulama Duzenle</h3>
-        <button class="btn btn-outline-secondary btn-sm" id="app-edit-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Iptal</button>
       </div>
       <div class="card-body">
         <div class="ac-modal-status-block">
@@ -240,12 +238,11 @@
   </div>
 </div>
 
-<div id="app-delete-modal" class="apps-modal-backdrop hidden" aria-live="polite" data-required-roles="operator,admin">
+<div id="app-delete-modal" class="apps-modal-backdrop hidden" aria-live="polite" data-required-permissions="applications.manage">
   <div class="apps-modal-dialog narrow">
     <div class="card mb-0 ac-modal-warning">
       <div class="card-header d-flex align-items-center justify-content-between">
         <h3 class="card-title mb-0">Silme Onayi</h3>
-        <button class="btn btn-outline-secondary btn-sm" id="app-delete-close-btn" type="button"><i class="ti ti-x me-1"></i>Kapat</button>
       </div>
       <div class="card-body">
         <div class="ac-modal-status-block">
@@ -321,7 +318,7 @@
 
   async function loadApps() {
     try {
-      const canWrite = AppCenterApi.canAtLeast('operator');
+      const canWrite = AppCenterApi.canPermission('applications.manage');
       const data = await AppCenterApi.req('/applications');
       appItems = data.items || [];
       const rows = document.getElementById('app-rows');
@@ -411,11 +408,8 @@
   document.getElementById('apps-filter-active').addEventListener('change', () => loadApps());
   document.getElementById('apps-sort').addEventListener('change', () => loadApps());
 
-  document.getElementById('app-create-cancel-btn').addEventListener('click', () => closeModal(createModal));
   document.getElementById('app-create-cancel-btn-2').addEventListener('click', () => closeModal(createModal));
-  document.getElementById('app-edit-cancel-btn').addEventListener('click', () => closeModal(editModal));
   document.getElementById('app-edit-cancel-btn-2').addEventListener('click', () => closeModal(editModal));
-  document.getElementById('app-delete-close-btn').addEventListener('click', () => closeModal(deleteModal));
   document.getElementById('app-delete-cancel-btn').addEventListener('click', () => closeModal(deleteModal));
 
   createModal.addEventListener('click', (e) => { if (e.target === createModal) closeModal(createModal); });

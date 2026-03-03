@@ -129,6 +129,49 @@
   - Ayni "Sistem Gecmisi" tabinda hostname/IP degisimleri de gorunur (`agent_identity_history`)
   - Birlesik zaman cizelgesi endpoint'i: `GET /api/v1/agents/{agent_uuid}/timeline`
   - Status gecmisi: `agent_status_history` (offline/online gecisleri). Timeline'a dahildir.
+- Ust navigasyon sadeleştirmesi:
+  - `Altyapi` ana menusu ust bardan kaldirildi.
+  - Altyapi altindaki kalemler `Yonetim` dropdown'i altina tasindi.
+  - Uzak destek menu girisi:
+    - Ust menuye `Destek Merkezi` linki eklendi (`/remote-support`).
+    - Sayfa basligi `Destek Merkezi` olarak guncellendi.
+    - `Uzak Destek` liste sayfasi ilk adimda `Ajanlar` sayfasinin bire bir kopyasi olarak olusturuldu:
+      - `app/templates/remote_support/list.html`
+  - `Uzak Destek` liste tablosu sadeleştirildi:
+    - `Helper` ve `Version` sutunlari kaldirildi.
+    - Satirdaki `Detay` butonu kaldirildi.
+    - `Baglan` buton ikonu `ti-device-laptop` olarak guncellendi.
+    - Buton stili Tabler `Buttons with icon` desenine yaklastirildi (`btn-animate-icon`, shake).
+  - `Uzak Destek` listesine `Son` alani eklendi:
+    - Her ajan icin en son remote baglanti suresi goreli formatta gosterilir (`1dk once`, `1 gun once`).
+    - Siralama alanina `Son baglanti` secenegi eklendi ve varsayilan yapildi.
+    - Gosterim stili `Light badge` (Azure): `badge bg-azure-lt text-azure`.
+  - Global badge uyumu:
+    - Legacy `app.css` icindeki global `.badge` ezmesi `app-shell` disina scope'landi.
+    - Boylece Tabler tema sayfalarinda badge koseleri/olculeri tema ile bire bir uyumlu kalir.
+  - noVNC session sayfasi acikken aktif menu `Destek Merkezi` olarak isaretlenir.
+  - Dinamik grup altyapisi:
+    - Grup olustur/duzenle ekranina `Dinamik (Otomatik grup)` secenegi eklendi.
+    - Kurallar: `hostname` ve `ip` wildcard desenleri (`*`) ile tanimlanir.
+    - `Kosulu Kontrol Et` ile eslesen ajan sayisi + ilk 5 ornek listelenir.
+    - Dinamik gruplarda manuel ajan atama backend/UI seviyesinde kapatilir.
+    - Yeni/Duzenle grup modal genisligi artirildi; dinamik `Hostname` ve `IP` kosul alanlari yan yana kullanilir.
+    - Global `.row` ezmesi etkisine karsi dinamik kural alani Bootstrap kolondan bagimsiz CSS grid ile yan yana sabitlendi.
+    - Dinamik uyelikler scheduler job ile otomatik guncellenir.
+      - Ayar anahtari: `dynamic_group_sync_interval_sec` (min `30`, varsayilan `120`)
+    - Gruplar listesinde aktif/pasif yonetimi satir ici switch ile yapilir.
+      - Durum degisimi modal onayi ile ilerler (`Onayla`/`Vazgec`).
+    - Gruplar ekrani varsayilan filtre secimi `Tum Gruplar` olarak guncellendi (pasif gruplar ilk acilista gorunur).
+    - Grup duzenleme modalinda sol tarafta `Sil` aksiyonu eklendi.
+      - Gercek silme endpoint'i: `DELETE /api/v1/groups/{group_id}/hard`
+      - Sistem gruplari silinemez.
+      - Gruba bagli deployment varsa silme engellenir.
+    - Grup tablosu `Ajan Sayisi` kolonunda iki basic badge gosterir:
+      - Toplam ajan: `badge bg-blue text-blue-fg`
+      - Pasif ajan: `badge bg-red text-red-fg`
+  - Ajan detay ekrani:
+    - `Kimlik ve Erisim` karti Tabler `Card with top ribbon` desenine alindi.
+    - Ribbon rengi `Azure`, ikon `ti ti-shield-lock` olarak guncellendi.
 
 ## Faz 7 (RBAC + Kullanici Yonetimi)
 
@@ -137,11 +180,16 @@
   - `operator`
   - `viewer`
 - Backend RBAC:
-  - `app/auth.py` icinde `require_role(...)` dependency aktif
-  - Endpoint bazli `403` enforcement aktif
-    - read: `viewer+`
-    - mutate: `operator+`
-    - settings/users: `admin`
+  - Yetkilendirme permission-bazli calisir (`require_permission(...)`).
+  - Rol profilleri icindeki `permissions` listesi endpoint bazli `403` enforcement uygular.
+  - Izin modeli 3 katmandir:
+    - `ui.menu.*`: ust/yan menu gorunurlugu
+    - `ui.page.*`: sayfa route erisimi
+    - `*.view/manage`: API islem yetkileri
+  - Varsayilan sistem profilleri:
+    - `viewer`: okuma odakli izinler
+    - `operator`: operasyon + degisiklik izinleri
+    - `admin`: `*` (tam yetki)
 - Auth endpointleri:
   - `GET /api/v1/auth/me`
 - Kullanici yonetimi:
@@ -152,12 +200,27 @@
   - Son aktif admin'in silinmesi/pasiflestirilmesi engellenir.
 - Web UI:
   - `GET /users` sayfasi aktif
-  - `GET /audit` sayfasi aktif (admin)
-  - Menu ve aksiyon butonlari role gore gizlenir.
+  - `GET /roles` sayfasi aktif
+  - `GET /audit` sayfasi aktif
+  - `GET /profile` sayfasi aktif (kullanici kendi profilini yonetir)
+  - Menu ve aksiyon butonlari permission'a gore gizlenir.
   - Route guard merkezi standart:
-    - Server route context `page_roles` verir.
+    - Server route context `page_permissions` verir.
     - Frontend sadece `AppCenterApi.protectPage();` cagirir.
-    - `base.html` uzerinden otomatik role kontrolu uygulanir.
+    - `base.html` uzerinden otomatik permission kontrolu uygulanir.
+  - Rol profilleri:
+    - Sistem rolleri: `viewer`, `operator`, `admin`
+    - Varsayilan ozel profil: `support_center_only` (Destek Merkezi odakli erisim)
+    - Ozel rol profili ekleme/duzenleme/pasife alma akisi aktif
+    - Her rol profili dogrudan `permissions` listesi ile tanimlanir
+    - Kullanici olustur/duzenle ekraninda rol secimi `Rol Profili` uzerinden yapilir
+    - Izin secimi `/roles` ekraninda katalog bazli checkbox'lar ile yapilir (`GET /api/v1/roles/catalog`).
+  - Profil self-service:
+    - `PUT /api/v1/auth/profile` ile kullanici kendi profil bilgisini gunceller:
+      - `full_name`, `email`, `phone`, `phone_ext`, `organization`, `department`
+    - `PUT /api/v1/auth/password` ile sifre degistirme
+    - `PUT /api/v1/auth/avatar` ve `DELETE /api/v1/auth/avatar` ile profil fotografi yonetimi
+    - Topbar kullanici karti `auth/me` verisi ile ad/rol/avatar bilgisini dinamik gosterir
 
 ## Dashboard Timeline
 

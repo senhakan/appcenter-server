@@ -2,7 +2,7 @@
 {% block title %}Lisanslar{% endblock %}
 {% block page_title %}Lisanslar{% endblock %}
 {% block page_actions %}
-<a class="btn btn-primary btn-sm" href="/licenses/create" data-required-roles="operator,admin">
+<a class="btn btn-primary btn-sm" href="/licenses/create" data-required-permissions="licenses.manage">
   <i class="ti ti-plus me-1"></i>Yeni Lisans
 </a>
 {% endblock %}
@@ -39,7 +39,7 @@
 
   async function loadLicenses() {
     try {
-      const canWrite = AppCenterApi.canAtLeast('operator');
+      const canWrite = AppCenterApi.canPermission('licenses.manage');
       const data = await AppCenterApi.req('/licenses');
       const body = document.getElementById('lic-body');
       const items = data.items || [];
