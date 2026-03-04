@@ -250,12 +250,22 @@ def _diff_system_profile_pairs(old: dict | None, new: dict) -> list[dict]:
 
 def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> tuple[datetime, HeartbeatConfig, list[CommandItem], bool]:
     now = datetime.now(timezone.utc)
+    full_ip_list: list[str] = []
+    if payload.full_ip is not None:
+        seen: set[str] = set()
+        for raw in payload.full_ip:
+            ip = (raw or "").strip()
+            if not ip or ip in seen:
+                continue
+            seen.add(ip)
+            full_ip_list.append(ip)
+    effective_ip = payload.ip_address or (full_ip_list[0] if full_ip_list else None)
 
     # Track identity changes (UUID remains stable).
     old_hostname = agent.hostname
     old_ip = agent.ip_address
     new_hostname = payload.hostname
-    new_ip = payload.ip_address
+    new_ip = effective_ip
 
     if (old_hostname and new_hostname and old_hostname != new_hostname) or ((old_ip or "") != (new_ip or "")):
         db.add(
@@ -273,7 +283,16 @@ def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> t
     old_status = agent.status
 
     agent.hostname = payload.hostname
-    agent.ip_address = payload.ip_address
+    agent.ip_address = effective_ip
+    if payload.full_ip is not None:
+        agent.full_ip = json.dumps(full_ip_list)
+    if payload.uptime_sec is not None:
+        try:
+            uptime = int(payload.uptime_sec)
+            if uptime >= 0:
+                agent.uptime_sec = uptime
+        except Exception:
+            pass
     agent.os_user = payload.os_user
     if payload.os_version is not None:
         agent.os_version = payload.os_version

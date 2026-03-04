@@ -120,6 +120,8 @@ class RemoteSupportHeartbeat(BaseModel):
 class HeartbeatRequest(BaseModel):
     hostname: str
     ip_address: Optional[str] = None
+    full_ip: Optional[list[str]] = None
+    uptime_sec: Optional[int] = None
     os_user: Optional[str] = None
     os_version: Optional[str] = None
     arch: Optional[str] = None
@@ -402,6 +404,8 @@ class AgentResponse(BaseModel):
     uuid: str
     hostname: str
     ip_address: Optional[str] = None
+    full_ip: Optional[str] = None
+    uptime_sec: Optional[int] = None
     os_user: Optional[str] = None
     os_version: Optional[str] = None
     platform: str = "windows"

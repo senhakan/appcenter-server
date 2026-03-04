@@ -72,6 +72,10 @@ class Agent(Base):
     uuid: Mapped[str] = mapped_column(String, primary_key=True)
     hostname: Mapped[str] = mapped_column(String, nullable=False)
     ip_address: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # JSON array text of all non-loopback IP addresses reported by agent.
+    full_ip: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Agent-reported host uptime in seconds.
+    uptime_sec: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     os_user: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     os_version: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     platform: Mapped[str] = mapped_column(String, default="windows", nullable=False)
@@ -142,6 +146,19 @@ class Agent(Base):
             return data if isinstance(data, dict) else None
         except Exception:
             return None
+
+    @property
+    def full_ip_list(self) -> list[str]:
+        """Parsed all-IP list from full_ip JSON text (best-effort)."""
+        if not self.full_ip:
+            return []
+        try:
+            data = json.loads(self.full_ip)
+            if isinstance(data, list):
+                return [str(x).strip() for x in data if str(x).strip()]
+            return []
+        except Exception:
+            return []
 
 
 class AgentGroup(Base):

@@ -317,6 +317,9 @@
   }
 
   function uptimeFromLastOnline(data) {
+    if (data && Number.isFinite(Number(data.uptime_sec)) && Number(data.uptime_sec) >= 0) {
+      return formatDurationSeconds(Number(data.uptime_sec));
+    }
     const isOnline = (data.status || '').toLowerCase() === 'online';
     const dt = AppCenterApi.parseDate(data.last_seen);
     if (!isOnline) return '0 dk';
@@ -331,6 +334,15 @@
     const cn = text.match(/(?:^|,)\s*CN=([^,]+)/i);
     if (cn && cn[1]) return cn[1].trim();
     return text.replace(/^CN=/i, '').trim() || '-';
+  }
+
+  function parseFullIP(value) {
+    if (!value) return [];
+    try {
+      const arr = JSON.parse(value);
+      if (Array.isArray(arr)) return arr.map((x) => String(x || '').trim()).filter(Boolean);
+    } catch (e) {}
+    return [];
   }
 
   function syncNoteSaveButton() {
@@ -388,6 +400,8 @@
       const statusClass = isOnline ? 'status-green status-indicator-animated' : 'status-red';
       const statusTextClass = isOnline ? 'text-green' : 'text-red';
       const uptimeText = uptimeFromLastOnline(data);
+      const fullIPs = parseFullIP(data.full_ip);
+      const fullIPText = fullIPs.length ? fullIPs.map((x) => escHtml(x)).join('<br/>') : '-';
       const lastSeenFull = data.last_seen ? AppCenterApi.formatDate(data.last_seen) : '-';
       const lastSeenRel = relTime(data.last_seen);
       const uptimeInfoText = data.last_seen ? `${relTime(data.last_seen)} (${lastSeenFull})` : '-';
@@ -444,6 +458,8 @@
                 <div class="datagrid">
                   <div class="datagrid-item"><div class="datagrid-title">UUID</div><div class="datagrid-content">${escHtml(data.uuid || '-')}</div></div>
                   <div class="datagrid-item"><div class="datagrid-title">IP</div><div class="datagrid-content">${escHtml(data.ip_address || '-')}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">Full IP</div><div class="datagrid-content">${fullIPText}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">Uptime</div><div class="datagrid-content">${escHtml(uptimeText)}</div></div>
                   <div class="datagrid-item"><div class="datagrid-title">Versiyon</div><div class="datagrid-content">${escHtml(data.version || '-')}</div></div>
                   <div class="datagrid-item"><div class="datagrid-title">Login kullanici</div><div class="datagrid-content">${sessionsText}</div></div>
                   <div class="datagrid-item"><div class="datagrid-title">Session guncelleme</div><div class="datagrid-content">${escHtml(sessionsUpdated)}</div></div>

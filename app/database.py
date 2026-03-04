@@ -146,6 +146,7 @@ def _run_startup_migrations() -> None:
     _migrate_users_profile_columns()
     _migrate_groups_dynamic_columns()
     _migrate_agent_platform_columns()
+    _migrate_agent_runtime_network_columns()
     _migrate_application_platform_columns()
     _migrate_agent_update_platform_settings()
     if is_sqlite:
@@ -494,6 +495,39 @@ def _migrate_application_platform_columns() -> None:
         existing = {row[0] for row in rows}
         if "target_platform" not in existing:
             conn.execute(text("ALTER TABLE applications ADD COLUMN target_platform VARCHAR NOT NULL DEFAULT 'windows'"))
+
+
+def _migrate_agent_runtime_network_columns() -> None:
+    expected = {
+        "full_ip": "TEXT",
+        "uptime_sec": "INTEGER",
+    }
+    with engine.begin() as conn:
+        if is_sqlite:
+            table_exists = conn.execute(
+                text("SELECT 1 FROM sqlite_master WHERE type='table' AND name='agents' LIMIT 1")
+            ).first()
+            if not table_exists:
+                return
+            rows = conn.execute(text("PRAGMA table_info(agents)")).mappings().all()
+            existing = {row["name"] for row in rows}
+            for col, sql_type in expected.items():
+                if col not in existing:
+                    conn.execute(text(f"ALTER TABLE agents ADD COLUMN {col} {sql_type}"))
+            return
+
+        table_exists = conn.execute(
+            text("SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='agents' LIMIT 1")
+        ).first()
+        if not table_exists:
+            return
+        rows = conn.execute(
+            text("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='agents'")
+        ).all()
+        existing = {row[0] for row in rows}
+        for col, sql_type in expected.items():
+            if col not in existing:
+                conn.execute(text(f"ALTER TABLE agents ADD COLUMN {col} {sql_type}"))
 
 
 def _migrate_agent_update_platform_settings() -> None:
