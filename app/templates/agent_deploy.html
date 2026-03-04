@@ -1,0 +1,204 @@
+{% extends 'base.html' %}
+{% block title %}Ajan Deploy{% endblock %}
+{% block page_title %}Ajan Deploy{% endblock %}
+{% block content %}
+<div class="row row-cards">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Kurulum Paketleri ve Yonerge</h3>
+      </div>
+      <div class="card-body">
+        <p class="text-secondary mb-0">
+          Bu sayfadan Windows ve Linux agent paket linklerini gorebilir, tek komut kurulum adimlarini kullanabilir ve yeni paket yukleyebilirsiniz.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">
+        <h3 class="card-title mb-0"><i class="ti ti-brand-windows me-1"></i>Windows Agent</h3>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <div><strong>Surum:</strong> <span id="win-version">-</span></div>
+          <div><strong>Dosya:</strong> <span id="win-filename">-</span></div>
+          <div><strong>Hash:</strong> <span id="win-hash" class="text-break">-</span></div>
+          <div><strong>Indirme:</strong> <a id="win-download" href="#" target="_blank" rel="noopener">-</a></div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">MSI Sessiz Kurulum (onerilen)</label>
+          <pre class="bg-body-tertiary border rounded p-2 mb-0"><code id="win-msi-cmd">msiexec /i "AppCenterAgent.msi" SERVER_URL="http://SERVER:8000" /qn /norestart</code></pre>
+        </div>
+        <div>
+          <label class="form-label">EXE Alternatif Kurulum</label>
+          <pre class="bg-body-tertiary border rounded p-2 mb-0"><code id="win-exe-cmd">AppCenterAgent.exe</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">
+        <h3 class="card-title mb-0"><i class="ti ti-brand-linux me-1"></i>Linux Agent</h3>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <div><strong>Surum:</strong> <span id="linux-version">-</span></div>
+          <div><strong>Dosya:</strong> <span id="linux-filename">-</span></div>
+          <div><strong>Hash:</strong> <span id="linux-hash" class="text-break">-</span></div>
+          <div><strong>Indirme:</strong> <a id="linux-download" href="#" target="_blank" rel="noopener">-</a></div>
+          <div><strong>Bootstrap:</strong> <a id="linux-bootstrap" href="#" target="_blank" rel="noopener">-</a></div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Tek Komut Kurulum</label>
+          <pre class="bg-body-tertiary border rounded p-2 mb-0"><code id="linux-bootstrap-cmd">curl -fsSL http://SERVER:8000/uploads/agent_linux/bootstrap.sh | sudo bash -s -- --server-url http://SERVER:8000</code></pre>
+        </div>
+        <div>
+          <label class="form-label">Paket + SHA256</label>
+          <pre class="bg-body-tertiary border rounded p-2 mb-0"><code id="linux-sha-cmd">curl -fsSL http://SERVER:8000/uploads/agent_linux/appcenter-agent-linux -o appcenter-agent-linux
+curl -fsSL http://SERVER:8000/uploads/agent_linux/appcenter-agent-linux.sha256 -o appcenter-agent-linux.sha256
+sha256sum -c appcenter-agent-linux.sha256</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12" data-required-permissions="settings.manage">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Yeni Agent Paketi Yukle</h3>
+      </div>
+      <div class="card-body">
+        <form id="agent-update-form" class="row g-3">
+          <div class="col-12 col-md-3">
+            <label class="form-label">Platform</label>
+            <select class="form-select" name="platform" id="agent-update-platform" required>
+              <option value="windows" selected>Windows</option>
+              <option value="linux">Linux</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-3">
+            <label class="form-label">Versiyon</label>
+            <input class="form-control" name="version" placeholder="1.0.1" required />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Paket</label>
+            <input class="form-control" id="agent-update-file" name="file" type="file" accept=".msi,.exe" required />
+          </div>
+          <div class="col-12 d-flex justify-content-end">
+            <button class="btn btn-primary" type="submit"><i class="ti ti-package-import me-1"></i>Paketi Yukle</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+
+  const initialSettings = {{ (agent_update_settings or {}) | tojson }};
+  const origin = window.location.origin;
+
+  function abs(url) {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    if (url.startsWith('/')) return `${origin}${url}`;
+    return `${origin}/${url}`;
+  }
+
+  function setText(id, value) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = value || '-';
+  }
+
+  function setLink(id, url) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const full = abs(url);
+    if (!full) {
+      el.textContent = '-';
+      el.removeAttribute('href');
+      return;
+    }
+    el.textContent = full;
+    el.href = full;
+  }
+
+  function render(settingsMap) {
+    const winVersion = settingsMap.agent_latest_version_windows || '';
+    const winHash = settingsMap.agent_hash_windows || '';
+    const winUrl = settingsMap.agent_download_url_windows || '';
+    const winFile = settingsMap.agent_update_filename_windows || '';
+
+    const linVersion = settingsMap.agent_latest_version_linux || '';
+    const linHash = settingsMap.agent_hash_linux || '';
+    const linUrl = settingsMap.agent_download_url_linux || '';
+    const linFile = settingsMap.agent_update_filename_linux || '';
+
+    setText('win-version', winVersion);
+    setText('win-filename', winFile);
+    setText('win-hash', winHash);
+    setLink('win-download', winUrl);
+
+    setText('linux-version', linVersion);
+    setText('linux-filename', linFile);
+    setText('linux-hash', linHash);
+    setLink('linux-download', linUrl);
+    setLink('linux-bootstrap', '/uploads/agent_linux/bootstrap.sh');
+
+    const serverUrl = origin;
+    const linuxBootstrapUrl = `${serverUrl}/uploads/agent_linux/bootstrap.sh`;
+    document.getElementById('linux-bootstrap-cmd').textContent = `curl -fsSL ${linuxBootstrapUrl} | sudo bash -s -- --server-url ${serverUrl}`;
+    document.getElementById('linux-sha-cmd').textContent = `curl -fsSL ${serverUrl}/uploads/agent_linux/appcenter-agent-linux -o appcenter-agent-linux\ncurl -fsSL ${serverUrl}/uploads/agent_linux/appcenter-agent-linux.sha256 -o appcenter-agent-linux.sha256\nsha256sum -c appcenter-agent-linux.sha256`;
+
+    const winAbs = abs(winUrl);
+    document.getElementById('win-msi-cmd').textContent = `msiexec /i "${winAbs || 'AppCenterAgent.msi'}" SERVER_URL="${serverUrl}" /qn /norestart`;
+    document.getElementById('win-exe-cmd').textContent = `"${winAbs || 'AppCenterAgent.exe'}"`;
+  }
+
+  async function reloadSettings() {
+    try {
+      const data = await AppCenterApi.req('/settings');
+      const map = {};
+      (data.items || []).forEach((x) => { map[x.key] = x.value; });
+      render(map);
+    } catch (err) {
+      render(initialSettings || {});
+      AppCenterApi.toast(err.message || 'Ayarlar alinamadi');
+    }
+  }
+
+  const updatePlatform = document.getElementById('agent-update-platform');
+  const updateFile = document.getElementById('agent-update-file');
+
+  function syncUpdateFileAccept() {
+    const p = (updatePlatform.value || 'windows').toLowerCase();
+    updateFile.setAttribute('accept', p === 'linux' ? '.deb,.tar.gz,.sh' : '.msi,.exe');
+  }
+  updatePlatform.addEventListener('change', syncUpdateFileAccept);
+  syncUpdateFileAccept();
+
+  document.getElementById('agent-update-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      const form = new FormData(e.target);
+      const res = await AppCenterApi.req('/agent-update/upload', { method: 'POST', body: form });
+      AppCenterApi.toast(`Paket yuklendi: ${res.filename}`);
+      await reloadSettings();
+    } catch (err) {
+      AppCenterApi.toast(err.message || 'Paket yuklenemedi');
+    }
+  });
+
+  render(initialSettings || {});
+  reloadSettings();
+</script>
+{% endblock %}

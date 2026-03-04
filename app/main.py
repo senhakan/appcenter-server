@@ -9,7 +9,7 @@ import socket
 import time
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket
+from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.responses import RedirectResponse
@@ -26,10 +26,12 @@ from app.api.v1.roles import router as roles_router
 from app.api.v1.users import router as users_router
 from app.api.v1.web import router as web_router
 from app.config import get_settings
-from app.database import init_db, seed_initial_data
+from app.database import get_db, init_db, seed_initial_data
+from app.models import Setting
 from app.tasks.scheduler import start_scheduler, stop_scheduler
 from app.utils.file_handler import ensure_upload_dir
 from app.services import agent_signal, novnc_service
+from sqlalchemy.orm import Session
 
 settings = get_settings()
 logger = logging.getLogger("appcenter")
@@ -121,6 +123,15 @@ NAV_SCHEMA: list[dict[str, Any]] = [
         "permission": "ui.menu.management",
         "children": [
             {
+                "key": "agent_deploy",
+                "title": "Ajan Deploy",
+                "path": "/agent-deploy",
+                "active_pages": ["agent_deploy"],
+                "roles": ["admin", "operator", "viewer"],
+                "feature_flag": None,
+                "permission": "ui.menu.agent_deploy",
+            },
+            {
                 "key": "settings",
                 "title": "Ayarlar",
                 "path": "/settings",
@@ -158,6 +169,7 @@ PAGE_PERMISSION_BY_ACTIVE: dict[str, str] = {
     "deployments": "ui.page.deployments",
     "inventory": "ui.page.inventory",
     "licenses": "ui.page.licenses",
+    "agent_deploy": "ui.page.agent_deploy",
     "settings": "ui.page.settings",
     "users": "ui.page.users",
     "roles": "ui.page.roles",
@@ -581,6 +593,33 @@ def settings_page(request: Request):
     return templates.TemplateResponse(
         "settings.html",
         _page_ctx(request, "settings"),
+    )
+
+
+@app.get("/agent-deploy")
+def agent_deploy_page(request: Request, db: Session = Depends(get_db)):
+    rows = (
+        db.query(Setting)
+        .filter(
+            Setting.key.in_(
+                [
+                    "agent_latest_version_windows",
+                    "agent_download_url_windows",
+                    "agent_hash_windows",
+                    "agent_update_filename_windows",
+                    "agent_latest_version_linux",
+                    "agent_download_url_linux",
+                    "agent_hash_linux",
+                    "agent_update_filename_linux",
+                ]
+            )
+        )
+        .all()
+    )
+    values = {x.key: x.value for x in rows}
+    return templates.TemplateResponse(
+        "agent_deploy.html",
+        _page_ctx(request, "agent_deploy", agent_update_settings=values),
     )
 
 
