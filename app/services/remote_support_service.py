@@ -16,6 +16,7 @@ from app.services import agent_signal
 settings = get_settings()
 
 _ACTIVE_STATES = {"pending_approval", "approved", "connecting", "active"}
+_OFFLINE_END_STATES = {"approved", "connecting", "active"}
 _VNC_PASS_ALPHABET = string.ascii_letters + string.digits
 
 
@@ -59,6 +60,16 @@ def _set_agent_remote_state(
             agent.remote_support_helper_pid = None
     agent.remote_support_updated_at = _utcnow()
     db.add(agent)
+
+
+def _stop_recording_best_effort(db: Session, session_id: int, reason: str) -> None:
+    try:
+        from app.services import session_recording_service
+
+        session_recording_service.stop_recording(db, session_id, reason=reason)
+    except Exception:
+        # Recording stop failures should never block session state updates.
+        pass
 
 
 def _ensure_agent_online(db: Session, agent_uuid: str) -> Agent:
@@ -140,18 +151,50 @@ def list_sessions(
     agent_uuid: Optional[str] = None,
     limit: int = 50,
 ) -> list[RemoteSupportSession]:
+    now = _utcnow()
     q = db.query(RemoteSupportSession)
     if status_filter:
         q = q.filter(RemoteSupportSession.status == status_filter)
     if agent_uuid:
         q = q.filter(RemoteSupportSession.agent_uuid == agent_uuid)
-    return q.order_by(RemoteSupportSession.id.desc()).limit(max(1, min(limit, 200))).all()
+    rows = q.order_by(RemoteSupportSession.id.desc()).limit(max(1, min(limit, 200))).all()
+    changed = False
+    for s in rows:
+        if s.status != "pending_approval":
+            continue
+        timeout_at = _as_utc(s.approval_timeout_at)
+        if not timeout_at or now <= timeout_at:
+            continue
+        s.status = "timeout"
+        s.ended_at = now
+        s.ended_by = "timeout"
+        s.vnc_password = None
+        s.end_signal_pending = False
+        _set_agent_remote_state(db, s.agent_uuid, "idle", None, helper_running=False)
+        db.add(s)
+        changed = True
+    if changed:
+        db.commit()
+    return rows
 
 
 def get_session(db: Session, session_id: int) -> RemoteSupportSession:
     session = db.query(RemoteSupportSession).filter(RemoteSupportSession.id == session_id).first()
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+    if session.status == "pending_approval":
+        now = _utcnow()
+        timeout_at = _as_utc(session.approval_timeout_at)
+        if timeout_at and now > timeout_at:
+            session.status = "timeout"
+            session.ended_at = now
+            session.ended_by = "timeout"
+            session.vnc_password = None
+            session.end_signal_pending = False
+            _set_agent_remote_state(db, session.agent_uuid, "idle", None, helper_running=False)
+            db.add(session)
+            db.commit()
+            db.refresh(session)
     return session
 
 
@@ -274,13 +317,7 @@ def end_session(db: Session, session_id: int, ended_by: str) -> RemoteSupportSes
     db.add(session)
     db.commit()
     db.refresh(session)
-    try:
-        from app.services import session_recording_service
-
-        session_recording_service.stop_recording(db, session.id, reason=f"session_end:{ended_by}")
-    except Exception:
-        # Recording stop failures should not block session termination.
-        pass
+    _stop_recording_best_effort(db, session.id, reason=f"session_end:{ended_by}")
     agent_signal.notify_agent(session.agent_uuid)
     return session
 
@@ -302,12 +339,7 @@ def end_session_from_agent(db: Session, session_id: int, agent_uuid: str, ended_
     db.add(session)
     db.commit()
     db.refresh(session)
-    try:
-        from app.services import session_recording_service
-
-        session_recording_service.stop_recording(db, session.id, reason=f"agent_end:{ended_by or 'agent'}")
-    except Exception:
-        pass
+    _stop_recording_best_effort(db, session.id, reason=f"agent_end:{ended_by or 'agent'}")
     return session
 
 
@@ -329,12 +361,7 @@ def cancel_pending_session(db: Session, session_id: int, admin_user_id: int | No
     db.add(session)
     db.commit()
     db.refresh(session)
-    try:
-        from app.services import session_recording_service
-
-        session_recording_service.stop_recording(db, session.id, reason="pending_cancel")
-    except Exception:
-        pass
+    _stop_recording_best_effort(db, session.id, reason="pending_cancel")
     agent_signal.notify_agent(session.agent_uuid)
     return session
 
@@ -377,6 +404,7 @@ def check_max_durations(db: Session) -> int:
             s.end_signal_pending = True
             _set_agent_remote_state(db, s.agent_uuid, "idle", None, helper_running=False)
             db.add(s)
+            _stop_recording_best_effort(db, s.id, reason="session_end:timeout")
             hit += 1
     if hit:
         db.commit()
@@ -388,7 +416,7 @@ def end_sessions_for_offline_agents(db: Session, agent_uuids: list[str]) -> int:
         return 0
     sessions = (
         db.query(RemoteSupportSession)
-        .filter(RemoteSupportSession.agent_uuid.in_(agent_uuids), RemoteSupportSession.status.in_(_ACTIVE_STATES))
+        .filter(RemoteSupportSession.agent_uuid.in_(agent_uuids), RemoteSupportSession.status.in_(_OFFLINE_END_STATES))
         .all()
     )
     now = _utcnow()
@@ -397,9 +425,11 @@ def end_sessions_for_offline_agents(db: Session, agent_uuids: list[str]) -> int:
         s.ended_at = now
         s.ended_by = "agent_offline"
         s.vnc_password = None
-        s.end_signal_pending = False
+        # Keep end signal pending so agent can self-heal stale local state after reconnect.
+        s.end_signal_pending = True
         _set_agent_remote_state(db, s.agent_uuid, "idle", None, helper_running=False)
         db.add(s)
+        _stop_recording_best_effort(db, s.id, reason="session_end:agent_offline")
     if sessions:
         db.commit()
     return len(sessions)

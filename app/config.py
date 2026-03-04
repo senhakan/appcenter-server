@@ -35,7 +35,7 @@ class Settings(BaseSettings):
 
     # Remote support
     remote_support_enabled: bool = False
-    remote_support_approval_timeout_sec: int = 120
+    remote_support_approval_timeout_sec: int = 30
     remote_support_default_max_duration_min: int = 60
     remote_support_max_duration_min: int = 480
     remote_support_vnc_password: str = ""

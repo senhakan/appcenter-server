@@ -5,6 +5,7 @@ import shutil
 import signal
 import subprocess
 import threading
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -456,9 +457,28 @@ def stop_recording(
                 runtime.stop_requested = True
                 try:
                     runtime.process.send_signal(signal.SIGINT)
-                    stopped = True
                 except Exception:
-                    pass
+                    try:
+                        runtime.process.terminate()
+                    except Exception:
+                        pass
+                deadline = time.time() + 3.0
+                while runtime.process.poll() is None and time.time() < deadline:
+                    time.sleep(0.1)
+                if runtime.process.poll() is None:
+                    try:
+                        runtime.process.terminate()
+                    except Exception:
+                        pass
+                    deadline = time.time() + 2.0
+                    while runtime.process.poll() is None and time.time() < deadline:
+                        time.sleep(0.1)
+                if runtime.process.poll() is None:
+                    try:
+                        runtime.process.kill()
+                    except Exception:
+                        pass
+                stopped = True
 
     if stopped:
         return True

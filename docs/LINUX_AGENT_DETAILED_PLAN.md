@@ -1127,15 +1127,15 @@ internal/remotesupport/dialog_linux_test.go # zenity mock
 
 ```
 ## Linux Agent Smoke
-- [ ] Linux agent register → agents listesinde platform=linux gorunur
-- [ ] Heartbeat → sistem bilgisi (distro, CPU, RAM) dogru
-- [ ] Linux .deb uygulama upload → applications listesinde platform=linux
-- [ ] Deployment → Linux agent'a task iletilir
-- [ ] Deployment → platform uyumsuzluk skip + log
-- [ ] Remote support → x11vnc session → noVNC viewer
-- [ ] Remote support → cift monitor
-- [ ] Self-update → Linux agent yeni versiyona gecer
-- [ ] Agent update upload (platform=linux) → settings dogru
+- [x] Linux agent register → agents listesinde platform=linux gorunur
+- [x] Heartbeat → sistem bilgisi (distro, CPU, RAM) dogru
+- [x] Linux .deb uygulama upload → applications listesinde platform=linux
+- [x] Deployment → Linux agent'a task iletilir
+- [x] Deployment → platform uyumsuzluk skip + log
+- [x] Remote support → x11vnc session → noVNC viewer
+- [x] Remote support → cift monitor
+- [x] Self-update → Linux agent yeni versiyona gecer
+- [x] Agent update upload (platform=linux) → settings dogru
 ```
 
 #### 5.5 CI Genisletmesi

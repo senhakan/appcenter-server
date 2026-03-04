@@ -605,6 +605,19 @@
     </div>
   </div>
 </div>
+<div id="rs-timeout-modal" class="rs-modal-backdrop" aria-live="polite">
+  <div class="rs-modal-card ac-modal-warning">
+    <div class="ac-modal-status-block mb-3">
+      <span class="ac-modal-status-icon warning"><i class="ti ti-clock-hour-4"></i></span>
+      <div class="text-secondary">Kullanici belirtilen surede onay vermedi.</div>
+    </div>
+    <div class="rs-modal-title">Baglanti Istegi Zaman Asimina Ugradi</div>
+    <div class="rs-modal-text">Kullanici 30 sn icinde yanit vermedi. Oturum kapatilacak.</div>
+    <div class="rs-modal-actions">
+      <button id="rs-timeout-ok" class="btn btn-primary" type="button"><i class="ti ti-check me-1"></i>Tamam</button>
+    </div>
+  </div>
+</div>
 <div id="rs-end-confirm-modal" class="rs-modal-backdrop" aria-live="polite" aria-modal="true" role="dialog">
   <div class="rs-modal-card ac-modal-warning">
     <div class="ac-modal-status-block mb-3">
@@ -651,6 +664,7 @@
   let helpDrawerOpen = false;
   let windowPresenceTimer = null;
   let rejectionModalShown = false;
+  let timeoutModalShown = false;
   let endConfirmModalResolver = null;
   const recordingAutoStartDoneByMonitor = { 1: false, 2: false };
   const recordingAutoStartInFlightByMonitor = { 1: false, 2: false };
@@ -1474,6 +1488,13 @@
         setViewerStatus('Oturum sonlandi.');
         addConnLog('Oturum sonlandi, reconnect durduruldu.', 'warn');
         disconnectViewer();
+        const endedBy = ((s.ended_by || '') + '').toLowerCase();
+        if (low === 'timeout' || endedBy === 'timeout') {
+          const msg = 'Kullanici 30 sn icinde yanit vermedi. Baglanti istegi zaman asimina ugradi.';
+          setViewerStatus(msg);
+          addConnLog(msg, 'warn');
+          openTimeoutModal();
+        }
         if (low === 'rejected') {
           setViewerStatus('Baglanti istegi kullanici tarafindan reddedildi.');
           openRejectedModal();
@@ -1610,6 +1631,13 @@
     if (rejectionModalShown) return;
     rejectionModalShown = true;
     const modal = document.getElementById('rs-rejected-modal');
+    if (modal) modal.classList.add('show');
+  }
+
+  function openTimeoutModal() {
+    if (timeoutModalShown) return;
+    timeoutModalShown = true;
+    const modal = document.getElementById('rs-timeout-modal');
     if (modal) modal.classList.add('show');
   }
 
@@ -1857,6 +1885,12 @@
     const rejectedOk = document.getElementById('rs-rejected-ok');
     if (rejectedOk) {
       rejectedOk.addEventListener('click', () => {
+        closeSessionPage();
+      });
+    }
+    const timeoutOk = document.getElementById('rs-timeout-ok');
+    if (timeoutOk) {
+      timeoutOk.addEventListener('click', () => {
         closeSessionPage();
       });
     }
