@@ -369,13 +369,19 @@
       agentHostname = data.hostname || '';
       const el = document.getElementById('agent-overview');
       const sessions = (data.logged_in_sessions || []).map(s => `${escHtml(s.username || '-') } (${escHtml(s.session_type || '-')})`);
-      const sessionsText = sessions.length ? sessions.join('<br/>') : '-';
-      const primaryUser = sessions.length ? sessions[0] : '-';
+      const sessionsText = sessions.length ? sessions.join('<br/>') : (data.os_user ? escHtml(data.os_user) : '-');
+      const primaryUser = sessions.length ? sessions[0] : (data.os_user ? escHtml(data.os_user) : '-');
       const sessionsUpdated = data.logged_in_sessions_updated_at ? AppCenterApi.formatDate(data.logged_in_sessions_updated_at) : '-';
       const rsUpdated = data.remote_support_updated_at ? AppCenterApi.formatDate(data.remote_support_updated_at) : '-';
       const rsHelper = data.remote_support_helper_running ? `Calisiyor${data.remote_support_helper_pid ? (' (PID ' + data.remote_support_helper_pid + ')') : ''}` : 'Calismiyor';
       const sys = data.system_profile || null;
       const sysUpdated = data.system_profile_updated_at ? AppCenterApi.formatDate(data.system_profile_updated_at) : '-';
+      const osLabel = (sys ? ((sys.os_full_name || '-') + ' ' + (sys.os_version || '') + (sys.build_number ? (' (Build ' + sys.build_number + ')') : '')) : (data.os_version || '-')).trim();
+      const archLabel = sys ? (sys.architecture || '-') : (data.arch || '-');
+      const cpuLabel = sys ? ((sys.cpu_model || '-') + ' (P:' + (sys.cpu_cores_physical ?? '-') + ' L:' + (sys.cpu_cores_logical ?? '-') + ')') : (data.cpu_model || '-');
+      const ramLabel = sys && sys.total_memory_gb != null ? (sys.total_memory_gb + ' GB') : (data.ram_gb != null ? (data.ram_gb + ' GB') : '-');
+      const diskFreeLabel = data.disk_free_gb != null ? (data.disk_free_gb + ' GB') : '-';
+      const distroLabel = data.distro ? `${data.distro}${data.distro_version ? (' ' + data.distro_version) : ''}` : '-';
       const sysDisks = sys ? ((sys.disks || []).map(d => `Disk ${escHtml(d.index)}: ${escHtml(d.size_gb || '?')} GB (${escHtml(d.bus_type || '?')}) ${escHtml(d.model || '')}`.trim()).join('<br/>') || '-') : '-';
       const sysVirt = sys && sys.virtualization ? `${sys.virtualization.is_virtual ? 'Evet' : 'Hayir'} ${sys.virtualization.vendor || ''} ${sys.virtualization.model || ''}`.trim() : '-';
       const isOnline = (data.status || '').toLowerCase() === 'online';
@@ -444,6 +450,7 @@
                   <div class="datagrid-item"><div class="datagrid-title">Remote helper</div><div class="datagrid-content">${escHtml(rsHelper)}</div></div>
                   <div class="datagrid-item"><div class="datagrid-title">Remote guncelleme</div><div class="datagrid-content">${escHtml(rsUpdated)}</div></div>
                   <div class="datagrid-item"><div class="datagrid-title">Remote session ID</div><div class="datagrid-content">${escHtml(data.remote_support_session_id || '-')}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">OS kullanici</div><div class="datagrid-content">${escHtml(data.os_user || '-')}</div></div>
                 </div>
               </div>
             </div>
@@ -454,11 +461,14 @@
               <div class="card-body">
                 <div class="datagrid">
                   <div class="datagrid-item"><div class="datagrid-title">Profil guncelleme</div><div class="datagrid-content">${escHtml(sysUpdated)}</div></div>
-                  <div class="datagrid-item"><div class="datagrid-title">OS</div><div class="datagrid-content">${escHtml(sys ? ((sys.os_full_name || '-') + ' ' + (sys.os_version || '') + (sys.build_number ? (' (Build ' + sys.build_number + ')') : '')) : '-')}</div></div>
-                  <div class="datagrid-item"><div class="datagrid-title">Mimari</div><div class="datagrid-content">${escHtml(sys ? (sys.architecture || '-') : '-')}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">OS</div><div class="datagrid-content">${escHtml(osLabel)}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">Platform</div><div class="datagrid-content">${escHtml(data.platform || '-')}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">Distro</div><div class="datagrid-content">${escHtml(distroLabel)}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">Mimari</div><div class="datagrid-content">${escHtml(archLabel)}</div></div>
                   <div class="datagrid-item"><div class="datagrid-title">Marka/Model</div><div class="datagrid-content">${escHtml(sys ? ((sys.manufacturer || '-') + ' ' + (sys.model || '')) : '-')}</div></div>
-                  <div class="datagrid-item"><div class="datagrid-title">CPU</div><div class="datagrid-content">${escHtml(sys ? ((sys.cpu_model || '-') + ' (P:' + (sys.cpu_cores_physical ?? '-') + ' L:' + (sys.cpu_cores_logical ?? '-') + ')') : '-')}</div></div>
-                  <div class="datagrid-item"><div class="datagrid-title">RAM</div><div class="datagrid-content">${escHtml(sys && sys.total_memory_gb != null ? (sys.total_memory_gb + ' GB') : '-')}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">CPU</div><div class="datagrid-content">${escHtml(cpuLabel)}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">RAM</div><div class="datagrid-content">${escHtml(ramLabel)}</div></div>
+                  <div class="datagrid-item"><div class="datagrid-title">Bos disk</div><div class="datagrid-content">${escHtml(diskFreeLabel)}</div></div>
                   <div class="datagrid-item"><div class="datagrid-title">Virtual</div><div class="datagrid-content">${escHtml(sysVirt || '-')}</div></div>
                   <div class="datagrid-item"><div class="datagrid-title">Diskler</div><div class="datagrid-content">${sysDisks}</div></div>
                 </div>
