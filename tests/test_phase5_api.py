@@ -511,6 +511,43 @@ def test_agent_register_accepts_platform_metadata(client: TestClient, auth_heade
     assert data['distro_version'] == '24.04'
 
 
+def test_heartbeat_updates_common_agent_metadata(client: TestClient, auth_headers: dict[str, str]) -> None:
+    agent_headers = _register_agent(client, uuid='agent-common-meta-1')
+
+    hb = client.post(
+        '/api/v1/agent/heartbeat',
+        headers=agent_headers,
+        json={
+            'hostname': 'PC-COMMON',
+            'platform': 'windows',
+            'os_user': 'DOMAIN\\user1',
+            'os_version': 'Windows 11 Pro',
+            'arch': 'amd64',
+            'distro': 'windows',
+            'distro_version': '11',
+            'cpu_model': 'Intel(R) Core(TM) i7',
+            'ram_gb': 16,
+            'disk_free_gb': 245,
+            'apps_changed': False,
+            'installed_apps': [],
+        },
+    )
+    assert hb.status_code == 200
+
+    details = client.get('/api/v1/agents/agent-common-meta-1', headers=auth_headers)
+    assert details.status_code == 200
+    data = details.json()
+    assert data['platform'] == 'windows'
+    assert data['os_user'] == 'DOMAIN\\user1'
+    assert data['os_version'] == 'Windows 11 Pro'
+    assert data['arch'] == 'amd64'
+    assert data['distro'] == 'windows'
+    assert data['distro_version'] == '11'
+    assert data['cpu_model'] == 'Intel(R) Core(TM) i7'
+    assert data['ram_gb'] == 16
+    assert data['disk_free_gb'] == 245
+
+
 def test_store_is_filtered_by_agent_platform(client: TestClient, auth_headers: dict[str, str]) -> None:
     win_upload = client.post(
         '/api/v1/applications',

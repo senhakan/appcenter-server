@@ -275,8 +275,20 @@ def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> t
     agent.hostname = payload.hostname
     agent.ip_address = payload.ip_address
     agent.os_user = payload.os_user
+    if payload.os_version is not None:
+        agent.os_version = payload.os_version
+    if payload.arch is not None:
+        agent.arch = payload.arch
+    if payload.distro is not None:
+        agent.distro = payload.distro
+    if payload.distro_version is not None:
+        agent.distro_version = payload.distro_version
     if payload.agent_version:
         agent.version = payload.agent_version
+    if payload.cpu_model is not None:
+        agent.cpu_model = payload.cpu_model
+    if payload.ram_gb is not None:
+        agent.ram_gb = payload.ram_gb
     if payload.disk_free_gb is not None:
         agent.disk_free_gb = payload.disk_free_gb
 

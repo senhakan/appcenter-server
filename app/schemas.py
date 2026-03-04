@@ -121,7 +121,13 @@ class HeartbeatRequest(BaseModel):
     hostname: str
     ip_address: Optional[str] = None
     os_user: Optional[str] = None
+    os_version: Optional[str] = None
+    arch: Optional[str] = None
+    distro: Optional[str] = None
+    distro_version: Optional[str] = None
     agent_version: Optional[str] = None
+    cpu_model: Optional[str] = None
+    ram_gb: Optional[int] = None
     disk_free_gb: Optional[int] = None
     cpu_usage: Optional[float] = None
     ram_usage: Optional[float] = None
