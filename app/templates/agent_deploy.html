@@ -1,6 +1,18 @@
 {% extends 'base.html' %}
 {% block title %}Ajan Deploy{% endblock %}
 {% block page_title %}Ajan Deploy{% endblock %}
+{% block head %}
+<style>
+  .deploy-code {
+    background: #0f172a !important;
+    color: #e2e8f0 !important;
+    border: 1px solid #334155 !important;
+  }
+  .deploy-code code {
+    color: #e2e8f0 !important;
+  }
+</style>
+{% endblock %}
 {% block content %}
 <div class="row row-cards">
   <div class="col-12">
@@ -31,11 +43,11 @@
 
         <div class="mb-3">
           <label class="form-label">MSI Sessiz Kurulum (onerilen)</label>
-          <pre class="bg-body-tertiary border rounded p-2 mb-0"><code id="win-msi-cmd">msiexec /i "AppCenterAgent.msi" SERVER_URL="http://SERVER:8000" /qn /norestart</code></pre>
+          <pre class="deploy-code rounded p-2 mb-0"><code id="win-msi-cmd">msiexec /i "AppCenterAgent.msi" SERVER_URL="http://SERVER:8000" /qn /norestart</code></pre>
         </div>
         <div>
           <label class="form-label">EXE Alternatif Kurulum</label>
-          <pre class="bg-body-tertiary border rounded p-2 mb-0"><code id="win-exe-cmd">AppCenterAgent.exe</code></pre>
+          <pre class="deploy-code rounded p-2 mb-0"><code id="win-exe-cmd">AppCenterAgent.exe</code></pre>
         </div>
       </div>
     </div>
@@ -56,11 +68,11 @@
         </div>
         <div class="mb-3">
           <label class="form-label">Tek Komut Kurulum</label>
-          <pre class="bg-body-tertiary border rounded p-2 mb-0"><code id="linux-bootstrap-cmd">curl -fsSL http://SERVER:8000/uploads/agent_linux/bootstrap.sh | sudo bash -s -- --server-url http://SERVER:8000</code></pre>
+          <pre class="deploy-code rounded p-2 mb-0"><code id="linux-bootstrap-cmd">curl -fsSL http://SERVER:8000/uploads/agent_linux/bootstrap.sh | sudo bash -s -- --server-url http://SERVER:8000</code></pre>
         </div>
         <div>
           <label class="form-label">Paket + SHA256</label>
-          <pre class="bg-body-tertiary border rounded p-2 mb-0"><code id="linux-sha-cmd">curl -fsSL http://SERVER:8000/uploads/agent_linux/appcenter-agent-linux -o appcenter-agent-linux
+          <pre class="deploy-code rounded p-2 mb-0"><code id="linux-sha-cmd">curl -fsSL http://SERVER:8000/uploads/agent_linux/appcenter-agent-linux -o appcenter-agent-linux
 curl -fsSL http://SERVER:8000/uploads/agent_linux/appcenter-agent-linux.sha256 -o appcenter-agent-linux.sha256
 sha256sum -c appcenter-agent-linux.sha256</code></pre>
         </div>
