@@ -20,7 +20,7 @@ Uzak destek oturumu olusturuldugunda istek agent'a heartbeat response ile iletil
 | 10sn | ~50 req/sn | ~1.58B |
 | 2sn | ~250 req/sn | ~7.9B |
 
-Her heartbeat'te DB sorgusu, JSON serialize/deserialize ve agent state guncelleme yapildigi icin 2sn'ye dusurmek sunucu CPU ve SQLite yuku acisindan kabul edilemez.
+Her heartbeat'te DB sorgusu, JSON serialize/deserialize ve agent state guncelleme yapildigi icin 2sn'ye dusurmek sunucu CPU ve PostgreSQL yuku acisindan kabul edilemez.
 
 ---
 
@@ -665,7 +665,7 @@ ulimit -n
 LimitNOFILE=65535
 ```
 
-500 agent + diger HTTP baglantilari + SQLite + dosya islemleri icin 1024 yeterli olabilir ama 4096+ onerilir.
+500 agent + diger HTTP baglantilari + PostgreSQL + dosya islemleri icin 1024 yeterli olabilir ama 4096+ onerilir.
 
 ### 6.4 Reconnect Trafigi Karsilastirmasi
 
@@ -757,16 +757,16 @@ Long-poll mevcut heartbeat'in uzerine ~%9 ek trafik ekler. Ihmal edilebilir.
 - Agent'lar reconnect eder (backoff)
 - Yeni worker'da yeni Event'ler olusturulur
 
-**Not:** AppCenter tek worker ile calisir (SQLite + in-memory state), bu senaryo dusuk olasilikli.
+**Not:** AppCenter tek worker ile calisir (PostgreSQL + in-memory state), bu senaryo dusuk olasilikli.
 
-### 7.7 SQLite WAL Lock + Long-Poll
+### 7.7 PostgreSQL Connection Pool + Long-Poll
 
-**Senaryo:** Long-poll endpoint'i DB erisimi yapar mi? WAL lock'u etkiler mi?
+**Senaryo:** Long-poll endpoint'i DB erisimi yapar mi? Connection pool'u etkiler mi?
 
 **Davranis:**
 - `_authenticate_agent()` baglanti basinda bir kere DB'ye erisr (SELECT agents WHERE uuid=...)
 - 55sn bekleme sirasinda DB baglantisi **TUTULMAZ** (SQLAlchemy session Depends ile inject edilir, response donunce kapanir)
-- WAL lock uzerinde **sifir etki**
+- DB lock uzerinde **sifir etki**
 
 **Dikkat:** `Depends(get_db)` FastAPI'da request bitince session'i kapatir. Ama async endpoint'te `await` sirasinda session acik kalabilir mi? Hayir — `_authenticate_agent()` sync cagri, threadpool'da calisir ve bitmeden response donmez. Session kullanimi sadece auth icin, sonra `await` baslar.
 
@@ -808,7 +808,7 @@ async def wait_for_signal(
         agent_signal.mark_listener_inactive(x_agent_uuid)
 ```
 
-**Bu cok onemli:** 500 agent × 55sn = 500 acik SQLite connection. SQLite buna izin vermez ve `database is locked` hatalari uretir. Manuel session yonetimi **zorunlu**.
+**Bu cok onemli:** 500 agent × 55sn modelinde gereksiz acik session birakilirsa pool baskisi olusur. Bu nedenle long-poll endpoint'inde auth sonrasi DB session'in erken kapatilmasi **zorunludur**.
 
 ### 7.8 Agent Secret Degisirse
 

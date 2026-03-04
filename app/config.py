@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
 
     # Database
-    database_url: str = "sqlite:////var/lib/appcenter/appcenter.db"
+    database_url: str = "postgresql+psycopg2://appcenter:Appcenter2026@127.0.0.1:5432/appcenter"
 
     # JWT
     secret_key: str = "change-me-in-production-use-a-strong-random-key"

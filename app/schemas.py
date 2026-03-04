@@ -117,6 +117,16 @@ class RemoteSupportHeartbeat(BaseModel):
     helper_pid: Optional[int] = None
 
 
+class ServiceItem(BaseModel):
+    name: str
+    display_name: Optional[str] = None
+    status: str = "unknown"
+    startup_type: str = "unknown"
+    pid: Optional[int] = None
+    run_as: Optional[str] = None
+    description: Optional[str] = None
+
+
 class HeartbeatRequest(BaseModel):
     hostname: str
     ip_address: Optional[str] = None
@@ -137,6 +147,8 @@ class HeartbeatRequest(BaseModel):
     apps_changed: bool = False
     installed_apps: list[InstalledAppItem] = Field(default_factory=list)
     inventory_hash: Optional[str] = None
+    services_hash: Optional[str] = None
+    services: Optional[list[ServiceItem]] = None
     platform: Optional[str] = None
     logged_in_sessions: Optional[list[LoggedInSession]] = None
     system_profile: Optional[SystemProfile] = None
@@ -163,6 +175,8 @@ class HeartbeatConfig(BaseModel):
     agent_download_url: Optional[str] = None
     agent_hash: Optional[str] = None
     inventory_sync_required: bool = False
+    services_sync_required: bool = False
+    service_monitoring_enabled: bool = False
     inventory_scan_interval_min: int = 10
     store_tray_enabled: bool = False
     remote_support_enabled: bool = False
@@ -406,6 +420,9 @@ class AgentResponse(BaseModel):
     ip_address: Optional[str] = None
     full_ip: Optional[str] = None
     uptime_sec: Optional[int] = None
+    services_updated_at: Optional[datetime] = None
+    services_hash: Optional[str] = None
+    service_monitoring_enabled: Optional[bool] = None
     os_user: Optional[str] = None
     os_version: Optional[str] = None
     platform: str = "windows"
@@ -481,6 +498,13 @@ class AgentTimelineItemResponse(BaseModel):
     app_name: Optional[str] = None
     message: Optional[str] = None
     exit_code: Optional[int] = None
+
+    # service event
+    service_name: Optional[str] = None
+    service_display_name: Optional[str] = None
+    service_change_type: Optional[str] = None
+    old_startup_type: Optional[str] = None
+    new_startup_type: Optional[str] = None
 
 
 class AgentTimelineListResponse(BaseModel):
@@ -635,6 +659,11 @@ class SettingsUpdateRequest(BaseModel):
     values: dict[str, str]
 
 
+class AgentServiceMonitoringUpdateRequest(BaseModel):
+    # null means "inherit global setting"
+    enabled: Optional[bool] = None
+
+
 class StoreAppItem(BaseModel):
     id: int
     display_name: str
@@ -722,6 +751,38 @@ class ChangeHistoryItemResponse(BaseModel):
 
 class AgentChangeHistoryListResponse(BaseModel):
     items: list[ChangeHistoryItemResponse]
+    total: int
+
+
+class AgentServiceItemResponse(BaseModel):
+    name: str
+    display_name: Optional[str] = None
+    status: str
+    startup_type: str
+    pid: Optional[int] = None
+    run_as: Optional[str] = None
+    description: Optional[str] = None
+
+
+class AgentServiceListResponse(BaseModel):
+    items: list[AgentServiceItemResponse]
+    total: int
+
+
+class AgentServiceHistoryItemResponse(BaseModel):
+    id: int
+    detected_at: datetime
+    service_name: str
+    display_name: Optional[str] = None
+    change_type: str
+    old_status: Optional[str] = None
+    new_status: Optional[str] = None
+    old_startup_type: Optional[str] = None
+    new_startup_type: Optional[str] = None
+
+
+class AgentServiceHistoryListResponse(BaseModel):
+    items: list[AgentServiceHistoryItemResponse]
     total: int
 
 

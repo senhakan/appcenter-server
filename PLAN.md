@@ -10,7 +10,7 @@
 
 ### Tamamlanan Fazlar (1-5)
 Tum temel ozellikler uretim ortaminda calisir durumda:
-- FastAPI + SQLAlchemy + SQLite WAL
+- FastAPI + SQLAlchemy + PostgreSQL WAL
 - JWT auth, agent register/heartbeat, task dagitimi
 - Uygulama upload/download (Range destekli)
 - Deployment CRUD, grup yonetimi

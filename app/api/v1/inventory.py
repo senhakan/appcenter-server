@@ -1,15 +1,22 @@
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.auth import require_permission
 from app.database import get_db
+from app.models import Agent, AgentServiceHistory
 from app.services import inventory_service
 from app.services import system_profile_service
 from app.services import timeline_service
 from app.schemas import (
     AgentSystemHistoryListResponse,
+    AgentServiceHistoryItemResponse,
+    AgentServiceHistoryListResponse,
+    AgentServiceItemResponse,
+    AgentServiceListResponse,
     AgentTimelineListResponse,
     AgentTimelineItemResponse,
     SystemProfileHistoryItemResponse,
@@ -95,6 +102,60 @@ def get_agent_timeline(
     items, total = timeline_service.get_agent_timeline(db, agent_uuid, limit, offset)
     return AgentTimelineListResponse(
         items=[AgentTimelineItemResponse(**i) for i in items],
+        total=total,
+    )
+
+
+@router.get("/agents/{agent_uuid}/services", response_model=AgentServiceListResponse)
+def get_agent_services(
+    agent_uuid: str,
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.view")),
+):
+    agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
+    if not agent:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
+    items: list[dict] = []
+    try:
+        raw = json.loads(agent.services_json or "[]")
+        if isinstance(raw, list):
+            items = [x for x in raw if isinstance(x, dict)]
+    except Exception:
+        items = []
+    mapped = [AgentServiceItemResponse(**i) for i in items if (i.get("name") or "").strip()]
+    return AgentServiceListResponse(items=mapped, total=len(mapped))
+
+
+@router.get("/agents/{agent_uuid}/services/history", response_model=AgentServiceHistoryListResponse)
+def get_agent_services_history(
+    agent_uuid: str,
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.view")),
+):
+    q = (
+        db.query(AgentServiceHistory)
+        .filter(AgentServiceHistory.agent_uuid == agent_uuid)
+        .order_by(AgentServiceHistory.detected_at.desc(), AgentServiceHistory.id.desc())
+    )
+    total = q.count()
+    rows = q.offset(offset).limit(limit).all()
+    return AgentServiceHistoryListResponse(
+        items=[
+            AgentServiceHistoryItemResponse(
+                id=r.id,
+                detected_at=r.detected_at,
+                service_name=r.service_name,
+                display_name=r.display_name,
+                change_type=r.change_type,
+                old_status=r.old_status,
+                new_status=r.new_status,
+                old_startup_type=r.old_startup_type,
+                new_startup_type=r.new_startup_type,
+            )
+            for r in rows
+        ],
         total=total,
     )
 

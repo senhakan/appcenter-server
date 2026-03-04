@@ -116,7 +116,7 @@
 - uygulama/grup/agent secimi combobox uzerinden
 - Group assignment:
 - soldan saga dual-listbox akisi (atanmamis -> gruptaki ajanlar)
-- SQLite startup migration:
+- PostgreSQL startup migration:
 - eski veritabani icin `applications` tablosuna eksik kolonlari idempotent ekleme
 - Agent detail: login session gosterimi:
   - Agent heartbeat payload'inda `logged_in_sessions` alani (local/RDP) ile gelir

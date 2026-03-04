@@ -74,6 +74,13 @@
             <input class="form-control" id="s-dynamic-group-sync" type="number" min="30" />
             <div class="form-hint">Cron benzeri job bu araliga gore dinamik grup atamalarini yeniler (min: 30 sn).</div>
           </div>
+          <div class="col-12 col-md-6">
+            <label class="form-check form-switch mt-4">
+              <input class="form-check-input" id="s-service-monitoring-enabled" type="checkbox" />
+              <span class="form-check-label">Servis Izleme Global Aktif</span>
+            </label>
+            <div class="form-hint">Ajanlar servis izlemeyi bu ayara gore acar/kapatir (agent override yoksa).</div>
+          </div>
 
           <div class="col-12"><hr class="my-2" /></div>
           <div class="col-12">
@@ -164,6 +171,7 @@
       document.getElementById('s-runtime-interval').value = map.runtime_update_interval_min || '60';
       document.getElementById('s-runtime-jitter').value = map.runtime_update_jitter_sec || '300';
       document.getElementById('s-dynamic-group-sync').value = map.dynamic_group_sync_interval_sec || '120';
+      document.getElementById('s-service-monitoring-enabled').checked = ['1', 'true', 'yes', 'on'].includes((map.service_monitoring_enabled || 'false').toString().toLowerCase());
       document.getElementById('s-session-recording-enabled').checked = ['1', 'true', 'yes', 'on'].includes((map.session_recording_enabled || 'false').toString().toLowerCase());
       document.getElementById('s-session-recording-fps').value = map.session_recording_fps || '10';
       document.getElementById('s-session-recording-watermark-enabled').checked = ['1', 'true', 'yes', 'on'].includes((map.session_recording_watermark_enabled || 'false').toString().toLowerCase());
@@ -223,6 +231,7 @@
             runtime_update_interval_min: document.getElementById('s-runtime-interval').value,
             runtime_update_jitter_sec: document.getElementById('s-runtime-jitter').value,
             dynamic_group_sync_interval_sec: document.getElementById('s-dynamic-group-sync').value,
+            service_monitoring_enabled: document.getElementById('s-service-monitoring-enabled').checked ? 'true' : 'false',
             session_recording_enabled: document.getElementById('s-session-recording-enabled').checked ? 'true' : 'false',
             session_recording_fps: document.getElementById('s-session-recording-fps').value,
             session_recording_watermark_enabled: document.getElementById('s-session-recording-watermark-enabled').checked ? 'true' : 'false',

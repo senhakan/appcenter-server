@@ -160,6 +160,11 @@
           </svg>Sistem Gecmisi
         </a>
       </li>
+      <li class="nav-item" role="presentation">
+        <a href="#tabs-services-3" class="nav-link" data-bs-toggle="tab" aria-selected="false" role="tab" tabindex="-1">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon me-2 icon-2"><path d="M7 4h10l1 5l-1 5h-10l-1 -5z"></path><path d="M7 14l-1 6"></path><path d="M17 14l1 6"></path><path d="M10 4l0 -2"></path><path d="M14 4l0 -2"></path></svg>Servisler
+        </a>
+      </li>
     </ul>
   </div>
   <div class="card-body">
@@ -232,6 +237,43 @@
       </div>
     </div>
   </div>
+
+  <div id="tabs-services-3" class="tab-pane agent-tab-pane-fixed" role="tabpanel">
+    <div class="agent-tab-toolbar flex-wrap gap-2">
+      <input id="svc-search" class="form-control" type="text" placeholder="Servis ara..." oninput="filterServices()" style="max-width:260px;" />
+      <div class="d-flex align-items-center gap-2 ms-auto">
+        <span class="text-secondary small" id="svc-effective-text">Takip: -</span>
+        <select id="svc-monitoring-mode" class="form-select form-select-sm" style="width: 210px;" data-required-permissions="agents.manage">
+          <option value="inherit">Global ayari kullan</option>
+          <option value="enabled">Bu clientta acik</option>
+          <option value="disabled">Bu clientta kapali</option>
+        </select>
+        <button id="svc-monitoring-save" class="btn btn-sm btn-outline-primary" type="button" data-required-permissions="agents.manage">Kaydet</button>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table card-table table-vcenter">
+        <thead><tr><th>Servis</th><th>Durum</th><th>Baslangic</th><th>PID</th><th>Kullanici</th></tr></thead>
+        <tbody id="svc-body"></tbody>
+      </table>
+    </div>
+    <div class="card-footer mt-2">
+      <div class="row g-2 justify-content-center justify-content-sm-between">
+        <div class="col-auto d-flex align-items-center">
+          <p class="m-0 text-secondary" id="svc-page-info">-</p>
+        </div>
+        <div class="col-auto">
+          <ul class="pagination m-0 ms-auto" id="svc-pagination"></ul>
+        </div>
+      </div>
+    </div>
+    <div class="table-responsive mt-3">
+      <table class="table card-table table-vcenter">
+        <thead><tr><th>Tarih</th><th>Servis</th><th>Degisim</th><th>Detay</th></tr></thead>
+        <tbody id="svc-history-body"></tbody>
+      </table>
+    </div>
+  </div>
   </div>
   </div>
 </div>
@@ -264,10 +306,16 @@
   const INV_PAGE_SIZE = 10;
   const CHANGES_PAGE_SIZE = 10;
   const SYSTEM_PAGE_SIZE = 10;
+  const SVC_PAGE_SIZE = 10;
   let changesPage = 1;
   let systemPage = 1;
+  let svcPage = 1;
   let changesHasNext = false;
   let systemHasNext = false;
+  let allServices = [];
+  let filteredServices = [];
+  let globalServiceMonitoringEnabled = false;
+  let currentServiceOverride = null;
   let savedNote = '';
   const deleteModal = document.getElementById('agent-delete-modal');
 
@@ -352,6 +400,51 @@
     const dirty = current !== savedNote;
     noteSaveBtn.disabled = !dirty;
     noteSaveBtn.className = dirty ? 'btn btn-primary' : 'btn btn-outline-secondary';
+  }
+
+  function isTruthy(value) {
+    return ['1', 'true', 'yes', 'on'].includes(String(value || '').toLowerCase());
+  }
+
+  function serviceChangeLabel(v) {
+    const map = {
+      added: 'Eklendi',
+      removed: 'Silindi',
+      status_changed: 'Durum degisti',
+      startup_changed: 'Baslangic degisti',
+      updated: 'Guncellendi',
+    };
+    return map[v] || (v || '-');
+  }
+
+  function serviceStatusBadge(v) {
+    const key = (v || '').toLowerCase();
+    if (key === 'running') return '<span class="badge bg-green-lt text-green">running</span>';
+    if (key === 'stopped') return '<span class="badge bg-secondary-lt text-secondary">stopped</span>';
+    if (key === 'failed') return '<span class="badge bg-red-lt text-red">failed</span>';
+    if (key === 'paused') return '<span class="badge bg-yellow-lt text-yellow">paused</span>';
+    return `<span class="badge bg-azure-lt text-azure">${escHtml(v || 'unknown')}</span>`;
+  }
+
+  function getEffectiveServiceMonitoring() {
+    if (currentServiceOverride === true) return true;
+    if (currentServiceOverride === false) return false;
+    return !!globalServiceMonitoringEnabled;
+  }
+
+  function renderServiceMonitoringState() {
+    const mode = document.getElementById('svc-monitoring-mode');
+    const label = document.getElementById('svc-effective-text');
+    const effective = getEffectiveServiceMonitoring();
+    if (mode) {
+      if (currentServiceOverride === true) mode.value = 'enabled';
+      else if (currentServiceOverride === false) mode.value = 'disabled';
+      else mode.value = 'inherit';
+    }
+    if (label) {
+      const src = currentServiceOverride == null ? 'global' : 'override';
+      label.textContent = `Takip: ${effective ? 'acik' : 'kapali'} (${src})`;
+    }
   }
 
   async function saveNote() {
@@ -507,11 +600,15 @@
         </div>
       `;
       savedNote = (data.notes || '').trim();
+      currentServiceOverride = data.service_monitoring_enabled === null || data.service_monitoring_enabled === undefined
+        ? null
+        : !!data.service_monitoring_enabled;
       const { noteInput, noteSaveBtn } = getNoteElements();
       if (noteInput) noteInput.value = data.notes || '';
       if (noteInput) noteInput.addEventListener('input', syncNoteSaveButton);
       if (noteSaveBtn) noteSaveBtn.addEventListener('click', saveNote);
       syncNoteSaveButton();
+      renderServiceMonitoringState();
     } catch (err) {
       AppCenterApi.toast(err.message);
     }
@@ -620,6 +717,147 @@
     if (next && hasNext) next.addEventListener('click', (e) => { e.preventDefault(); onNext(); });
   }
 
+  async function loadServiceMonitoringGlobal() {
+    try {
+      const data = await AppCenterApi.req('/settings');
+      const map = {};
+      (data.items || []).forEach((x) => { map[x.key] = x.value; });
+      globalServiceMonitoringEnabled = isTruthy(map.service_monitoring_enabled || 'false');
+    } catch (err) {
+      globalServiceMonitoringEnabled = false;
+    }
+    renderServiceMonitoringState();
+  }
+
+  function renderServices(items) {
+    const body = document.getElementById('svc-body');
+    if (!body) return;
+    if (!items.length) {
+      body.innerHTML = '<tr><td colspan="5" class="text-secondary">Servis verisi yok</td></tr>';
+      return;
+    }
+    body.innerHTML = items.map((s) => `<tr>
+      <td><div class="fw-semibold">${escHtml(s.display_name || s.name || '-')}</div><div class="text-secondary small">${escHtml(s.name || '-')}</div></td>
+      <td>${serviceStatusBadge(s.status)}</td>
+      <td>${escHtml(s.startup_type || '-')}</td>
+      <td>${escHtml(s.pid || '-')}</td>
+      <td>${escHtml(s.run_as || '-')}</td>
+    </tr>`).join('');
+  }
+
+  function updateServicesPager(total, page) {
+    const totalPages = Math.max(1, Math.ceil(total / SVC_PAGE_SIZE));
+    const from = total ? ((page - 1) * SVC_PAGE_SIZE + 1) : 0;
+    const to = Math.min(page * SVC_PAGE_SIZE, total);
+    const info = document.getElementById('svc-page-info');
+    if (info) info.innerHTML = `Gosterilen <strong>${from}-${to}</strong> / <strong>${total}</strong> (Sayfa <strong>${page}</strong>)`;
+    renderPager(
+      'svc-pagination',
+      page,
+      page < totalPages,
+      () => changeSvcPage(-1),
+      () => changeSvcPage(1),
+    );
+  }
+
+  function renderServicesPage() {
+    const total = filteredServices.length;
+    const totalPages = Math.max(1, Math.ceil(total / SVC_PAGE_SIZE));
+    if (svcPage > totalPages) svcPage = totalPages;
+    if (svcPage < 1) svcPage = 1;
+    const start = (svcPage - 1) * SVC_PAGE_SIZE;
+    const pageItems = filteredServices.slice(start, start + SVC_PAGE_SIZE);
+    renderServices(pageItems);
+    const body = document.getElementById('svc-body');
+    if (body && pageItems.length > 0 && pageItems.length < SVC_PAGE_SIZE) {
+      appendFillerRows(body, 5, SVC_PAGE_SIZE - pageItems.length);
+    }
+    if (body && pageItems.length === 0) {
+      appendFillerRows(body, 5, SVC_PAGE_SIZE - 1);
+    }
+    updateServicesPager(total, svcPage);
+  }
+
+  function filterServices() {
+    const q = (document.getElementById('svc-search')?.value || '').toLowerCase().trim();
+    filteredServices = allServices.filter((s) => {
+      const n1 = String(s.name || '').toLowerCase();
+      const n2 = String(s.display_name || '').toLowerCase();
+      return !q || n1.includes(q) || n2.includes(q);
+    });
+    svcPage = 1;
+    renderServicesPage();
+  }
+
+  function changeSvcPage(delta) {
+    const totalPages = Math.max(1, Math.ceil(filteredServices.length / SVC_PAGE_SIZE));
+    svcPage = Math.max(1, Math.min(totalPages, svcPage + Number(delta || 0)));
+    renderServicesPage();
+  }
+
+  async function loadServices() {
+    try {
+      const data = await AppCenterApi.req(`/agents/${agentId}/services`);
+      allServices = data.items || [];
+      filterServices();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  async function loadServiceHistory(page) {
+    try {
+      const data = await AppCenterApi.req(`/agents/${agentId}/services/history?limit=10&offset=0`);
+      const items = data.items || [];
+      const body = document.getElementById('svc-history-body');
+      if (!body) return;
+      if (!items.length) {
+        body.innerHTML = '<tr><td colspan="4" class="text-secondary">Degisim kaydi yok</td></tr>';
+      } else {
+        body.innerHTML = items.map((i) => {
+          const detail = `${escHtml(i.old_status || '-')} -> ${escHtml(i.new_status || '-')} | ${escHtml(i.old_startup_type || '-')} -> ${escHtml(i.new_startup_type || '-')}`;
+          return `<tr>
+            <td>${AppCenterApi.formatDate(i.detected_at)}</td>
+            <td><div class="fw-semibold">${escHtml(i.display_name || i.service_name || '-')}</div><div class="text-secondary small">${escHtml(i.service_name || '-')}</div></td>
+            <td>${escHtml(serviceChangeLabel(i.change_type))}</td>
+            <td>${detail}</td>
+          </tr>`;
+        }).join('');
+      }
+      if (items.length > 0 && items.length < 10) {
+        appendFillerRows(body, 4, 10 - items.length);
+      }
+      if (items.length === 0) {
+        appendFillerRows(body, 4, 9);
+      }
+      body.insertAdjacentHTML('beforeend', '<tr><td colspan="4" class="text-secondary small">Son 10 servis degisimi gosteriliyor.</td></tr>');
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  async function saveServiceMonitoringOverride() {
+    const mode = document.getElementById('svc-monitoring-mode');
+    if (!mode) return;
+    let enabled = null;
+    if (mode.value === 'enabled') enabled = true;
+    if (mode.value === 'disabled') enabled = false;
+    try {
+      const updated = await AppCenterApi.req(`/agents/${agentId}/service-monitoring`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      });
+      currentServiceOverride = updated.service_monitoring_enabled === null || updated.service_monitoring_enabled === undefined
+        ? null
+        : !!updated.service_monitoring_enabled;
+      renderServiceMonitoringState();
+      AppCenterApi.toast('Servis izleme ayari guncellendi');
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+
   async function loadChangesPage(page) {
     try {
       await AppCenterApi.initUi();
@@ -702,6 +940,12 @@
           const exit = (i.exit_code != null) ? ` (exit=${i.exit_code})` : '';
           const msg = i.message ? ` | ${i.message}` : '';
           details = `<div><b>task</b>: ${act} ${app} → ${st}${exit}${msg}</div>`;
+        } else if (i.event_type === 'service') {
+          const nm = i.service_display_name || i.service_name || '-';
+          const ch = serviceChangeLabel(i.service_change_type);
+          details = `<div><b>service</b>: ${nm} | ${ch}</div>
+            <div><b>status</b>: ${i.old_status || '-'} → ${i.new_status || '-'}</div>
+            <div><b>startup</b>: ${i.old_startup_type || '-'} → ${i.new_startup_type || '-'}</div>`;
         } else {
           const p = i.system_profile || {};
           const fields = (i.changed_fields || []);
@@ -773,9 +1017,13 @@
   (async function () {
     await AppCenterApi.initUi();
     loadAgentDetail();
+    loadServiceMonitoringGlobal();
     loadInventory();
     loadChangesPage(1);
     loadSystemPage(1);
+    loadServices();
+    loadServiceHistory();
   })();
+  document.getElementById('svc-monitoring-save')?.addEventListener('click', saveServiceMonitoringOverride);
 </script>
 {% endblock %}

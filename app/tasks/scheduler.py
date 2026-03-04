@@ -4,10 +4,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from sqlalchemy import text
-
 from app.database import SessionLocal
-from app.models import Agent, AgentStatusHistory, Setting, SoftwareChangeHistory
+from app.models import Agent, AgentStatusHistory, Setting, SoftwareChangeHistory, TaskHistory
 from app.services import dynamic_group_service
 from app.services import remote_support_service
 from app.services.system_profile_service import cleanup_old_identity_history, cleanup_old_status_history, cleanup_old_system_history
@@ -63,10 +61,8 @@ def cleanup_old_logs() -> None:
     db = SessionLocal()
     try:
         retention_days = int(_get_setting(db, "log_retention_days", "30"))
-        db.execute(
-            text("DELETE FROM task_history WHERE created_at < datetime('now', :days)"),
-            {"days": f"-{retention_days} days"},
-        )
+        cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+        db.query(TaskHistory).filter(TaskHistory.created_at < cutoff).delete(synchronize_session=False)
         db.commit()
     finally:
         db.close()

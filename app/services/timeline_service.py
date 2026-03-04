@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 
 def _as_utc(dt_value):
-    # sqlite raw queries can return strings and/or naive datetimes.
+    # Defensive parse: raw DB values may come as string/naive datetime.
     if dt_value is None:
         return None
     if isinstance(dt_value, str):
@@ -50,6 +50,10 @@ def get_agent_timeline(
         text("SELECT COUNT(1) FROM task_history WHERE agent_uuid = :uuid"),
         {"uuid": agent_uuid},
     ).scalar() or 0
+    total_services = db.execute(
+        text("SELECT COUNT(1) FROM agent_service_history WHERE agent_uuid = :uuid"),
+        {"uuid": agent_uuid},
+    ).scalar() or 0
 
     rows = db.execute(
         text(
@@ -71,7 +75,12 @@ def get_agent_timeline(
                    NULL AS task_status,
                    NULL AS app_name,
                    NULL AS message,
-                   NULL AS exit_code
+                   CAST(NULL AS INTEGER) AS exit_code,
+                   NULL AS service_name,
+                   NULL AS service_display_name,
+                   NULL AS service_change_type,
+                   NULL AS old_startup_type,
+                   NULL AS new_startup_type
             FROM agent_system_profile_history
             WHERE agent_uuid = :uuid
             UNION ALL
@@ -92,7 +101,12 @@ def get_agent_timeline(
                    NULL AS task_status,
                    NULL AS app_name,
                    NULL AS message,
-                   NULL AS exit_code
+                   CAST(NULL AS INTEGER) AS exit_code,
+                   NULL AS service_name,
+                   NULL AS service_display_name,
+                   NULL AS service_change_type,
+                   NULL AS old_startup_type,
+                   NULL AS new_startup_type
             FROM agent_identity_history
             WHERE agent_uuid = :uuid
             UNION ALL
@@ -113,7 +127,12 @@ def get_agent_timeline(
                    NULL AS task_status,
                    NULL AS app_name,
                    NULL AS message,
-                   NULL AS exit_code
+                   CAST(NULL AS INTEGER) AS exit_code,
+                   NULL AS service_name,
+                   NULL AS service_display_name,
+                   NULL AS service_change_type,
+                   NULL AS old_startup_type,
+                   NULL AS new_startup_type
             FROM agent_status_history
             WHERE agent_uuid = :uuid
             UNION ALL
@@ -134,8 +153,39 @@ def get_agent_timeline(
                    status AS task_status,
                    (SELECT display_name FROM applications WHERE id = task_history.app_id) AS app_name,
                    message AS message,
-                   exit_code AS exit_code
+                   exit_code AS exit_code,
+                   NULL AS service_name,
+                   NULL AS service_display_name,
+                   NULL AS service_change_type,
+                   NULL AS old_startup_type,
+                   NULL AS new_startup_type
             FROM task_history
+            WHERE agent_uuid = :uuid
+            UNION ALL
+            SELECT 'service' AS event_type,
+                   detected_at,
+                   id,
+                   NULL AS changed_fields_json,
+                   NULL AS diff_json,
+                   NULL AS profile_json,
+                   NULL AS old_hostname,
+                   NULL AS new_hostname,
+                   NULL AS old_ip_address,
+                   NULL AS new_ip_address,
+                   old_status,
+                   new_status,
+                   NULL AS reason,
+                   NULL AS task_action,
+                   NULL AS task_status,
+                   NULL AS app_name,
+                   NULL AS message,
+                   CAST(NULL AS INTEGER) AS exit_code,
+                   service_name,
+                   display_name AS service_display_name,
+                   change_type AS service_change_type,
+                   old_startup_type,
+                   new_startup_type
+            FROM agent_service_history
             WHERE agent_uuid = :uuid
             ORDER BY detected_at DESC, id DESC
             LIMIT :limit OFFSET :offset
@@ -196,7 +246,7 @@ def get_agent_timeline(
                         "reason": r["reason"],
                     }
                 )
-            else:
+            elif r["event_type"] == "task":
                 items.append(
                     {
                         "event_type": "task",
@@ -208,5 +258,19 @@ def get_agent_timeline(
                         "exit_code": r["exit_code"],
                     }
                 )
+            else:
+                items.append(
+                    {
+                        "event_type": "service",
+                        "detected_at": detected_at,
+                        "service_name": r["service_name"],
+                        "service_display_name": r["service_display_name"],
+                        "service_change_type": r["service_change_type"],
+                        "old_status": r["old_status"],
+                        "new_status": r["new_status"],
+                        "old_startup_type": r["old_startup_type"],
+                        "new_startup_type": r["new_startup_type"],
+                    }
+                )
 
-    return items, int(total_system) + int(total_identity) + int(total_status) + int(total_tasks)
+    return items, int(total_system) + int(total_identity) + int(total_status) + int(total_tasks) + int(total_services)

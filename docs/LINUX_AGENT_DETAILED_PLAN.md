@@ -96,7 +96,7 @@ FastAPI Server (tek backend, platform-aware)
 
 #### 1.1 DB Migration'lari
 
-Mevcut migration yontemi: `app/database.py` icinde `_run_migrations()` fonksiyonu, startup'ta `PRAGMA table_info` ile kolon varligini kontrol edip `ALTER TABLE` calistirir.
+Mevcut migration yontemi: `app/database.py` icinde `_run_startup_migrations()` fonksiyonu, `information_schema` kontrolu ile kolon varligini dogrulayip gerekli `ALTER TABLE` adimlarini idempotent uygular.
 
 **`agents` tablosuna eklenecek kolonlar:**
 
@@ -125,11 +125,11 @@ ALTER TABLE applications ADD COLUMN target_platform TEXT NOT NULL DEFAULT 'windo
 
 Mevcut constraint: `file_type IN ('msi', 'exe')`
 
-SQLite'ta CHECK constraint dogrudan ALTER edilemez. Cozum:
-- Startup migration'da: mevcut constraint'i kaldirmak icin tablo yeniden olusturma **yapilmayacak** (veri kaybi riski).
-- Bunun yerine: `file_type` kontrolu **uygulama katmaninda** (Pydantic validation + service layer) yapilacak.
-- DB constraint olarak: yeni kayitlar icin uygulama kodu zorlayacak, eski constraint uyumsuz kayitlari zaten engelleyecegi icin sorun olmaz.
-- Gecis stratejisi: mevcut constraint eski Windows kayitlari icin gecerli kalir; yeni Linux uygulamalari icin `file_type` degerleri (`deb`, `tar.gz`, `sh`) yalnizca `target_platform='linux'` ile birlikte kabul edilir.
+PostgreSQL'ta CHECK constraint degisimi migration ile yonetilir. Cozum:
+- Startup migration'da tablo yeniden olusturma **yapilmayacak**.
+- `file_type` kontrolu uygulama katmaninda (Pydantic + service layer) zorunlu tutulacak.
+- DB tarafinda yeni platform kurallarina uygun constraint migration'i idempotent uygulanacak.
+- Gecis stratejisi: mevcut Windows kayitlari korunur; Linux icin `deb`, `tar.gz`, `sh` yalnizca `target_platform='linux'` ile kabul edilir.
 
 **Platform-aware file_type validation matrisi:**
 

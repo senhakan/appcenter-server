@@ -213,14 +213,10 @@ def get_software_summary(
         AgentSoftwareInventory.normalized_name,
         AgentSoftwareInventory.software_name,
     )
-    dialect = (getattr(getattr(db, "bind", None), "dialect", None) or getattr(db.get_bind(), "dialect", None)).name
-    if dialect == "postgresql":
-        versions_agg = func.string_agg(
-            func.distinct(cast(AgentSoftwareInventory.software_version, String)),
-            ",",
-        )
-    else:
-        versions_agg = func.group_concat(func.distinct(AgentSoftwareInventory.software_version))
+    versions_agg = func.string_agg(
+        func.distinct(cast(AgentSoftwareInventory.software_version, String)),
+        ",",
+    )
 
     q = db.query(
         name_col.label("name"),

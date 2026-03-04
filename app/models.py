@@ -115,6 +115,12 @@ class Agent(Base):
     remote_support_helper_running: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     remote_support_helper_pid: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     remote_support_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Service snapshot (JSON text) + hash for low-traffic sync.
+    services_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    services_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    services_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Null -> inherit global setting. True/False -> per-agent override.
+    service_monitoring_enabled: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
 
     agent_applications: Mapped[list["AgentApplication"]] = relationship(back_populates="agent")
     agent_groups: Mapped[list["AgentGroup"]] = relationship(back_populates="agent", cascade="all, delete-orphan")
@@ -157,6 +163,17 @@ class Agent(Base):
             if isinstance(data, list):
                 return [str(x).strip() for x in data if str(x).strip()]
             return []
+        except Exception:
+            return []
+
+    @property
+    def services(self) -> list[dict]:
+        """Parsed service snapshot from services_json (best-effort)."""
+        if not self.services_json:
+            return []
+        try:
+            data = json.loads(self.services_json)
+            return data if isinstance(data, list) else []
         except Exception:
             return []
 
@@ -578,6 +595,34 @@ class AgentStatusHistory(Base):
 
 Index("idx_statushist_agent", AgentStatusHistory.agent_uuid)
 Index("idx_statushist_detected", AgentStatusHistory.detected_at)
+
+
+class AgentServiceHistory(Base):
+    __tablename__ = "agent_service_history"
+    __table_args__ = (
+        CheckConstraint(
+            "change_type IN ('added', 'removed', 'status_changed', 'startup_changed', 'updated')",
+            name="ck_agent_service_history_change_type",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    agent_uuid: Mapped[str] = mapped_column(ForeignKey("agents.uuid", ondelete="CASCADE"), nullable=False)
+    detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    service_name: Mapped[str] = mapped_column(String, nullable=False)
+    display_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    change_type: Mapped[str] = mapped_column(String, nullable=False)
+    old_status: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    new_status: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    old_startup_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    new_startup_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    old_payload_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    new_payload_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+Index("idx_servicehist_agent", AgentServiceHistory.agent_uuid)
+Index("idx_servicehist_detected", AgentServiceHistory.detected_at)
+Index("idx_servicehist_name", AgentServiceHistory.service_name)
 Index("idx_norm_pattern", SoftwareNormalizationRule.pattern)
 Index("idx_license_pattern", SoftwareLicense.software_name_pattern)
 Index("idx_license_type", SoftwareLicense.license_type)

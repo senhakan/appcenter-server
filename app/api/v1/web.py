@@ -18,6 +18,7 @@ from app.models import (
     AgentApplication,
     AgentGroup,
     AgentIdentityHistory,
+    AgentServiceHistory,
     AgentSoftwareInventory,
     AgentStatusHistory,
     AgentSystemProfileHistory,
@@ -34,6 +35,7 @@ from app.models import (
 from app.schemas import (
     AgentListResponse,
     AgentNotesUpdateRequest,
+    AgentServiceMonitoringUpdateRequest,
     AgentResponse,
     AgentUpdateUploadResponse,
     ApplicationListResponse,
@@ -96,7 +98,7 @@ MIN_DYNAMIC_GROUP_SYNC_INTERVAL_SEC = 30
 
 
 def _as_utc(dt_value):
-    # sqlite raw queries can return strings and/or naive datetimes.
+    # Defensive parse: raw DB values may come as string/naive datetime.
     if dt_value is None:
         return None
     if isinstance(dt_value, str):
@@ -251,6 +253,31 @@ def agents_update_notes(
     return AgentResponse.model_validate(agent)
 
 
+@router.put("/agents/{agent_uuid}/service-monitoring", response_model=AgentResponse)
+def agents_update_service_monitoring(
+    agent_uuid: str,
+    payload: AgentServiceMonitoringUpdateRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("agents.manage")),
+) -> AgentResponse:
+    agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
+    if not agent:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
+    agent.service_monitoring_enabled = payload.enabled
+    db.add(agent)
+    db.commit()
+    db.refresh(agent)
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="agent.service_monitoring.update",
+        resource_type="agent",
+        resource_id=agent_uuid,
+        details={"enabled": payload.enabled},
+    )
+    return AgentResponse.model_validate(agent)
+
+
 @router.delete("/agents/{agent_uuid}", response_model=MessageResponse)
 def agents_delete(
     agent_uuid: str,
@@ -277,6 +304,9 @@ def agents_delete(
         synchronize_session=False
     )
     db.query(AgentStatusHistory).filter(AgentStatusHistory.agent_uuid == agent_uuid).delete(
+        synchronize_session=False
+    )
+    db.query(AgentServiceHistory).filter(AgentServiceHistory.agent_uuid == agent_uuid).delete(
         synchronize_session=False
     )
     db.query(TaskHistory).filter(TaskHistory.agent_uuid == agent_uuid).update(

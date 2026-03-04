@@ -5,7 +5,7 @@
 AppCenter, Windows bilgisayarlara uzaktan uygulama dağıtımı yapan bir Client-Server sistemidir.
 Bu dosya **SERVER** tarafını kapsar. Agent tarafı ayrı bir repository/session'da geliştirilir.
 
-**Teknoloji:** Python 3.10+, FastAPI, SQLAlchemy 2.0, SQLite (WAL mode), Jinja2, TailwindCSS  
+**Teknoloji:** Python 3.10+, FastAPI, SQLAlchemy 2.0, PostgreSQL 12+, Jinja2, TailwindCSS  
 **Deployment:** Native Linux (systemd), Docker YOK  
 **Referans Doküman:** `../AppCenter_Technical_Specification_v1_1.md`
 
@@ -19,7 +19,7 @@ server/
 │   ├── __init__.py
 │   ├── main.py                 # FastAPI application entry
 │   ├── config.py               # Configuration (.env)
-│   ├── database.py             # SQLAlchemy + WAL + busy_timeout
+│   ├── database.py             # SQLAlchemy engine + startup migrations
 │   ├── models.py               # ORM models
 │   ├── schemas.py              # Pydantic schemas
 │   ├── auth.py                 # JWT authentication
@@ -72,8 +72,8 @@ server/
 ## KRİTİK KURALLAR
 
 ### Veritabanı
-- **ZORUNLU:** Her bağlantıda `PRAGMA journal_mode=WAL`, `PRAGMA busy_timeout=5000`, `PRAGMA foreign_keys=ON` çalıştır
-- SQLAlchemy `event.listens_for(engine, "connect")` ile pragma'ları ayarla
+- **ZORUNLU:** Uygulama sadece PostgreSQL `DATABASE_URL` ile calismali
+- Startup migration'lar idempotent olmali (`information_schema` kontrolu + `ALTER TABLE/CREATE INDEX IF NOT EXISTS`)
 - Tüm zaman damgaları **UTC** olmalı
 - Log temizliği: trigger YOK, scheduler ile günde 1 kez (03:00 UTC)
 
@@ -106,7 +106,7 @@ server/
 ## GELİŞTİRME SIRASI
 
 ### Faz 1: Temel Altyapı
-1. [x] `database.py` - SQLAlchemy engine + WAL pragma'ları
+1. [x] `database.py` - SQLAlchemy engine + startup migration altyapısı
 2. [x] `models.py` - Tüm tablo modelleri
 3. [x] `config.py` - .env okuma
 4. [x] `main.py` - FastAPI app, CORS, static files, startup event
@@ -196,9 +196,9 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 pytest tests/ -v
 
 # Veritabanı kontrolü
-sqlite3 /var/lib/appcenter/appcenter.db "PRAGMA integrity_check;"
-sqlite3 /var/lib/appcenter/appcenter.db ".tables"
-sqlite3 /var/lib/appcenter/appcenter.db "SELECT * FROM settings;"
+PGPASSWORD='***' psql -h 127.0.0.1 -U appcenter -d appcenter -c "SELECT 1;"
+PGPASSWORD='***' psql -h 127.0.0.1 -U appcenter -d appcenter -c "\\dt"
+PGPASSWORD='***' psql -h 127.0.0.1 -U appcenter -d appcenter -c "SELECT key, value FROM settings LIMIT 20;"
 
 # Production deploy
 sudo systemctl restart appcenter

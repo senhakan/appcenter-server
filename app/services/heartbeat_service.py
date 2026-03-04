@@ -12,6 +12,7 @@ from app.models import (
     AgentApplication,
     AgentGroup,
     AgentIdentityHistory,
+    AgentServiceHistory,
     AgentStatusHistory,
     AgentSystemProfileHistory,
     Application,
@@ -20,7 +21,7 @@ from app.models import (
     RemoteSupportSession,
     TaskHistory,
 )
-from app.schemas import CommandItem, HeartbeatConfig, HeartbeatRequest
+from app.schemas import CommandItem, HeartbeatConfig, HeartbeatRequest, ServiceItem
 
 
 def _get_setting(db: Session, key: str, default: str) -> str:
@@ -169,6 +170,94 @@ def _hash_json_dict(data: dict) -> str:
     # Deterministic, order-independent hashing for change detection.
     b = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
     return hashlib.sha256(b).hexdigest()
+
+
+def _hash_json_list(data: list[dict]) -> str:
+    b = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    return hashlib.sha256(b).hexdigest()
+
+
+def _normalize_service_status(value: str | None) -> str:
+    v = (value or "").strip().lower()
+    if v in {"running", "run", "active"}:
+        return "running"
+    if v in {"stopped", "stop", "inactive"}:
+        return "stopped"
+    if v in {"paused", "pause"}:
+        return "paused"
+    if v in {"failed", "error"}:
+        return "failed"
+    return "unknown"
+
+
+def _normalize_startup_type(value: str | None) -> str:
+    v = (value or "").strip().lower()
+    if v in {"auto", "automatic", "enabled"}:
+        return "auto"
+    if v in {"manual", "demand"}:
+        return "manual"
+    if v in {"disabled", "masked"}:
+        return "disabled"
+    if v in {"delayed", "auto-delayed", "automatic (delayed start)"}:
+        return "delayed"
+    return "unknown"
+
+
+def _normalize_services(items: list[ServiceItem] | None) -> list[dict]:
+    if not items:
+        return []
+    out: list[dict] = []
+    seen: set[str] = set()
+    for item in items:
+        name = (item.name or "").strip()
+        if not name:
+            continue
+        key = name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(
+            {
+                "name": name,
+                "display_name": (item.display_name or "").strip() or None,
+                "status": _normalize_service_status(item.status),
+                "startup_type": _normalize_startup_type(item.startup_type),
+                "pid": int(item.pid) if item.pid and int(item.pid) > 0 else None,
+                "run_as": (item.run_as or "").strip() or None,
+                "description": (item.description or "").strip() or None,
+            }
+        )
+    out.sort(key=lambda x: (x.get("name") or "").lower())
+    return out
+
+
+def _diff_services(old_items: list[dict], new_items: list[dict]) -> list[dict]:
+    old_map = {(x.get("name") or "").lower(): x for x in old_items if (x.get("name") or "").strip()}
+    new_map = {(x.get("name") or "").lower(): x for x in new_items if (x.get("name") or "").strip()}
+    keys = sorted(set(old_map.keys()) | set(new_map.keys()))
+    changes: list[dict] = []
+    for key in keys:
+        old = old_map.get(key)
+        new = new_map.get(key)
+        if old is None and new is not None:
+            changes.append({"type": "added", "old": None, "new": new})
+            continue
+        if old is not None and new is None:
+            changes.append({"type": "removed", "old": old, "new": None})
+            continue
+        assert old is not None and new is not None
+        status_changed = (old.get("status") or "unknown") != (new.get("status") or "unknown")
+        startup_changed = (old.get("startup_type") or "unknown") != (new.get("startup_type") or "unknown")
+        if status_changed and startup_changed:
+            change_type = "updated"
+        elif status_changed:
+            change_type = "status_changed"
+        elif startup_changed:
+            change_type = "startup_changed"
+        else:
+            continue
+        changes.append({"type": change_type, "old": old, "new": new})
+    return changes
 
 
 def _diff_system_profile(old: dict | None, new: dict) -> list[str]:
@@ -389,6 +478,61 @@ def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> t
     config.inventory_sync_required = inventory_sync_required
     config.store_tray_enabled = _is_store_tray_enabled_for_agent(db, agent.uuid)
     config.remote_support_enabled = _is_remote_support_enabled_for_agent(db, agent.uuid)
+    global_service_enabled = str(_get_setting(db, "service_monitoring_enabled", "false")).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    effective_service_enabled = (
+        bool(agent.service_monitoring_enabled)
+        if agent.service_monitoring_enabled is not None
+        else global_service_enabled
+    )
+    config.service_monitoring_enabled = effective_service_enabled
+    services_sync_required = False
+    if effective_service_enabled:
+        if payload.services_hash is not None:
+            services_sync_required = (
+                agent.services_hash is None
+                or (payload.services_hash or "").strip() == ""
+                or agent.services_hash != (payload.services_hash or "").strip()
+            )
+        if payload.services is not None:
+            normalized = _normalize_services(payload.services)
+            incoming_hash = (payload.services_hash or "").strip() or _hash_json_list(normalized)
+            existing = agent.services or []
+            if agent.services_hash != incoming_hash or existing != normalized:
+                # Do not create noisy "initial" events when service monitoring is first enabled.
+                has_baseline = bool(existing) and bool((agent.services_hash or "").strip())
+                if has_baseline:
+                    for ch in _diff_services(existing, normalized):
+                        old = ch.get("old")
+                        new = ch.get("new")
+                        ref = new or old or {}
+                        db.add(
+                            AgentServiceHistory(
+                                agent_uuid=agent.uuid,
+                                detected_at=now,
+                                service_name=(ref.get("name") or "").strip() or "unknown",
+                                display_name=(ref.get("display_name") or "").strip() or None,
+                                change_type=ch["type"],
+                                old_status=(old or {}).get("status"),
+                                new_status=(new or {}).get("status"),
+                                old_startup_type=(old or {}).get("startup_type"),
+                                new_startup_type=(new or {}).get("startup_type"),
+                                old_payload_json=json.dumps(old) if old else None,
+                                new_payload_json=json.dumps(new) if new else None,
+                            )
+                        )
+                agent.services_json = json.dumps(normalized)
+                agent.services_hash = incoming_hash
+                agent.services_updated_at = now
+                db.add(agent)
+            services_sync_required = False
+    else:
+        services_sync_required = False
+    config.services_sync_required = services_sync_required
 
     db.commit()
     return now, config, commands, inventory_sync_required

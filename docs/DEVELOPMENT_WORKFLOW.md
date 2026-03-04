@@ -50,7 +50,7 @@ Detayli yol haritasi ve tema notlari:
 
 ## 3. Kod Standarti
 
-- DB degisikliklerinde SQLite PRAGMA kurallari korunur.
+- DB degisikliklerinde PostgreSQL migration/indeks kurallari korunur.
 - Tum timestamp'ler UTC tutulur.
 - Agent auth: `X-Agent-UUID` + `X-Agent-Secret`
 - Web auth: JWT Bearer

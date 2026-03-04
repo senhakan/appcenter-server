@@ -9,7 +9,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 TEST_ROOT = Path('/tmp/appcenter_pytest')
-TEST_DB = TEST_ROOT / 'test.db'
 TEST_UPLOADS = TEST_ROOT / 'uploads'
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -20,7 +19,7 @@ shutil.rmtree(TEST_ROOT, ignore_errors=True)
 TEST_ROOT.mkdir(parents=True, exist_ok=True)
 TEST_UPLOADS.mkdir(parents=True, exist_ok=True)
 
-os.environ['DATABASE_URL'] = f"sqlite:////{TEST_DB.as_posix().lstrip('/')}"
+os.environ.setdefault('DATABASE_URL', 'postgresql+psycopg2://appcenter:Appcenter2026@127.0.0.1:5432/appcenter')
 os.environ['UPLOAD_DIR'] = str(TEST_UPLOADS)
 
 from app.main import app  # noqa: E402  pylint: disable=wrong-import-position

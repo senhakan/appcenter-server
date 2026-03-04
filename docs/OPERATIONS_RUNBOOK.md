@@ -132,13 +132,11 @@ Bu dokuman production ortami icin deploy, smoke ve rollback adimlarini tanimlar.
   - DB user: `appcenter`
   - Erisim: local-only (`pg_hba.conf` local + 127.0.0.1/32)
 - Migration:
-  - Kaynak SQLite dosyasi: `/var/lib/appcenter/appcenter.db`
-  - Yedekler: `/var/lib/appcenter/backups/appcenter_sqlite_*.db`
-  - Tasima sonrasi tablo satir sayilari SQLite vs PostgreSQL dogrulanmistir.
-- Geri donus (acil durum):
-  - `.env` icindeki `DATABASE_URL` tekrar SQLite'a alinabilir:
-    - `sqlite:////var/lib/appcenter/appcenter.db`
-  - `systemctl restart appcenter`
+  - Kaynak legacy DB dump/backup'lari: `/var/lib/appcenter/backups/`
+  - Tasima sonrasi tablo satir sayilari kaynak->PostgreSQL dogrulanmistir.
+- Not:
+  - Sunucu PostgreSQL-only calisir.
+  - `.env` icinde PostgreSQL disi `DATABASE_URL` ile uygulama baslatilmaz.
 
 ### 1.9 PostgreSQL Performans/Bakim Ayarlari (2026-03-02)
 
@@ -415,13 +413,11 @@ Belirti:
 
 Kok neden:
 
-- SQLite fonksiyonu `group_concat` PostgreSQL'de bulunmaz.
+- PostgreSQL fonksiyonu `group_concat` PostgreSQL'de bulunmaz.
 
 Cozum:
 
-- `app/services/inventory_service.py` icinde DB dialect'e gore aggregate fonksiyon secimi:
-  - PostgreSQL: `string_agg(distinct ...)`
-  - SQLite: `group_concat(distinct ...)`
+- `app/services/inventory_service.py` yazilim ozetinde PostgreSQL `string_agg(distinct ...)` kullanir.
 
 Hizli kontrol:
 
@@ -442,10 +438,58 @@ PY
 DB saglik kontrolu:
 
 ```bash
-sqlite3 /var/lib/appcenter/appcenter.db "PRAGMA integrity_check;"
+PGPASSWORD='***' psql -h 127.0.0.1 -U appcenter -d appcenter -c "SELECT 1;"
 ```
 
-Not: Bu hostta `sqlite3` binary her zaman kurulu olmayabilir. Alternatif olarak `/opt/appcenter/server/venv/bin/python` ile DB kontrol script'i calistirilabilir.
+### 1.11 PostgreSQL-Only Dogrulama (2026-03-04)
+
+- API regression (izole test DB):
+  - `appcenter_test` PostgreSQL veritabani olusturulup testler bu DB'de kosuldu.
+  - Komut:
+    - `DATABASE_URL=postgresql+psycopg2://appcenter:***@127.0.0.1:5432/appcenter_test python -m pytest -q tests --ignore=tests/test_signal_db_status.py`
+  - Sonuc: `46 passed`.
+  - Not: `tests/test_signal_db_status.py` eski signal helper fonksiyon adlarini import ettigi icin collect asamasinda ayri takip edilmelidir.
+- Canli smoke API kontrolleri:
+  - `/health`, `/api/v1/dashboard/stats`, `/api/v1/settings`, `/api/v1/groups`, `/api/v1/agents`, `/api/v1/inventory/dashboard`, `/api/v1/remote-support/sessions`, `/api/v1/audit/logs`, `/api/v1/agents/{uuid}/timeline` endpointleri `200` dondu.
+- PostgreSQL dosya isimleri devre-disi:
+  - `/var/lib/appcenter/appcenter.db` -> `/var/lib/appcenter/appcenter_postgresql_disabled_20260304_185317.db`
+  - `/opt/appcenter/server/appcenter.db` -> `/opt/appcenter/server/appcenter_postgresql_disabled_20260304_185317.db`
+  - Bu adim sonrasi servis restart + health kontrolu basarili.
+
+## 4.3 Agent Status Flapping (signal_disconnect) Sorun Giderme
+
+Belirti:
+
+- Agent detayda status cok kisa aralikla `online/offline` degisir.
+- `agent_status_history` kayitlarinda `reason=signal_disconnect` ile heartbeat kayitlari birbirine cok yakin gorulur (1-10 sn).
+
+Kok neden:
+
+- `/api/v1/agent/signal` long-poll timeout dongusu status degisimi uretiyordu.
+
+Cozum (2026-03-04):
+
+- `app/api/v1/agent.py` icinde signal endpointten status guncelleyen path kaldirildi.
+- Signal endpoint sadece wake-up mekanizmasi olarak birakildi.
+- Online/offline source of truth heartbeat oldu.
+
+Hizli kontrol:
+
+```bash
+cd /opt/appcenter/server
+./venv/bin/python - <<'PY'
+from app.database import SessionLocal
+from app.models import AgentStatusHistory
+from sqlalchemy import desc
+uid='54d2ad5c-5b66-477d-82da-e5a22ef6dc01'  # ornek
+s=SessionLocal()
+try:
+    for r in s.query(AgentStatusHistory).filter(AgentStatusHistory.agent_uuid==uid).order_by(desc(AgentStatusHistory.id)).limit(20):
+        print(r.id, r.reason, r.old_status, '->', r.new_status, r.detected_at)
+finally:
+    s.close()
+PY
+```
 
 ## 5. Rollback
 

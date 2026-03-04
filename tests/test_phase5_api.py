@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import os
-import sqlite3
 
 from fastapi.testclient import TestClient
+
+from app.database import SessionLocal
+from app.models import AuditLog
 
 
 def _register_agent(client: TestClient, uuid: str = 'agent-test-1') -> dict[str, str]:
@@ -419,13 +421,16 @@ def test_audit_log_written_for_mutating_actions(client: TestClient, auth_headers
     assert del_resp.status_code == 200
 
     db_url = os.environ.get('DATABASE_URL', '')
-    assert db_url.startswith('sqlite:///')
-    db_path = '/' + db_url.removeprefix('sqlite:///').lstrip('/')
-    with sqlite3.connect(db_path) as conn:
-        rows = conn.execute(
-            "SELECT action, resource_type, resource_id FROM audit_logs WHERE resource_type='group' AND resource_id=?",
-            (str(gid),),
-        ).fetchall()
+    assert db_url.startswith('postgresql+psycopg2://')
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(AuditLog.action)
+            .filter(AuditLog.resource_type == 'group', AuditLog.resource_id == str(gid))
+            .all()
+        )
+    finally:
+        db.close()
     actions = {r[0] for r in rows}
     assert 'group.create' in actions
     assert 'group.update' in actions
