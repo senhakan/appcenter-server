@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import csv
 import json
+import io
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.auth import require_permission
@@ -40,7 +43,14 @@ from app.schemas import (
     SoftwareAgentListResponse,
     SamCatalogItem,
     SamCatalogListResponse,
+    SamComplianceFindingItem,
+    SamComplianceFindingListResponse,
+    SamComplianceStatusUpdateRequest,
     SamDashboardResponse,
+    SamReportScheduleCreateRequest,
+    SamReportScheduleItem,
+    SamReportScheduleListResponse,
+    SamReportScheduleUpdateRequest,
     SamTopSoftwareItem,
     SamPlatformKpi,
     SoftwareSummaryItem,
@@ -244,6 +254,236 @@ def get_sam_catalog(
         page=page,
         per_page=per_page,
     )
+
+
+@router.get("/sam/compliance/findings", response_model=SamComplianceFindingListResponse)
+def list_sam_compliance_findings(
+    status_filter: str = Query("all", alias="status"),
+    platform: str = Query("all", pattern="^(all|windows|linux)$"),
+    search: str = Query("", max_length=200),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.view")),
+):
+    items, total = inventory_service.list_sam_compliance_findings(
+        db,
+        status=status_filter,
+        platform=platform,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
+    return SamComplianceFindingListResponse(
+        items=[
+            SamComplianceFindingItem(
+                id=i.id,
+                software_name=i.software_name,
+                platform=i.platform,
+                finding_type=i.finding_type,
+                severity=i.severity,
+                status=i.status,
+                affected_agents=i.affected_agents,
+                details_json=i.details_json,
+                first_seen_at=i.first_seen_at,
+                last_seen_at=i.last_seen_at,
+                resolved_at=i.resolved_at,
+            )
+            for i in items
+        ],
+        total=total,
+    )
+
+
+@router.post("/sam/compliance/findings/sync", response_model=MessageResponse)
+def sync_sam_compliance_findings(
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.manage")),
+):
+    stats = inventory_service.sync_sam_compliance_findings(db)
+    return MessageResponse(
+        status="ok",
+        message=f"Compliance sync completed (created={stats['created']}, updated={stats['updated']}, closed={stats['closed']})",
+    )
+
+
+@router.put("/sam/compliance/findings/{finding_id}/status", response_model=SamComplianceFindingItem)
+def update_sam_compliance_finding_status(
+    finding_id: int,
+    payload: SamComplianceStatusUpdateRequest,
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.manage")),
+):
+    item = inventory_service.update_sam_finding_status(db, finding_id, payload.status)
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found")
+    return SamComplianceFindingItem(
+        id=item.id,
+        software_name=item.software_name,
+        platform=item.platform,
+        finding_type=item.finding_type,
+        severity=item.severity,
+        status=item.status,
+        affected_agents=item.affected_agents,
+        details_json=item.details_json,
+        first_seen_at=item.first_seen_at,
+        last_seen_at=item.last_seen_at,
+        resolved_at=item.resolved_at,
+    )
+
+
+@router.get("/sam/reports/export")
+def export_sam_report(
+    report_type: str = Query("sam_prevalence", pattern="^(sam_prevalence|sam_compliance|sam_catalog)$"),
+    platform: str = Query("all", pattern="^(all|windows|linux)$"),
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.view")),
+):
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    filename = f"{report_type}.csv"
+    if report_type == "sam_prevalence":
+        items, _ = inventory_service.get_sam_catalog(db, platform=platform, page=1, per_page=5000)
+        writer.writerow(["name", "total_agents", "windows_agents", "linux_agents", "install_rows", "versions"])
+        for i in items:
+            writer.writerow([
+                i["name"],
+                i["total_agents"],
+                i["windows_agents"],
+                i["linux_agents"],
+                i["install_rows"],
+                "|".join(i.get("versions", [])),
+            ])
+    elif report_type == "sam_catalog":
+        items, _ = inventory_service.get_sam_catalog(db, platform=platform, page=1, per_page=5000)
+        writer.writerow(["name", "total_agents", "windows_agents", "linux_agents", "install_rows"])
+        for i in items:
+            writer.writerow([
+                i["name"],
+                i["total_agents"],
+                i["windows_agents"],
+                i["linux_agents"],
+                i["install_rows"],
+            ])
+    else:
+        items, _ = inventory_service.list_sam_compliance_findings(db, platform=platform, limit=5000, offset=0)
+        writer.writerow(["id", "software_name", "platform", "finding_type", "severity", "status", "affected_agents", "first_seen_at", "last_seen_at"])
+        for i in items:
+            writer.writerow([
+                i.id,
+                i.software_name,
+                i.platform,
+                i.finding_type,
+                i.severity,
+                i.status,
+                i.affected_agents,
+                i.first_seen_at.isoformat() if i.first_seen_at else "",
+                i.last_seen_at.isoformat() if i.last_seen_at else "",
+            ])
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/sam/report-schedules", response_model=SamReportScheduleListResponse)
+def list_sam_report_schedules(
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.view")),
+):
+    items = inventory_service.list_sam_report_schedules(db)
+    return SamReportScheduleListResponse(
+        items=[
+            SamReportScheduleItem(
+                id=i.id,
+                name=i.name,
+                report_type=i.report_type,
+                format=i.format,
+                cron_expr=i.cron_expr,
+                recipients=i.recipients,
+                is_active=i.is_active,
+                last_run_at=i.last_run_at,
+                next_run_at=i.next_run_at,
+                created_by=i.created_by,
+                created_at=i.created_at,
+                updated_at=i.updated_at,
+            )
+            for i in items
+        ],
+        total=len(items),
+    )
+
+
+@router.post("/sam/report-schedules", response_model=SamReportScheduleItem, status_code=201)
+def create_sam_report_schedule(
+    payload: SamReportScheduleCreateRequest,
+    db: Session = Depends(get_db),
+    user=Depends(require_permission("inventory.manage")),
+):
+    item = inventory_service.create_sam_report_schedule(
+        db,
+        name=payload.name,
+        report_type=payload.report_type,
+        format=payload.format,
+        cron_expr=payload.cron_expr,
+        recipients=payload.recipients,
+        is_active=payload.is_active,
+        created_by=getattr(user, "username", None),
+    )
+    return SamReportScheduleItem(
+        id=item.id,
+        name=item.name,
+        report_type=item.report_type,
+        format=item.format,
+        cron_expr=item.cron_expr,
+        recipients=item.recipients,
+        is_active=item.is_active,
+        last_run_at=item.last_run_at,
+        next_run_at=item.next_run_at,
+        created_by=item.created_by,
+        created_at=item.created_at,
+        updated_at=item.updated_at,
+    )
+
+
+@router.put("/sam/report-schedules/{schedule_id}", response_model=SamReportScheduleItem)
+def update_sam_report_schedule(
+    schedule_id: int,
+    payload: SamReportScheduleUpdateRequest,
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.manage")),
+):
+    item = inventory_service.update_sam_report_schedule(db, schedule_id, **payload.model_dump(exclude_unset=True))
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
+    return SamReportScheduleItem(
+        id=item.id,
+        name=item.name,
+        report_type=item.report_type,
+        format=item.format,
+        cron_expr=item.cron_expr,
+        recipients=item.recipients,
+        is_active=item.is_active,
+        last_run_at=item.last_run_at,
+        next_run_at=item.next_run_at,
+        created_by=item.created_by,
+        created_at=item.created_at,
+        updated_at=item.updated_at,
+    )
+
+
+@router.delete("/sam/report-schedules/{schedule_id}", response_model=MessageResponse)
+def delete_sam_report_schedule(
+    schedule_id: int,
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.manage")),
+):
+    ok = inventory_service.delete_sam_report_schedule(db, schedule_id)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
+    return MessageResponse(status="ok", message="Schedule deleted")
 
 
 # --- Normalization rules ---

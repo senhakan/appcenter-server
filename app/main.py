@@ -141,6 +141,15 @@ NAV_SCHEMA: list[dict[str, Any]] = [
                 "permission": "inventory.manage",
             },
             {
+                "key": "sam_compliance",
+                "title": "Uyum ve Ihlaller",
+                "path": "/inventory/compliance",
+                "active_pages": ["sam_compliance"],
+                "roles": ["admin", "operator", "viewer"],
+                "feature_flag": None,
+                "permission": "inventory.view",
+            },
+            {
                 "key": "sam_reports",
                 "title": "Rapor Merkezi",
                 "path": "/inventory/reports",
@@ -216,6 +225,7 @@ PAGE_PERMISSION_BY_ACTIVE: dict[str, str] = {
     "sam_dashboard": "ui.page.inventory",
     "sam_catalog": "ui.page.inventory",
     "inventory_normalization": "ui.page.inventory",
+    "sam_compliance": "ui.page.inventory",
     "sam_reports": "ui.page.inventory",
     "licenses": "ui.page.licenses",
     "agent_deploy": "ui.page.agent_deploy",
@@ -624,6 +634,11 @@ def inventory_normalization_page(request: Request):
         "inventory/normalization.html",
         _page_ctx(request, "inventory_normalization", page_permissions="inventory.manage"),
     )
+
+
+@app.get("/inventory/compliance")
+def inventory_compliance_page(request: Request):
+    return templates.TemplateResponse("inventory/compliance.html", _page_ctx(request, "sam_compliance"))
 
 
 @app.get("/inventory/reports")

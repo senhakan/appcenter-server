@@ -52,4 +52,132 @@
     </div>
   </div>
 </div>
+
+<div class="card mt-3">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <h3 class="card-title mb-0">Rapor Export</h3>
+  </div>
+  <div class="card-body">
+    <div class="btn-list">
+      <a class="btn btn-outline-primary" href="/api/v1/sam/reports/export?report_type=sam_prevalence&platform=all" target="_blank"><i class="ti ti-download me-1"></i>Yayginlik CSV</a>
+      <a class="btn btn-outline-primary" href="/api/v1/sam/reports/export?report_type=sam_catalog&platform=all" target="_blank"><i class="ti ti-download me-1"></i>Katalog CSV</a>
+      <a class="btn btn-outline-primary" href="/api/v1/sam/reports/export?report_type=sam_compliance&platform=all" target="_blank"><i class="ti ti-download me-1"></i>Uyum CSV</a>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header">
+    <h3 class="card-title mb-0">Zamanlanmis Raporlar</h3>
+  </div>
+  <div class="card-body">
+    <form id="sam-schedule-form" class="row g-2 mb-3">
+      <div class="col-12 col-md-3"><input class="form-control" name="name" placeholder="Rapor adi" required /></div>
+      <div class="col-12 col-md-2">
+        <select class="form-select" name="report_type">
+          <option value="sam_prevalence">sam_prevalence</option>
+          <option value="sam_catalog">sam_catalog</option>
+          <option value="sam_compliance">sam_compliance</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-2"><input class="form-control" name="cron_expr" placeholder="0 8 * * 1" required /></div>
+      <div class="col-12 col-md-3"><input class="form-control" name="recipients" placeholder="mail1@x.com,mail2@x.com" /></div>
+      <div class="col-12 col-md-2"><button class="btn btn-primary w-100" type="submit"><i class="ti ti-plus me-1"></i>Ekle</button></div>
+    </form>
+    <div class="table-responsive">
+      <table class="table table-vcenter">
+        <thead>
+          <tr>
+            <th>Ad</th>
+            <th>Tip</th>
+            <th>Cron</th>
+            <th>Alicilar</th>
+            <th>Durum</th>
+            <th>Son Calisma</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="sam-schedule-rows">
+          <tr><td colspan="7" class="text-secondary">Yukleniyor...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+  function esc(v) {
+    return (v ?? '').toString()
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+  async function loadSchedules() {
+    try {
+      const data = await AppCenterApi.req('/sam/report-schedules');
+      const rows = document.getElementById('sam-schedule-rows');
+      const items = data.items || [];
+      if (!items.length) {
+        rows.innerHTML = '<tr><td colspan="7" class="text-secondary">Kayit yok</td></tr>';
+        return;
+      }
+      rows.innerHTML = items.map((i) => `
+        <tr>
+          <td class="fw-medium">${esc(i.name || '-')}</td>
+          <td>${esc(i.report_type || '-')}</td>
+          <td>${esc(i.cron_expr || '-')}</td>
+          <td class="text-secondary">${esc(i.recipients || '-')}</td>
+          <td>${i.is_active ? '<span class="badge bg-green-lt text-green">aktif</span>' : '<span class="badge bg-secondary-lt text-secondary">pasif</span>'}</td>
+          <td>${esc(i.last_run_at ? AppCenterApi.formatDate(i.last_run_at) : '-')}</td>
+          <td><button class="btn btn-outline-danger btn-sm sch-del-btn" type="button" data-id="${i.id}"><i class="ti ti-trash"></i></button></td>
+        </tr>
+      `).join('');
+      rows.querySelectorAll('.sch-del-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const id = Number(btn.getAttribute('data-id') || '0');
+          if (!id) return;
+          if (!confirm(`Schedule silinsin mi? (#${id})`)) return;
+          try {
+            await AppCenterApi.req(`/sam/report-schedules/${id}`, { method: 'DELETE' });
+            AppCenterApi.toast('Silindi');
+            loadSchedules();
+          } catch (err) {
+            AppCenterApi.toast(err.message);
+          }
+        });
+      });
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+  document.getElementById('sam-schedule-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = {
+      name: (fd.get('name') || '').toString(),
+      report_type: (fd.get('report_type') || '').toString(),
+      format: 'csv',
+      cron_expr: (fd.get('cron_expr') || '').toString(),
+      recipients: (fd.get('recipients') || '').toString() || null,
+      is_active: true,
+    };
+    try {
+      await AppCenterApi.req('/sam/report-schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      e.target.reset();
+      AppCenterApi.toast('Zamanlanmis rapor eklendi');
+      loadSchedules();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+  loadSchedules();
+</script>
 {% endblock %}

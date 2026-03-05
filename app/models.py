@@ -514,6 +514,65 @@ class SoftwareLicense(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
+class SamComplianceFinding(Base):
+    __tablename__ = "sam_compliance_findings"
+    __table_args__ = (
+        CheckConstraint(
+            "finding_type IN ('overuse','prohibited','unsupported_version','unlicensed')",
+            name="ck_sam_finding_type",
+        ),
+        CheckConstraint(
+            "severity IN ('low','medium','high','critical')",
+            name="ck_sam_finding_severity",
+        ),
+        CheckConstraint(
+            "status IN ('new','triaged','accepted_risk','remediated','closed')",
+            name="ck_sam_finding_status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    software_name: Mapped[str] = mapped_column(String, nullable=False)
+    platform: Mapped[str] = mapped_column(String, default="all", nullable=False)
+    finding_type: Mapped[str] = mapped_column(String, nullable=False)
+    severity: Mapped[str] = mapped_column(String, default="medium", nullable=False)
+    status: Mapped[str] = mapped_column(String, default="new", nullable=False)
+    affected_agents: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    details_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+
+class SamReportSchedule(Base):
+    __tablename__ = "sam_report_schedules"
+    __table_args__ = (
+        CheckConstraint(
+            "report_type IN ('sam_prevalence','sam_compliance','sam_catalog')",
+            name="ck_sam_report_type",
+        ),
+        CheckConstraint(
+            "format IN ('csv')",
+            name="ck_sam_report_format",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    report_type: Mapped[str] = mapped_column(String, nullable=False)
+    format: Mapped[str] = mapped_column(String, default="csv", nullable=False)
+    cron_expr: Mapped[str] = mapped_column(String, nullable=False)
+    recipients: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    last_run_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    next_run_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+
 Index("idx_inv_agent", AgentSoftwareInventory.agent_uuid)
 Index("idx_inv_software_name", AgentSoftwareInventory.software_name)
 Index("idx_inv_normalized_name", AgentSoftwareInventory.normalized_name)
@@ -626,3 +685,9 @@ Index("idx_servicehist_name", AgentServiceHistory.service_name)
 Index("idx_norm_pattern", SoftwareNormalizationRule.pattern)
 Index("idx_license_pattern", SoftwareLicense.software_name_pattern)
 Index("idx_license_type", SoftwareLicense.license_type)
+Index("idx_sam_finding_status", SamComplianceFinding.status)
+Index("idx_sam_finding_platform", SamComplianceFinding.platform)
+Index("idx_sam_finding_type", SamComplianceFinding.finding_type)
+Index("idx_sam_finding_last_seen", SamComplianceFinding.last_seen_at)
+Index("idx_sam_schedule_active", SamReportSchedule.is_active)
+Index("idx_sam_schedule_next_run", SamReportSchedule.next_run_at)

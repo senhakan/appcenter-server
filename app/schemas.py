@@ -894,6 +894,67 @@ class SamCatalogListResponse(BaseModel):
     per_page: int
 
 
+class SamComplianceFindingItem(BaseModel):
+    id: int
+    software_name: str
+    platform: str
+    finding_type: str
+    severity: str
+    status: str
+    affected_agents: int
+    details_json: Optional[str] = None
+    first_seen_at: datetime
+    last_seen_at: datetime
+    resolved_at: Optional[datetime] = None
+
+
+class SamComplianceFindingListResponse(BaseModel):
+    items: list[SamComplianceFindingItem]
+    total: int
+
+
+class SamComplianceStatusUpdateRequest(BaseModel):
+    status: str
+
+
+class SamReportScheduleCreateRequest(BaseModel):
+    name: str
+    report_type: str
+    format: str = "csv"
+    cron_expr: str
+    recipients: Optional[str] = None
+    is_active: bool = True
+
+
+class SamReportScheduleUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    report_type: Optional[str] = None
+    format: Optional[str] = None
+    cron_expr: Optional[str] = None
+    recipients: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class SamReportScheduleItem(BaseModel):
+    id: int
+    name: str
+    report_type: str
+    format: str
+    cron_expr: str
+    recipients: Optional[str] = None
+    is_active: bool
+    last_run_at: Optional[datetime] = None
+    next_run_at: Optional[datetime] = None
+    created_by: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class SamReportScheduleListResponse(BaseModel):
+    items: list[SamReportScheduleItem]
+    total: int
+
+
 # --- Normalization rule schemas ---
 
 

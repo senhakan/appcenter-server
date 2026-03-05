@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 import re
 import unicodedata
@@ -11,6 +12,8 @@ from sqlalchemy.orm import Session
 from app.models import (
     Agent,
     AgentSoftwareInventory,
+    SamComplianceFinding,
+    SamReportSchedule,
     SoftwareChangeHistory,
     SoftwareLicense,
     SoftwareNormalizationRule,
@@ -667,6 +670,26 @@ def _match_software_count(db: Session, pattern: str, match_type: str) -> int:
     return q.scalar() or 0
 
 
+def _match_software_count_by_platform(db: Session, pattern: str, match_type: str, platform: str) -> int:
+    q = (
+        db.query(func.count(func.distinct(AgentSoftwareInventory.agent_uuid)))
+        .select_from(AgentSoftwareInventory)
+        .join(Agent, Agent.uuid == AgentSoftwareInventory.agent_uuid)
+        .filter(func.lower(Agent.platform) == (platform or "").lower())
+    )
+    name_col = func.coalesce(
+        AgentSoftwareInventory.normalized_name,
+        AgentSoftwareInventory.software_name,
+    )
+    if match_type == "exact":
+        q = q.filter(name_col == pattern)
+    elif match_type == "starts_with":
+        q = q.filter(name_col.ilike(f"{pattern}%"))
+    else:
+        q = q.filter(name_col.ilike(f"%{pattern}%"))
+    return q.scalar() or 0
+
+
 def get_license_usage_report(db: Session) -> list[dict]:
     licenses = db.query(SoftwareLicense).filter(SoftwareLicense.is_active.is_(True)).all()
     result = []
@@ -687,6 +710,179 @@ def get_license_usage_report(db: Session) -> list[dict]:
             "is_violation": is_violation,
         })
     return result
+
+
+# --- SAM compliance findings ---
+
+
+def sync_sam_compliance_findings(db: Session) -> dict:
+    now = datetime.now(timezone.utc)
+    active_keys: set[tuple[str, str, str]] = set()
+    created = 0
+    updated = 0
+    closed = 0
+
+    licenses = db.query(SoftwareLicense).filter(SoftwareLicense.is_active.is_(True)).all()
+    for lic in licenses:
+        for platform in ("windows", "linux"):
+            usage = _match_software_count_by_platform(db, lic.software_name_pattern, lic.match_type, platform)
+            if usage <= 0:
+                continue
+            if lic.license_type == "prohibited":
+                finding_type = "prohibited"
+                severity = "critical"
+            else:
+                if usage <= int(lic.total_licenses or 0):
+                    continue
+                finding_type = "overuse"
+                severity = "high"
+            key = (lic.software_name_pattern, platform, finding_type)
+            active_keys.add(key)
+            finding = (
+                db.query(SamComplianceFinding)
+                .filter(
+                    SamComplianceFinding.software_name == lic.software_name_pattern,
+                    SamComplianceFinding.platform == platform,
+                    SamComplianceFinding.finding_type == finding_type,
+                )
+                .first()
+            )
+            payload = {
+                "license_id": lic.id,
+                "license_type": lic.license_type,
+                "match_type": lic.match_type,
+                "total_licenses": int(lic.total_licenses or 0),
+                "usage": int(usage),
+                "surplus": int((lic.total_licenses or 0) - usage),
+            }
+            if not finding:
+                finding = SamComplianceFinding(
+                    software_name=lic.software_name_pattern,
+                    platform=platform,
+                    finding_type=finding_type,
+                    severity=severity,
+                    status="new",
+                    affected_agents=int(usage),
+                    details_json=json.dumps(payload, ensure_ascii=True),
+                    first_seen_at=now,
+                    last_seen_at=now,
+                    resolved_at=None,
+                )
+                db.add(finding)
+                created += 1
+            else:
+                finding.severity = severity
+                finding.affected_agents = int(usage)
+                finding.details_json = json.dumps(payload, ensure_ascii=True)
+                finding.last_seen_at = now
+                finding.resolved_at = None
+                if finding.status == "closed":
+                    finding.status = "new"
+                db.add(finding)
+                updated += 1
+
+    open_items = (
+        db.query(SamComplianceFinding)
+        .filter(SamComplianceFinding.status != "closed")
+        .all()
+    )
+    for item in open_items:
+        key = (item.software_name, item.platform, item.finding_type)
+        if key in active_keys:
+            continue
+        item.status = "closed"
+        item.resolved_at = now
+        item.updated_at = now
+        db.add(item)
+        closed += 1
+
+    db.commit()
+    return {"created": created, "updated": updated, "closed": closed}
+
+
+def list_sam_compliance_findings(
+    db: Session,
+    *,
+    status: str = "all",
+    platform: str = "all",
+    search: str = "",
+    limit: int = 100,
+    offset: int = 0,
+) -> tuple[list[SamComplianceFinding], int]:
+    q = db.query(SamComplianceFinding)
+    safe_status = (status or "all").strip().lower()
+    if safe_status != "all":
+        q = q.filter(func.lower(SamComplianceFinding.status) == safe_status)
+    safe_platform = (platform or "all").strip().lower()
+    if safe_platform != "all":
+        q = q.filter(func.lower(SamComplianceFinding.platform) == safe_platform)
+    if search:
+        q = q.filter(SamComplianceFinding.software_name.ilike(f"%{search}%"))
+    total = q.count()
+    items = (
+        q.order_by(
+            SamComplianceFinding.status.asc(),
+            SamComplianceFinding.severity.desc(),
+            SamComplianceFinding.last_seen_at.desc(),
+            SamComplianceFinding.id.desc(),
+        )
+        .offset(max(int(offset), 0))
+        .limit(min(max(int(limit), 1), 500))
+        .all()
+    )
+    return items, total
+
+
+def update_sam_finding_status(db: Session, finding_id: int, status: str) -> Optional[SamComplianceFinding]:
+    finding = db.query(SamComplianceFinding).filter(SamComplianceFinding.id == finding_id).first()
+    if not finding:
+        return None
+    finding.status = (status or "").strip().lower()
+    if finding.status == "closed":
+        finding.resolved_at = datetime.now(timezone.utc)
+    else:
+        finding.resolved_at = None
+    db.add(finding)
+    db.commit()
+    db.refresh(finding)
+    return finding
+
+
+# --- SAM report schedules ---
+
+
+def list_sam_report_schedules(db: Session) -> list[SamReportSchedule]:
+    return db.query(SamReportSchedule).order_by(SamReportSchedule.id.desc()).all()
+
+
+def create_sam_report_schedule(db: Session, **kwargs) -> SamReportSchedule:
+    item = SamReportSchedule(**kwargs)
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def update_sam_report_schedule(db: Session, schedule_id: int, **kwargs) -> Optional[SamReportSchedule]:
+    item = db.query(SamReportSchedule).filter(SamReportSchedule.id == schedule_id).first()
+    if not item:
+        return None
+    for k, v in kwargs.items():
+        if v is not None and hasattr(item, k):
+            setattr(item, k, v)
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def delete_sam_report_schedule(db: Session, schedule_id: int) -> bool:
+    item = db.query(SamReportSchedule).filter(SamReportSchedule.id == schedule_id).first()
+    if not item:
+        return False
+    db.delete(item)
+    db.commit()
+    return True
 
 
 # --- Cleanup ---

@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+{% block title %}Uyum ve Ihlaller{% endblock %}
+{% block page_title %}Uyum ve Ihlaller{% endblock %}
+{% block page_actions %}
+<div class="btn-list">
+  <button id="sync-findings-btn" class="btn btn-primary btn-sm" type="button"><i class="ti ti-refresh me-1"></i>Uyum Taramasi</button>
+  <a class="btn btn-outline-primary btn-sm" href="/inventory/reports"><i class="ti ti-report-analytics me-1"></i>Rapor Merkezi</a>
+</div>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <div class="row g-2 w-100">
+      <div class="col-12 col-md-5">
+        <div class="input-icon">
+          <span class="input-icon-addon"><i class="ti ti-search"></i></span>
+          <input id="finding-search" class="form-control" placeholder="Yazilim adi ara..." />
+        </div>
+      </div>
+      <div class="col-6 col-md-2">
+        <select id="finding-platform" class="form-select">
+          <option value="all">Platform: Tum</option>
+          <option value="windows">Windows</option>
+          <option value="linux">Linux</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <select id="finding-status" class="form-select">
+          <option value="all">Durum: Tum</option>
+          <option value="new">new</option>
+          <option value="triaged">triaged</option>
+          <option value="accepted_risk">accepted_risk</option>
+          <option value="remediated">remediated</option>
+          <option value="closed">closed</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-3">
+        <button id="finding-filter-btn" class="btn btn-outline-primary w-100" type="button"><i class="ti ti-filter me-1"></i>Filtrele</button>
+      </div>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter">
+      <thead>
+        <tr>
+          <th>Yazilim</th>
+          <th>Platform</th>
+          <th>Tip</th>
+          <th>Seviye</th>
+          <th>Etkilenen</th>
+          <th>Durum</th>
+          <th>Son Gorulme</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="finding-rows">
+        <tr><td colspan="8" class="text-secondary">Yukleniyor...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+  function esc(v) {
+    return (v ?? '').toString()
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+  function badgeLevel(v) {
+    const k = (v || '').toLowerCase();
+    if (k === 'critical') return '<span class="badge bg-red-lt text-red">critical</span>';
+    if (k === 'high') return '<span class="badge bg-orange-lt text-orange">high</span>';
+    if (k === 'medium') return '<span class="badge bg-yellow-lt text-yellow">medium</span>';
+    return `<span class="badge bg-secondary-lt text-secondary">${esc(v || '-')}</span>`;
+  }
+  async function loadFindings() {
+    const search = document.getElementById('finding-search').value || '';
+    const platform = document.getElementById('finding-platform').value || 'all';
+    const status = document.getElementById('finding-status').value || 'all';
+    try {
+      const data = await AppCenterApi.req(`/sam/compliance/findings?search=${encodeURIComponent(search)}&platform=${encodeURIComponent(platform)}&status=${encodeURIComponent(status)}&limit=300&offset=0`);
+      const rows = document.getElementById('finding-rows');
+      const items = data.items || [];
+      if (!items.length) {
+        rows.innerHTML = '<tr><td colspan="8" class="text-secondary">Kayit yok</td></tr>';
+        return;
+      }
+      rows.innerHTML = items.map((i) => `
+        <tr>
+          <td class="fw-medium">${esc(i.software_name || '-')}</td>
+          <td><span class="badge bg-blue-lt text-blue">${esc(i.platform || '-')}</span></td>
+          <td>${esc(i.finding_type || '-')}</td>
+          <td>${badgeLevel(i.severity)}</td>
+          <td><span class="badge bg-secondary-lt text-secondary">${Number(i.affected_agents || 0)}</span></td>
+          <td>
+            <select class="form-select form-select-sm finding-status-select" data-id="${i.id}">
+              <option value="new" ${i.status==='new'?'selected':''}>new</option>
+              <option value="triaged" ${i.status==='triaged'?'selected':''}>triaged</option>
+              <option value="accepted_risk" ${i.status==='accepted_risk'?'selected':''}>accepted_risk</option>
+              <option value="remediated" ${i.status==='remediated'?'selected':''}>remediated</option>
+              <option value="closed" ${i.status==='closed'?'selected':''}>closed</option>
+            </select>
+          </td>
+          <td>${esc(AppCenterApi.formatDate(i.last_seen_at) || '-')}</td>
+          <td><button class="btn btn-outline-secondary btn-sm finding-save-btn" type="button" data-id="${i.id}"><i class="ti ti-device-floppy"></i></button></td>
+        </tr>
+      `).join('');
+      rows.querySelectorAll('.finding-save-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const id = Number(btn.getAttribute('data-id') || '0');
+          const sel = rows.querySelector(`.finding-status-select[data-id="${id}"]`);
+          const value = sel ? sel.value : '';
+          if (!id || !value) return;
+          try {
+            await AppCenterApi.req(`/sam/compliance/findings/${id}/status`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: value }),
+            });
+            AppCenterApi.toast('Durum guncellendi');
+            loadFindings();
+          } catch (err) {
+            AppCenterApi.toast(err.message);
+          }
+        });
+      });
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+  document.getElementById('finding-filter-btn').addEventListener('click', loadFindings);
+  document.getElementById('sync-findings-btn').addEventListener('click', async () => {
+    try {
+      const res = await AppCenterApi.req('/sam/compliance/findings/sync', { method: 'POST' });
+      AppCenterApi.toast(res.message || 'Tamamlandi');
+      loadFindings();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+  loadFindings();
+</script>
+{% endblock %}

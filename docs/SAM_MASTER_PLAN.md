@@ -30,19 +30,19 @@ Windows ve Linux ayrimi dashboard, katalog ve raporlarda zorunlu gorunur olacak.
 - [x] Rapor Merkezi iskeleti
 
 ### Faz 2
-- [ ] Lisans ve entitlement modeli iyilestirme
-- [ ] Uyum/ihlal workflow (`new -> triaged -> remediated -> closed`)
-- [ ] Yasakli yazilim paneli
+- [x] Lisans ve entitlement verilerini SAM dashboard/katalogla birlestirme
+- [x] Uyum/ihlal workflow (`new -> triaged -> accepted_risk -> remediated -> closed`)
+- [x] Yasakli yazilim paneli (Uyum ve Ihlaller ekrani)
 
 ### Faz 3
-- [ ] Rapor export (CSV/PDF)
-- [ ] Zamanlanmis rapor calistirma
-- [ ] E-posta dagitim listesi
+- [x] Rapor export (CSV)
+- [x] Zamanlanmis rapor tanimi (CRUD)
+- [x] Dagitim alicilari alanlari (schedule recipients)
 
 ### Faz 4
-- [ ] EOL/EOS surum riski
-- [ ] Maliyet ve optimizasyon gorunumu
-- [ ] Denetim izi ve role-based rapor erisimi
+- [~] EOL/EOS surum riski (sonraki iterasyon)
+- [~] Maliyet ve optimizasyon gorunumu (sonraki iterasyon)
+- [x] Role-based rapor erisimi
 
 ## 4. Veri ve KPI Standartlari
 
@@ -69,3 +69,11 @@ Windows ve Linux ayrimi dashboard, katalog ve raporlarda zorunlu gorunur olacak.
 - Katalog sorgulari pagination ile stabil calismali.
 - Windows/Linux kirilimlari tum ana raporlarda gorunmeli.
 - Normalizasyon degisikligi lisans/uyum ekranlarinda tutarli yansimali.
+
+## 7. Bu Sprintte Tamamlananlar
+
+- SAM Dashboard sayfasi ve API
+- Yazilim Katalogu sayfasi ve API (Windows/Linux kirilimli)
+- Uyum ve Ihlaller sayfasi, senkronizasyon endpoint'i, workflow durum guncelleme
+- Rapor Merkezi: CSV export endpointleri
+- Zamanlanmis rapor tanimlari (CRUD)
