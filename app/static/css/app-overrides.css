@@ -151,10 +151,14 @@ body.app-shell {
 
 #toast.toast-container {
   z-index: 1090;
+  opacity: 1;
+  transform: none;
+  pointer-events: none;
 }
 
 #toast.toast-container .toast {
   min-width: min(420px, calc(100vw - 2rem));
+  pointer-events: auto;
 }
 
 /* Tabler-like modal visual language for custom backdrops used in list pages. */
