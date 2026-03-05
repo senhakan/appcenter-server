@@ -151,18 +151,13 @@ body.app-shell {
 
 #toast {
   position: fixed;
-  right: 16px;
-  bottom: 16px;
-  background: #152238;
-  color: #fff;
-  padding: 10px 16px;
-  border-radius: 8px;
-  font-size: 0.875rem;
+  right: 1rem;
+  bottom: 1rem;
+  width: min(420px, calc(100vw - 2rem));
   opacity: 0;
-  transform: translateY(12px);
+  transform: translateY(14px);
   transition: all 0.25s ease;
   z-index: 1090;
-  max-width: 420px;
   pointer-events: none;
 }
 
@@ -170,6 +165,27 @@ body.app-shell {
   opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
+}
+
+.ac-toast-card {
+  border-width: 1px;
+  border-radius: var(--tblr-border-radius-lg, 8px);
+  box-shadow: 0 10px 24px rgba(4, 32, 69, 0.14);
+  padding: 0.65rem 0.75rem;
+}
+
+.ac-toast-icon {
+  width: 1.25rem;
+  line-height: 1.25rem;
+  text-align: center;
+  font-size: 1rem;
+  flex: 0 0 auto;
+}
+
+.ac-toast-text {
+  font-size: 0.875rem;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 /* Tabler-like modal visual language for custom backdrops used in list pages. */

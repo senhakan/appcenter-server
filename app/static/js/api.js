@@ -12,6 +12,7 @@
   let _sessionExtending = false;
   let _currentUser = null;
   let _currentUserLoading = null;
+  let _toastTimer = null;
   const ROLE_WEIGHTS = { viewer: 10, operator: 20, admin: 30 };
 
   function getToken() {
@@ -145,12 +146,55 @@
     return `${day} gün önce`;
   }
 
-  function toast(message) {
+  function _escapeHtml(value) {
+    return (value ?? "")
+      .toString()
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  function _guessToastType(message) {
+    const text = (message || "").toString().toLowerCase();
+    if (text.includes("hata") || text.includes("failed") || text.includes("error") || text.includes("not found") || text.includes("unauthorized")) {
+      return "error";
+    }
+    if (text.includes("silindi") || text.includes("eklendi") || text.includes("guncellendi") || text.includes("tamamlandi") || text.includes("ok")) {
+      return "success";
+    }
+    return "info";
+  }
+
+  function toast(message, type) {
     const el = document.getElementById("toast");
     if (!el) return;
-    el.textContent = message;
+    const tone = (type || _guessToastType(message) || "info").toString().trim().toLowerCase();
+    const map = {
+      info: { cls: "alert-info", icon: "ti ti-info-circle" },
+      success: { cls: "alert-success", icon: "ti ti-circle-check" },
+      warning: { cls: "alert-warning", icon: "ti ti-alert-triangle" },
+      error: { cls: "alert-danger", icon: "ti ti-alert-circle" },
+    };
+    const selected = map[tone] || map.info;
+    el.innerHTML = `
+      <div class="alert ${selected.cls} ac-toast-card mb-0" role="alert">
+        <div class="d-flex align-items-start">
+          <div class="ac-toast-icon me-2"><i class="${selected.icon}"></i></div>
+          <div class="ac-toast-text">${_escapeHtml(message || "")}</div>
+        </div>
+      </div>
+    `;
+    if (_toastTimer) {
+      clearTimeout(_toastTimer);
+      _toastTimer = null;
+    }
     el.classList.add("show");
-    setTimeout(() => el.classList.remove("show"), 1700);
+    _toastTimer = setTimeout(() => {
+      el.classList.remove("show");
+      _toastTimer = null;
+    }, 2600);
   }
 
   function clearSessionTimers() {
