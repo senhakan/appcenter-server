@@ -38,6 +38,11 @@ from app.schemas import (
     NormalizationRuleUpdateRequest,
     SoftwareAgentItem,
     SoftwareAgentListResponse,
+    SamCatalogItem,
+    SamCatalogListResponse,
+    SamDashboardResponse,
+    SamTopSoftwareItem,
+    SamPlatformKpi,
     SoftwareSummaryItem,
     SoftwareSummaryListResponse,
 )
@@ -198,6 +203,47 @@ def get_inventory_dashboard(
 ):
     stats = inventory_service.get_inventory_dashboard_stats(db)
     return InventoryDashboardResponse(**stats)
+
+
+@router.get("/sam/dashboard", response_model=SamDashboardResponse)
+def get_sam_dashboard(
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.view")),
+):
+    data = inventory_service.get_sam_dashboard(db)
+    return SamDashboardResponse(
+        total_agents=data["total_agents"],
+        agents_with_inventory=data["agents_with_inventory"],
+        unique_software=data["unique_software"],
+        normalized_unique_software=data["normalized_unique_software"],
+        normalized_rows=data["normalized_rows"],
+        platform_items=[SamPlatformKpi(**x) for x in data["platform_items"]],
+        top_software=[SamTopSoftwareItem(**x) for x in data["top_software"]],
+    )
+
+
+@router.get("/sam/catalog", response_model=SamCatalogListResponse)
+def get_sam_catalog(
+    search: str = Query("", max_length=200),
+    platform: str = Query("all", pattern="^(all|windows|linux)$"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.view")),
+):
+    items, total = inventory_service.get_sam_catalog(
+        db,
+        search=search,
+        platform=platform,
+        page=page,
+        per_page=per_page,
+    )
+    return SamCatalogListResponse(
+        items=[SamCatalogItem(**x) for x in items],
+        total=total,
+        page=page,
+        per_page=per_page,
+    )
 
 
 # --- Normalization rules ---

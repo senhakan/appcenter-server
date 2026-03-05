@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% block title %}Yazilim Katalogu{% endblock %}
+{% block page_title %}Yazilim Katalogu{% endblock %}
+{% block page_actions %}
+<div class="btn-list">
+  <a class="btn btn-outline-primary btn-sm" href="/inventory/sam-dashboard"><i class="ti ti-dashboard me-1"></i>SAM Dashboard</a>
+  <a class="btn btn-outline-primary btn-sm" href="/inventory/reports"><i class="ti ti-report-analytics me-1"></i>Rapor Merkezi</a>
+</div>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <div class="row g-2 w-100">
+      <div class="col-12 col-md-6">
+        <div class="input-icon">
+          <span class="input-icon-addon"><i class="ti ti-search"></i></span>
+          <input id="sam-search" class="form-control" placeholder="Yazilim ara..." />
+        </div>
+      </div>
+      <div class="col-12 col-md-3">
+        <select id="sam-platform" class="form-select">
+          <option value="all">Tum Platformlar</option>
+          <option value="windows">Windows</option>
+          <option value="linux">Linux</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-3">
+        <button id="sam-filter-btn" class="btn btn-outline-primary w-100" type="button"><i class="ti ti-filter me-1"></i>Filtrele</button>
+      </div>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter">
+      <thead>
+        <tr>
+          <th>Standart Ad</th>
+          <th>Toplam Ajan</th>
+          <th>Windows</th>
+          <th>Linux</th>
+          <th>Kurulum Satiri</th>
+          <th>Versiyonlar</th>
+        </tr>
+      </thead>
+      <tbody id="sam-catalog-rows">
+        <tr><td colspan="6" class="text-secondary">Yukleniyor...</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer d-flex align-items-center justify-content-between">
+    <button class="btn btn-outline-secondary btn-sm" id="sam-prev-btn" type="button" disabled><i class="ti ti-chevron-left me-1"></i>Onceki</button>
+    <span class="text-secondary" id="sam-page-info">-</span>
+    <button class="btn btn-outline-secondary btn-sm" id="sam-next-btn" type="button"><i class="ti ti-chevron-right me-1"></i>Sonraki</button>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+  let currentPage = 1;
+  const perPage = 50;
+  function esc(v) {
+    return (v ?? '').toString()
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+  async function loadCatalog() {
+    const search = document.getElementById('sam-search').value || '';
+    const platform = document.getElementById('sam-platform').value || 'all';
+    try {
+      const data = await AppCenterApi.req(`/sam/catalog?search=${encodeURIComponent(search)}&platform=${encodeURIComponent(platform)}&page=${currentPage}&per_page=${perPage}`);
+      const rows = document.getElementById('sam-catalog-rows');
+      const items = data.items || [];
+      if (!items.length) {
+        rows.innerHTML = '<tr><td colspan="6" class="text-secondary">Kayit yok</td></tr>';
+      } else {
+        rows.innerHTML = items.map((i) => `
+          <tr>
+            <td class="fw-medium">${esc(i.name || '-')}</td>
+            <td><span class="badge bg-blue-lt text-blue">${Number(i.total_agents || 0)}</span></td>
+            <td><span class="badge bg-secondary-lt text-secondary">${Number(i.windows_agents || 0)}</span></td>
+            <td><span class="badge bg-secondary-lt text-secondary">${Number(i.linux_agents || 0)}</span></td>
+            <td>${Number(i.install_rows || 0)}</td>
+            <td class="text-secondary">${esc((i.versions || []).slice(0, 6).join(', ') || '-')}</td>
+          </tr>
+        `).join('');
+      }
+      const total = Number(data.total || 0);
+      const from = total ? ((currentPage - 1) * perPage + 1) : 0;
+      const to = Math.min(currentPage * perPage, total);
+      document.getElementById('sam-page-info').textContent = `${from}-${to} / ${total} (Sayfa ${currentPage})`;
+      document.getElementById('sam-prev-btn').disabled = currentPage <= 1;
+      document.getElementById('sam-next-btn').disabled = items.length < perPage;
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+  function resetAndLoad() {
+    currentPage = 1;
+    loadCatalog();
+  }
+  document.getElementById('sam-filter-btn').addEventListener('click', resetAndLoad);
+  document.getElementById('sam-search').addEventListener('keydown', (e) => { if (e.key === 'Enter') resetAndLoad(); });
+  document.getElementById('sam-prev-btn').addEventListener('click', () => { if (currentPage > 1) { currentPage -= 1; loadCatalog(); } });
+  document.getElementById('sam-next-btn').addEventListener('click', () => { currentPage += 1; loadCatalog(); });
+  loadCatalog();
+</script>
+{% endblock %}

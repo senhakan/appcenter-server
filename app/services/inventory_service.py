@@ -5,7 +5,7 @@ import re
 import unicodedata
 from typing import Optional
 
-from sqlalchemy import String, cast, func
+from sqlalchemy import String, case, cast, func
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -338,6 +338,209 @@ def get_inventory_dashboard_stats(db: Session) -> dict:
         "added_today": added_today,
         "removed_today": removed_today,
     }
+
+
+def get_sam_dashboard(db: Session) -> dict:
+    name_col = func.coalesce(
+        AgentSoftwareInventory.normalized_name,
+        AgentSoftwareInventory.software_name,
+    )
+    total_agents = db.query(func.count(Agent.uuid)).scalar() or 0
+    agents_with_inventory = (
+        db.query(func.count(func.distinct(AgentSoftwareInventory.agent_uuid)))
+        .select_from(AgentSoftwareInventory)
+        .scalar()
+        or 0
+    )
+    unique_raw = (
+        db.query(func.count(func.distinct(AgentSoftwareInventory.software_name)))
+        .select_from(AgentSoftwareInventory)
+        .scalar()
+        or 0
+    )
+    unique_normalized = (
+        db.query(func.count(func.distinct(name_col)))
+        .select_from(AgentSoftwareInventory)
+        .scalar()
+        or 0
+    )
+    normalized_rows = (
+        db.query(func.count(AgentSoftwareInventory.id))
+        .filter(AgentSoftwareInventory.normalized_name.is_not(None))
+        .filter(AgentSoftwareInventory.normalized_name != AgentSoftwareInventory.software_name)
+        .scalar()
+        or 0
+    )
+
+    now = datetime.now(timezone.utc)
+    since_24h = now - timedelta(hours=24)
+
+    platform_items: list[dict] = []
+    for platform in ("windows", "linux"):
+        total_agents_p = (
+            db.query(func.count(Agent.uuid))
+            .filter(func.lower(Agent.platform) == platform)
+            .scalar()
+            or 0
+        )
+        inv_agents_p = (
+            db.query(func.count(func.distinct(AgentSoftwareInventory.agent_uuid)))
+            .join(Agent, Agent.uuid == AgentSoftwareInventory.agent_uuid)
+            .filter(func.lower(Agent.platform) == platform)
+            .scalar()
+            or 0
+        )
+        unique_sw_p = (
+            db.query(func.count(func.distinct(name_col)))
+            .join(Agent, Agent.uuid == AgentSoftwareInventory.agent_uuid)
+            .filter(func.lower(Agent.platform) == platform)
+            .scalar()
+            or 0
+        )
+        install_rows_p = (
+            db.query(func.count(AgentSoftwareInventory.id))
+            .join(Agent, Agent.uuid == AgentSoftwareInventory.agent_uuid)
+            .filter(func.lower(Agent.platform) == platform)
+            .scalar()
+            or 0
+        )
+        changes_q = (
+            db.query(
+                SoftwareChangeHistory.change_type,
+                func.count(SoftwareChangeHistory.id),
+            )
+            .join(Agent, Agent.uuid == SoftwareChangeHistory.agent_uuid)
+            .filter(
+                func.lower(Agent.platform) == platform,
+                SoftwareChangeHistory.detected_at >= since_24h,
+            )
+            .group_by(SoftwareChangeHistory.change_type)
+            .all()
+        )
+        counts = {"installed": 0, "removed": 0, "updated": 0}
+        for change_type, count_value in changes_q:
+            key = (change_type or "").strip().lower()
+            if key in counts:
+                counts[key] = int(count_value or 0)
+        platform_items.append(
+            {
+                "platform": platform,
+                "total_agents": int(total_agents_p),
+                "agents_with_inventory": int(inv_agents_p),
+                "unique_software": int(unique_sw_p),
+                "install_rows": int(install_rows_p),
+                "added_24h": int(counts["installed"]),
+                "removed_24h": int(counts["removed"]),
+                "updated_24h": int(counts["updated"]),
+            }
+        )
+
+    top_software: list[dict] = []
+    for platform in ("windows", "linux"):
+        rows = (
+            db.query(
+                name_col.label("name"),
+                func.count(func.distinct(AgentSoftwareInventory.agent_uuid)).label("agent_count"),
+            )
+            .join(Agent, Agent.uuid == AgentSoftwareInventory.agent_uuid)
+            .filter(func.lower(Agent.platform) == platform)
+            .group_by(name_col)
+            .order_by(func.count(func.distinct(AgentSoftwareInventory.agent_uuid)).desc(), name_col.asc())
+            .limit(5)
+            .all()
+        )
+        top_software.extend(
+            {
+                "name": row.name,
+                "platform": platform,
+                "agent_count": int(row.agent_count or 0),
+            }
+            for row in rows
+        )
+
+    return {
+        "total_agents": int(total_agents),
+        "agents_with_inventory": int(agents_with_inventory),
+        "unique_software": int(unique_raw),
+        "normalized_unique_software": int(unique_normalized),
+        "normalized_rows": int(normalized_rows),
+        "platform_items": platform_items,
+        "top_software": top_software,
+    }
+
+
+def get_sam_catalog(
+    db: Session,
+    *,
+    search: str = "",
+    platform: str = "all",
+    page: int = 1,
+    per_page: int = 50,
+) -> tuple[list[dict], int]:
+    safe_platform = (platform or "all").strip().lower()
+    if safe_platform not in {"all", "windows", "linux"}:
+        safe_platform = "all"
+
+    name_col = func.coalesce(
+        AgentSoftwareInventory.normalized_name,
+        AgentSoftwareInventory.software_name,
+    )
+    versions_agg = func.string_agg(
+        func.distinct(cast(AgentSoftwareInventory.software_version, String)),
+        ",",
+    )
+    q = (
+        db.query(
+            name_col.label("name"),
+            func.count(func.distinct(AgentSoftwareInventory.agent_uuid)).label("total_agents"),
+            func.count(
+                func.distinct(
+                    case(
+                        (func.lower(Agent.platform) == "windows", AgentSoftwareInventory.agent_uuid),
+                        else_=None,
+                    )
+                )
+            ).label("windows_agents"),
+            func.count(
+                func.distinct(
+                    case(
+                        (func.lower(Agent.platform) == "linux", AgentSoftwareInventory.agent_uuid),
+                        else_=None,
+                    )
+                )
+            ).label("linux_agents"),
+            func.count(AgentSoftwareInventory.id).label("install_rows"),
+            versions_agg.label("versions"),
+        )
+        .join(Agent, Agent.uuid == AgentSoftwareInventory.agent_uuid)
+        .group_by(name_col)
+    )
+    if safe_platform in {"windows", "linux"}:
+        q = q.filter(func.lower(Agent.platform) == safe_platform)
+    if search:
+        q = q.having(name_col.ilike(f"%{search}%"))
+
+    total = q.count()
+    rows = (
+        q.order_by(func.count(func.distinct(AgentSoftwareInventory.agent_uuid)).desc(), name_col.asc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+    items: list[dict] = []
+    for row in rows:
+        versions = [v for v in (row.versions or "").split(",") if v] if row.versions else []
+        items.append(
+            {
+                "name": row.name,
+                "total_agents": int(row.total_agents or 0),
+                "windows_agents": int(row.windows_agents or 0),
+                "linux_agents": int(row.linux_agents or 0),
+                "install_rows": int(row.install_rows or 0),
+                "versions": versions,
+            }
+        )
+    return items, total
 
 
 # --- Normalization rules ---

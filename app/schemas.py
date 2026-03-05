@@ -851,6 +851,49 @@ class InventoryDashboardResponse(BaseModel):
     removed_today: int
 
 
+class SamPlatformKpi(BaseModel):
+    platform: str
+    total_agents: int
+    agents_with_inventory: int
+    unique_software: int
+    install_rows: int
+    added_24h: int
+    removed_24h: int
+    updated_24h: int
+
+
+class SamTopSoftwareItem(BaseModel):
+    name: str
+    platform: str
+    agent_count: int
+
+
+class SamDashboardResponse(BaseModel):
+    total_agents: int
+    agents_with_inventory: int
+    unique_software: int
+    normalized_unique_software: int
+    normalized_rows: int
+    platform_items: list[SamPlatformKpi]
+    top_software: list[SamTopSoftwareItem]
+
+
+class SamCatalogItem(BaseModel):
+    name: str
+    total_agents: int
+    windows_agents: int
+    linux_agents: int
+    install_rows: int
+    versions: list[str]
+
+
+class SamCatalogListResponse(BaseModel):
+    items: list[SamCatalogItem]
+    total: int
+    page: int
+    per_page: int
+
+
 # --- Normalization rule schemas ---
 
 

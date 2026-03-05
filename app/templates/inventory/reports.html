@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}SAM Rapor Merkezi{% endblock %}
+{% block page_title %}SAM Rapor Merkezi{% endblock %}
+{% block page_actions %}
+<div class="btn-list">
+  <a class="btn btn-outline-primary btn-sm" href="/inventory/sam-dashboard"><i class="ti ti-dashboard me-1"></i>SAM Dashboard</a>
+  <a class="btn btn-outline-primary btn-sm" href="/inventory/catalog"><i class="ti ti-package me-1"></i>Yazilim Katalogu</a>
+</div>
+{% endblock %}
+{% block content %}
+<div class="row row-cards">
+  <div class="col-12 col-md-6 col-xl-4">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex align-items-center mb-2">
+          <span class="avatar avatar-sm me-2 bg-blue-lt text-blue"><i class="ti ti-report"></i></span>
+          <div class="fw-medium">RPT-SAM-001 Yayginlik</div>
+        </div>
+        <div class="text-secondary small">Platform kirilimli yazilim yayginligi ve ajan kapsama raporu.</div>
+      </div>
+      <div class="card-footer">
+        <span class="badge bg-secondary-lt text-secondary">Hazirlaniyor</span>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6 col-xl-4">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex align-items-center mb-2">
+          <span class="avatar avatar-sm me-2 bg-green-lt text-green"><i class="ti ti-license"></i></span>
+          <div class="fw-medium">RPT-SAM-002 Lisans/Uyum</div>
+        </div>
+        <div class="text-secondary small">Lisans tahsisi, kullanim ve asim durumlarini platform bazli raporlar.</div>
+      </div>
+      <div class="card-footer">
+        <span class="badge bg-secondary-lt text-secondary">Hazirlaniyor</span>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6 col-xl-4">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex align-items-center mb-2">
+          <span class="avatar avatar-sm me-2 bg-red-lt text-red"><i class="ti ti-shield-x"></i></span>
+          <div class="fw-medium">RPT-SAM-003 Riskli Yazilim</div>
+        </div>
+        <div class="text-secondary small">Yasakli/uygunsuz yazilim ve etkilenen ajan listesi.</div>
+      </div>
+      <div class="card-footer">
+        <span class="badge bg-secondary-lt text-secondary">Hazirlaniyor</span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,162 @@
+{% extends 'base.html' %}
+{% block title %}SAM Dashboard{% endblock %}
+{% block page_title %}SAM Dashboard{% endblock %}
+{% block page_actions %}
+<div class="btn-list">
+  <a class="btn btn-outline-primary btn-sm" href="/inventory/catalog"><i class="ti ti-package me-1"></i>Yazilim Katalogu</a>
+  <a class="btn btn-outline-primary btn-sm" href="/inventory/reports"><i class="ti ti-report-analytics me-1"></i>Rapor Merkezi</a>
+</div>
+{% endblock %}
+{% block content %}
+<div class="row row-deck row-cards mb-3" id="sam-kpis">
+  <div class="col-sm-6 col-lg-3">
+    <div class="card">
+      <div class="card-body">
+        <div class="subheader">Toplam Ajan</div>
+        <div class="h1 mb-0" id="kpi-total-agents">-</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card">
+      <div class="card-body">
+        <div class="subheader">Envanterli Ajan</div>
+        <div class="h1 mb-0" id="kpi-inv-agents">-</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card">
+      <div class="card-body">
+        <div class="subheader">Benzersiz Yazilim (Ham)</div>
+        <div class="h1 mb-0" id="kpi-unique-raw">-</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card">
+      <div class="card-body">
+        <div class="subheader">Benzersiz Yazilim (Normalize)</div>
+        <div class="h1 mb-0" id="kpi-unique-norm">-</div>
+        <div class="text-secondary small mt-1">Normalize satir: <span id="kpi-norm-rows">-</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row row-cards">
+  <div class="col-12 col-xl-7">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Platform Bazli SAM KPI</h3>
+      </div>
+      <div class="table-responsive">
+        <table class="table card-table table-vcenter">
+          <thead>
+            <tr>
+              <th>Platform</th>
+              <th>Toplam Ajan</th>
+              <th>Envanterli</th>
+              <th>Yazilim</th>
+              <th>24s Degisim</th>
+            </tr>
+          </thead>
+          <tbody id="platform-rows">
+            <tr><td colspan="5" class="text-secondary">Yukleniyor...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-5">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Top Yazilimlar (Win/Linux)</h3>
+      </div>
+      <div class="table-responsive">
+        <table class="table card-table table-vcenter">
+          <thead>
+            <tr>
+              <th>Yazilim</th>
+              <th>Platform</th>
+              <th>Ajan</th>
+            </tr>
+          </thead>
+          <tbody id="top-sw-rows">
+            <tr><td colspan="3" class="text-secondary">Yukleniyor...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+  function esc(v) {
+    return (v ?? '').toString()
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+  function badgePlatform(v) {
+    const p = (v || '').toLowerCase();
+    if (p === 'windows') return '<span class="badge bg-blue-lt text-blue">windows</span>';
+    if (p === 'linux') return '<span class="badge bg-azure-lt text-azure">linux</span>';
+    return `<span class="badge bg-secondary-lt text-secondary">${esc(v || '-')}</span>`;
+  }
+  async function loadSamDashboard() {
+    try {
+      const data = await AppCenterApi.req('/sam/dashboard');
+      document.getElementById('kpi-total-agents').textContent = String(data.total_agents || 0);
+      document.getElementById('kpi-inv-agents').textContent = String(data.agents_with_inventory || 0);
+      document.getElementById('kpi-unique-raw').textContent = String(data.unique_software || 0);
+      document.getElementById('kpi-unique-norm').textContent = String(data.normalized_unique_software || 0);
+      document.getElementById('kpi-norm-rows').textContent = String(data.normalized_rows || 0);
+
+      const pRows = document.getElementById('platform-rows');
+      const items = data.platform_items || [];
+      if (!items.length) {
+        pRows.innerHTML = '<tr><td colspan="5" class="text-secondary">Kayit yok</td></tr>';
+      } else {
+        pRows.innerHTML = items.map((i) => `
+          <tr>
+            <td>${badgePlatform(i.platform)}</td>
+            <td><span class="badge bg-secondary-lt text-secondary">${Number(i.total_agents || 0)}</span></td>
+            <td><span class="badge bg-green-lt text-green">${Number(i.agents_with_inventory || 0)}</span></td>
+            <td>
+              <div class="fw-medium">${Number(i.unique_software || 0)}</div>
+              <div class="text-secondary small">Kurulum satiri: ${Number(i.install_rows || 0)}</div>
+            </td>
+            <td>
+              <span class="badge bg-green-lt text-green">+${Number(i.added_24h || 0)}</span>
+              <span class="badge bg-red-lt text-red">-${Number(i.removed_24h || 0)}</span>
+              <span class="badge bg-blue-lt text-blue">~${Number(i.updated_24h || 0)}</span>
+            </td>
+          </tr>
+        `).join('');
+      }
+
+      const swRows = document.getElementById('top-sw-rows');
+      const tops = data.top_software || [];
+      if (!tops.length) {
+        swRows.innerHTML = '<tr><td colspan="3" class="text-secondary">Kayit yok</td></tr>';
+      } else {
+        swRows.innerHTML = tops.map((x) => `
+          <tr>
+            <td class="fw-medium">${esc(x.name || '-')}</td>
+            <td>${badgePlatform(x.platform)}</td>
+            <td><span class="badge bg-blue-lt text-blue">${Number(x.agent_count || 0)}</span></td>
+          </tr>
+        `).join('');
+      }
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+  loadSamDashboard();
+</script>
+{% endblock %}

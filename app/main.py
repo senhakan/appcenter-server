@@ -100,11 +100,56 @@ NAV_SCHEMA: list[dict[str, Any]] = [
     {
         "key": "inventory",
         "title": "Envanter",
-        "path": "/inventory",
-        "active_pages": ["inventory"],
         "roles": ["admin", "operator", "viewer"],
         "feature_flag": None,
         "permission": "ui.menu.inventory",
+        "children": [
+            {
+                "key": "sam_dashboard",
+                "title": "SAM Dashboard",
+                "path": "/inventory/sam-dashboard",
+                "active_pages": ["sam_dashboard"],
+                "roles": ["admin", "operator", "viewer"],
+                "feature_flag": None,
+                "permission": "ui.menu.inventory",
+            },
+            {
+                "key": "sam_catalog",
+                "title": "Yazilim Katalogu",
+                "path": "/inventory/catalog",
+                "active_pages": ["sam_catalog"],
+                "roles": ["admin", "operator", "viewer"],
+                "feature_flag": None,
+                "permission": "ui.menu.inventory",
+            },
+            {
+                "key": "inventory",
+                "title": "Yazilim Ozeti",
+                "path": "/inventory",
+                "active_pages": ["inventory"],
+                "roles": ["admin", "operator", "viewer"],
+                "feature_flag": None,
+                "permission": "ui.menu.inventory",
+            },
+            {
+                "key": "inventory_normalization",
+                "title": "Normalizasyon Kurallari",
+                "path": "/inventory/normalization",
+                "active_pages": ["inventory_normalization"],
+                "roles": ["admin", "operator", "viewer"],
+                "feature_flag": None,
+                "permission": "inventory.manage",
+            },
+            {
+                "key": "sam_reports",
+                "title": "Rapor Merkezi",
+                "path": "/inventory/reports",
+                "active_pages": ["sam_reports"],
+                "roles": ["admin", "operator", "viewer"],
+                "feature_flag": None,
+                "permission": "inventory.view",
+            },
+        ],
     },
     {
         "key": "licenses",
@@ -168,6 +213,10 @@ PAGE_PERMISSION_BY_ACTIVE: dict[str, str] = {
     "applications": "ui.page.applications",
     "deployments": "ui.page.deployments",
     "inventory": "ui.page.inventory",
+    "sam_dashboard": "ui.page.inventory",
+    "sam_catalog": "ui.page.inventory",
+    "inventory_normalization": "ui.page.inventory",
+    "sam_reports": "ui.page.inventory",
     "licenses": "ui.page.licenses",
     "agent_deploy": "ui.page.agent_deploy",
     "settings": "ui.page.settings",
@@ -551,6 +600,16 @@ def inventory_page(request: Request):
     return templates.TemplateResponse("inventory/list.html", _page_ctx(request, "inventory"))
 
 
+@app.get("/inventory/sam-dashboard")
+def inventory_sam_dashboard_page(request: Request):
+    return templates.TemplateResponse("inventory/sam_dashboard.html", _page_ctx(request, "sam_dashboard"))
+
+
+@app.get("/inventory/catalog")
+def inventory_catalog_page(request: Request):
+    return templates.TemplateResponse("inventory/catalog.html", _page_ctx(request, "sam_catalog"))
+
+
 @app.get("/inventory/software/{software_name}/agents")
 def inventory_software_detail_page(request: Request, software_name: str):
     return templates.TemplateResponse(
@@ -563,8 +622,13 @@ def inventory_software_detail_page(request: Request, software_name: str):
 def inventory_normalization_page(request: Request):
     return templates.TemplateResponse(
         "inventory/normalization.html",
-        _page_ctx(request, "inventory", page_permissions="inventory.manage"),
+        _page_ctx(request, "inventory_normalization", page_permissions="inventory.manage"),
     )
+
+
+@app.get("/inventory/reports")
+def inventory_reports_page(request: Request):
+    return templates.TemplateResponse("inventory/reports.html", _page_ctx(request, "sam_reports"))
 
 
 @app.get("/licenses")
