@@ -2,7 +2,7 @@
 {% block title %}Dashboard{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
 {% block page_actions %}
-<button class="btn btn-outline-primary btn-sm" type="button" onclick="loadDashboard()">
+<button id="dashboard-refresh-btn" class="btn btn-outline-primary btn-sm" type="button" onclick="handleDashboardRefresh()">
   <i class="ti ti-refresh me-1"></i>Yenile
 </button>
 {% endblock %}
@@ -451,6 +451,11 @@
 
     await loadTimeline();
     await loadTopClients();
+  }
+
+  async function handleDashboardRefresh() {
+    AppCenterApi.toast('Dashboard verileri yenileniyor', 'info');
+    await loadDashboard();
   }
 
   (async function () {
