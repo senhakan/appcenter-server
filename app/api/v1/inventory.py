@@ -703,6 +703,24 @@ def list_generated_sam_reports(
     return SamGeneratedReportListResponse(items=files, total=len(files))
 
 
+@router.delete("/sam/reports/generated/{filename}", response_model=MessageResponse)
+def delete_generated_sam_report(
+    filename: str,
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.manage")),
+):
+    _ = db
+    safe_name = Path(filename).name
+    if not safe_name.endswith(".csv"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only CSV report files can be deleted")
+    report_dir = Path(settings.upload_dir) / "reports" / "sam"
+    target = report_dir / safe_name
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report file not found")
+    target.unlink()
+    return MessageResponse(status="ok", message="Report file deleted")
+
+
 # --- Normalization rules ---
 
 
