@@ -112,19 +112,21 @@
                   {% for child in item.children %}
                     {% if child.path %}
                       <a class="dropdown-item{% if active_page in child.active_pages %} active{% endif %}" href="{{ child.path }}" data-nav-item data-roles="{{ (child.roles or [])|join(',') }}" data-permissions="{{ child.permission|default('') }}">
-                        <span class="me-1">
-                          {% if child.key == 'settings' %}<i class="ti ti-adjustments"></i>
-                          {% elif child.key == 'agent_deploy' %}<i class="ti ti-download"></i>
-                          {% elif child.key == 'users' %}<i class="ti ti-users"></i>
-                          {% elif child.key == 'roles' %}<i class="ti ti-shield-cog"></i>
-                          {% elif child.key == 'infra_audit' %}<i class="ti ti-file-search"></i>
-                          {% else %}<i class="ti ti-point"></i>{% endif %}
-                        </span>
+                        {% if item.key != 'inventory' %}
+                          <span class="me-1">
+                            {% if child.key == 'settings' %}<i class="ti ti-adjustments"></i>
+                            {% elif child.key == 'agent_deploy' %}<i class="ti ti-download"></i>
+                            {% elif child.key == 'users' %}<i class="ti ti-users"></i>
+                            {% elif child.key == 'roles' %}<i class="ti ti-shield-cog"></i>
+                            {% elif child.key == 'infra_audit' %}<i class="ti ti-file-search"></i>
+                            {% else %}<i class="ti ti-point"></i>{% endif %}
+                          </span>
+                        {% endif %}
                         {{ child.title }}
                       </a>
                     {% else %}
                       <span class="dropdown-item disabled" data-nav-item data-roles="{{ (child.roles or [])|join(',') }}" data-permissions="{{ child.permission|default('') }}">
-                        <span class="me-1"><i class="ti ti-point"></i></span>{{ child.title }}
+                        {% if item.key != 'inventory' %}<span class="me-1"><i class="ti ti-point"></i></span>{% endif %}{{ child.title }}
                       </span>
                     {% endif %}
                   {% endfor %}

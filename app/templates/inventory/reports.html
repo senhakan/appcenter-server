@@ -155,11 +155,35 @@
           <td>${esc(i.report_type || '-')}</td>
           <td>${esc(i.cron_expr || '-')}</td>
           <td class="text-secondary">${esc(i.recipients || '-')}</td>
-          <td>${i.is_active ? '<span class="badge bg-green-lt text-green">aktif</span>' : '<span class="badge bg-secondary-lt text-secondary">pasif</span>'}</td>
+          <td>
+            <label class="form-check form-switch mb-0">
+              <input class="form-check-input sch-active-switch" type="checkbox" data-id="${i.id}" ${i.is_active ? 'checked' : ''}>
+              <span class="form-check-label text-secondary">${i.is_active ? 'aktif' : 'pasif'}</span>
+            </label>
+          </td>
           <td>${esc(i.last_run_at ? AppCenterApi.formatDate(i.last_run_at) : '-')}</td>
           <td><button class="btn btn-outline-danger btn-sm sch-del-btn" type="button" data-id="${i.id}"><i class="ti ti-trash"></i></button></td>
         </tr>
       `).join('');
+      rows.querySelectorAll('.sch-active-switch').forEach((sw) => {
+        sw.addEventListener('change', async () => {
+          const id = Number(sw.getAttribute('data-id') || '0');
+          if (!id) return;
+          const checked = !!sw.checked;
+          try {
+            await AppCenterApi.req(`/sam/report-schedules/${id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ is_active: checked }),
+            });
+            AppCenterApi.toast(`Schedule ${checked ? 'aktif' : 'pasif'} yapildi`);
+            loadSchedules();
+          } catch (err) {
+            AppCenterApi.toast(err.message);
+            loadSchedules();
+          }
+        });
+      });
       rows.querySelectorAll('.sch-del-btn').forEach((btn) => {
         btn.addEventListener('click', async () => {
           const id = Number(btn.getAttribute('data-id') || '0');
