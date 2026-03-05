@@ -77,3 +77,53 @@ Su anki model sadece isim normalizasyonu yapiyor. Publisher tarafinda pratikte s
 
 Eger lisans/uyumluluk tarafinda publisher kritik olacaksa, ek bir alan/tabla ile `normalized_publisher` mantigi eklemek faydali olur.
 
+## 5. Uygulanan Kural Seti (2026-03-05)
+
+Canli PostgreSQL uzerinde versiyon sonekli yazilim adlari ve belirgin alias'lar icin kural seti uygulandi ve tum inventory yeniden normalize edildi.
+
+Eklenen ana gruplar:
+
+- Microsoft Visual C++ redistributable aileleri (2008 x64/x86, 2012 x64/x86, 2013 x64/x86, 2015-2022 x64/x86) icin `starts_with` kurallari
+- `7-Zip`, `Greenshot`, `TAP-Windows`, `WinAppRuntime`, `Mirth Connect Administrator Launcher`, `Microsoft Network Monitor` aileleri icin versiyon soneki temizleme kurallari
+- `Advanced IP Scanner` icin versiyon soneki temizleme kurali (`2.5`, `2.5.1` -> tek ad)
+- Alias birlestirme:
+  - `MicrosoftEdge` -> `Microsoft Edge`
+  - `MicrosoftTeams` ve `MSTeams` -> `Microsoft Teams`
+  - `NotepadPlusPlus` ve `Notepad++ (...)` -> `Notepad++`
+  - `7zip` -> `7-Zip`
+
+Ek guvenlik iyilestirmesi:
+
+- Eski genis kural `starts_with: 7` daraltilarak `starts_with: 7-Zip` yapildi.
+
+Olculen etki:
+
+- `unique_raw` (ham ad): `3026` (degismedi)
+- `unique_normalized`: `3011 -> 2973` (38 adet daha az parcalanmis yazilim ismi)
+- Toplam aktif normalizasyon kurali (guncel): `8`
+
+Ornek birlesmeler:
+
+- `Microsoft Visual C++ 2015-2022 Redistributable (x64)` altinda 4 farkli ham isim tek gorunume toplandi
+- `7-Zip` altinda 7 farkli ham isim tek gorunume toplandi
+- `Microsoft Teams` altinda `MicrosoftTeams` + `MSTeams` tek gorunume toplandi
+- `Notepad++` altinda `NotepadPlusPlus` + `Notepad++ (64-bit x64)` tek gorunume toplandi
+
+## 6. Genel Versiyon-Soneki Fallback (Kod Seviyesinde)
+
+Tek tek urun kurali yazmadan, kural motoru eslesmezse su fallback devreye alindi:
+
+- Format: `UrunAdi 2.5`, `UrunAdi 2.5.1`, `UrunAdi v1.2.3`
+- Son ek versiyon tokeni temizlenir, taban ad normalize isim olarak kullanilir.
+- Yil/edition gibi `tek sayi` son ekler (ornegin `Office 2021`) etkilenmez; en az bir `.` zorunludur.
+- Versiyon kaldirilinca sonda kalan ayiraclar (`-`, `_`, `:` vb.) da temizlenir.
+
+Ornek:
+
+- `Advanced IP Scanner 2.5` + `Advanced IP Scanner 2.5.1` -> `Advanced IP Scanner`
+- `Microsoft Visual C++ 2010 x64 Redistributable - 10.0.40219` -> `Microsoft Visual C++ 2010 x64 Redistributable`
+
+Not:
+
+- Genel fallback devreye alindiktan sonra ayni isi yapan urun-ozel `starts_with` kurallari temizlendi.
+- Boylece kural tablosu daha sade kalirken normalize sonucu korunur.

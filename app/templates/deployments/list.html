@@ -60,6 +60,17 @@
     width: 1%;
     white-space: nowrap;
   }
+  .dep-target-type-icon {
+    color: var(--tblr-primary);
+    font-size: 1rem;
+    line-height: 1;
+  }
+  .dep-switch-list .form-check {
+    margin-bottom: 0.5rem;
+  }
+  .dep-switch-list .form-check:last-child {
+    margin-bottom: 0;
+  }
   .dep-modal-backdrop {
     position: fixed;
     inset: 0;
@@ -173,30 +184,19 @@
             <select class="form-select" name="target_agent_uuid"></select>
           </div>
 
-          <div class="col-12">
-            <div class="form-selectgroup form-selectgroup-boxes d-flex flex-column flex-md-row gap-2">
-              <label class="form-selectgroup-item flex-fill mb-0">
-                <input type="checkbox" class="form-selectgroup-input" name="is_mandatory" />
-                <span class="form-selectgroup-label d-flex align-items-center p-3">
-                  <span class="me-2"><i class="ti ti-lock icon"></i></span>
-                  <span>Zorunlu</span>
-                </span>
-              </label>
-              <label class="form-selectgroup-item flex-fill mb-0">
-                <input type="checkbox" class="form-selectgroup-input" name="force_update" />
-                <span class="form-selectgroup-label d-flex align-items-center p-3">
-                  <span class="me-2"><i class="ti ti-refresh-alert icon"></i></span>
-                  <span>Force Update</span>
-                </span>
-              </label>
-              <label class="form-selectgroup-item flex-fill mb-0">
-                <input type="checkbox" class="form-selectgroup-input" name="is_active" checked />
-                <span class="form-selectgroup-label d-flex align-items-center p-3">
-                  <span class="me-2"><i class="ti ti-bolt icon"></i></span>
-                  <span>Aktif</span>
-                </span>
-              </label>
-            </div>
+          <div class="col-12 dep-switch-list">
+            <label class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="is_mandatory" />
+              <span class="form-check-label">Zorunlu</span>
+            </label>
+            <label class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="force_update" />
+              <span class="form-check-label">Force Update</span>
+            </label>
+            <label class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="is_active" checked />
+              <span class="form-check-label">Aktif</span>
+            </label>
           </div>
 
           <div class="col-12 d-flex justify-content-end">
@@ -250,30 +250,19 @@
             <select class="form-select" name="target_agent_uuid"></select>
           </div>
 
-          <div class="col-12">
-            <div class="form-selectgroup form-selectgroup-boxes d-flex flex-column flex-md-row gap-2">
-              <label class="form-selectgroup-item flex-fill mb-0">
-                <input type="checkbox" class="form-selectgroup-input" name="is_mandatory" />
-                <span class="form-selectgroup-label d-flex align-items-center p-3">
-                  <span class="me-2"><i class="ti ti-lock icon"></i></span>
-                  <span>Zorunlu</span>
-                </span>
-              </label>
-              <label class="form-selectgroup-item flex-fill mb-0">
-                <input type="checkbox" class="form-selectgroup-input" name="force_update" />
-                <span class="form-selectgroup-label d-flex align-items-center p-3">
-                  <span class="me-2"><i class="ti ti-refresh-alert icon"></i></span>
-                  <span>Force Update</span>
-                </span>
-              </label>
-              <label class="form-selectgroup-item flex-fill mb-0">
-                <input type="checkbox" class="form-selectgroup-input" name="is_active" />
-                <span class="form-selectgroup-label d-flex align-items-center p-3">
-                  <span class="me-2"><i class="ti ti-bolt icon"></i></span>
-                  <span>Aktif</span>
-                </span>
-              </label>
-            </div>
+          <div class="col-12 dep-switch-list">
+            <label class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="is_mandatory" />
+              <span class="form-check-label">Zorunlu</span>
+            </label>
+            <label class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="force_update" />
+              <span class="form-check-label">Force Update</span>
+            </label>
+            <label class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="is_active" />
+              <span class="form-check-label">Aktif</span>
+            </label>
           </div>
 
           <div class="col-12 d-flex justify-content-end">
@@ -359,6 +348,19 @@
       .replaceAll('>', '&gt;')
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#39;');
+  }
+  function deploymentAppIconCell(app) {
+    if (app?.icon_url) {
+      return `<span class="avatar avatar-sm" style="background-image:url('${esc(app.icon_url)}')"></span>`;
+    }
+    const fileType = (app?.file_type || '').toString().trim().toLowerCase();
+    if (fileType === 'ps1') {
+      return '<span class="avatar avatar-sm bg-blue-lt text-blue"><i class="ti ti-brand-powershell"></i></span>';
+    }
+    if (fileType === 'sh') {
+      return '<span class="avatar avatar-sm bg-azure-lt text-azure"><i class="ti ti-brand-ubuntu"></i></span>';
+    }
+    return '<span class="avatar avatar-sm bg-secondary-lt text-secondary"><i class="ti ti-package"></i></span>';
   }
 
   function openModal(modal) { modal.classList.remove('hidden'); }
@@ -532,6 +534,12 @@
     }
     return targetText;
   }
+  function targetTypeIconHtml(d) {
+    const t = (d && d.target_type ? String(d.target_type) : '').toLowerCase();
+    if (t === 'agent') return '<i class="ti ti-user dep-target-type-icon" title="Agent hedef"></i>';
+    if (t === 'group') return '<i class="ti ti-users dep-target-type-icon" title="Group hedef"></i>';
+    return '<i class="ti ti-world dep-target-type-icon" title="All hedef"></i>';
+  }
 
   function renderTable() {
     const rows = document.getElementById('dep-rows');
@@ -574,9 +582,7 @@
       const app = appItems.find((a) => Number(a.id) === Number(d.app_id));
       const appName = app?.display_name || `App #${d.app_id}`;
       const appTitle = `${appName} (ID: ${d.app_id})`;
-      const appIcon = app?.icon_url
-        ? `<span class="avatar avatar-sm" style="background-image:url('${esc(app.icon_url)}')"></span>`
-        : '<span class="avatar avatar-sm">-</span>';
+      const appIcon = deploymentAppIconCell(app);
       const targetText = getTargetText(d);
       const statusBadge = d.is_active
         ? '<span class="badge bg-green-lt text-green">aktif</span>'
@@ -584,7 +590,7 @@
 
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${d.id}</td>
+        <td>${targetTypeIconHtml(d)}</td>
         <td class="dep-target-cell"><span class="dep-ellipsis" title="${esc(targetText)}">${esc(targetText)}</span></td>
         <td>
           <span class="dep-app-cell" title="${esc(appTitle)}">

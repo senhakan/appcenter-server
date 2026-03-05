@@ -329,6 +329,30 @@
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#39;');
   }
+  function parseFullIPs(agent) {
+    const raw = agent && agent.full_ip;
+    if (Array.isArray(raw)) {
+      return [...new Set(raw.map((x) => (x || '').toString().trim()).filter(Boolean))];
+    }
+    if (typeof raw === 'string') {
+      const t = raw.trim();
+      if (!t) return [];
+      try {
+        const parsed = JSON.parse(t);
+        if (Array.isArray(parsed)) {
+          return [...new Set(parsed.map((x) => (x || '').toString().trim()).filter(Boolean))];
+        }
+      } catch (_) {}
+      return [...new Set(t.split(',').map((x) => x.trim()).filter(Boolean))];
+    }
+    return [];
+  }
+  function ipTooltipText(agent) {
+    const ips = parseFullIPs(agent);
+    if (ips.length) return ips.join('\n');
+    const ip = (agent && agent.ip_address ? String(agent.ip_address).trim() : '');
+    return ip || '-';
+  }
 
   function getSessionEntries(agent) {
     const out = [];
@@ -570,7 +594,7 @@
           </span>
         </td>
         <td class="js-col-login">${esc(getLoginUsers(agent))}</td>
-        <td class="js-col-ip">${esc(agent.ip_address || '-')}</td>
+        <td class="js-col-ip" title="${esc(ipTooltipText(agent))}" style="cursor: help;">${esc(agent.ip_address || '-')}</td>
         <td class="js-col-status"><span class="badge ${agent.status === 'online' ? 'bg-green-lt text-green' : 'bg-red-lt text-red'}" title="${esc(seenRel)}" style="cursor: help;">${esc(agent.status || '-')}</span></td>
         <td class="js-col-remote" title="${esc(rsUpdated)}" style="cursor: help;"><span class="badge bg-blue-lt text-blue">${esc(rsState)}</span></td>
         <td class="js-col-last-remote" title="${esc(lastRemoteTitle)}" style="cursor: help;">${lastRemoteBadgeHtml(lastRemoteRel)}</td>
@@ -662,7 +686,10 @@
       const loginCol = row.querySelector('.js-col-login');
       if (loginCol) loginCol.textContent = getLoginUsers(agent);
       const ipCol = row.querySelector('.js-col-ip');
-      if (ipCol) ipCol.textContent = agent.ip_address || '-';
+      if (ipCol) {
+        ipCol.textContent = agent.ip_address || '-';
+        ipCol.title = ipTooltipText(agent);
+      }
       const btn = row.querySelector('.js-connect-remote');
       if (btn) {
         const connectState = connectButtonState(agent);

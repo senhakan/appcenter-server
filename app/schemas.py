@@ -349,6 +349,14 @@ class ApplicationListResponse(BaseModel):
     total: int
 
 
+class ApplicationScriptPreviewResponse(BaseModel):
+    app_id: int
+    filename: str
+    file_type: str
+    content: str
+    truncated: bool = False
+
+
 class ApplicationUpdateRequest(BaseModel):
     display_name: Optional[str] = None
     version: Optional[str] = None

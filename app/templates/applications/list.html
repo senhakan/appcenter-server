@@ -72,6 +72,31 @@
     background-size: cover;
     background-position: center;
   }
+  .apps-script-preview {
+    margin: 0;
+    padding: 12px;
+    border-radius: 8px;
+    max-height: 60vh;
+    overflow: auto;
+    background: #0f172a;
+    color: #e2e8f0;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    white-space: pre;
+  }
+  .apps-script-preview-btn {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--tblr-primary);
+    line-height: 1;
+  }
+  .apps-script-preview-btn:hover,
+  .apps-script-preview-btn:focus {
+    color: var(--tblr-primary);
+    background: transparent;
+    box-shadow: none;
+  }
 </style>
 
 <div class="card">
@@ -283,6 +308,23 @@
     </div>
   </div>
 </div>
+
+<div id="app-script-preview-modal" class="apps-modal-backdrop hidden" aria-live="polite">
+  <div class="apps-modal-dialog">
+    <div class="card mb-0">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 id="app-script-preview-title" class="card-title mb-0">Script Onizleme</h3>
+      </div>
+      <div class="card-body">
+        <pre id="app-script-preview-content" class="apps-script-preview"></pre>
+        <div id="app-script-preview-truncated" class="form-hint mt-2 hidden">Dosya buyuk oldugu icin onizleme kisaltildi.</div>
+        <div class="d-flex justify-content-end mt-3">
+          <button class="btn btn-outline-secondary" type="button" id="app-script-preview-close-btn"><i class="ti ti-x me-1"></i>Kapat</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -295,6 +337,7 @@
   const createModal = document.getElementById('app-create-modal');
   const editModal = document.getElementById('app-edit-modal');
   const deleteModal = document.getElementById('app-delete-modal');
+  const scriptPreviewModal = document.getElementById('app-script-preview-modal');
 
   function esc(v) {
     return (v ?? '').toString()
@@ -332,7 +375,7 @@
     if (fileType === 'sh') {
       return '<span class="avatar avatar-sm bg-azure-lt text-azure"><i class="ti ti-brand-ubuntu"></i></span>';
     }
-    return '<span class="avatar avatar-sm">-</span>';
+    return '<span class="avatar avatar-sm bg-secondary-lt text-secondary"><i class="ti ti-package"></i></span>';
   }
   function applyCreatePlatformUi() {
     const platform = normalizePlatform(document.getElementById('app-create-target-platform')?.value || 'windows');
@@ -349,6 +392,37 @@
     input.setAttribute('accept', '.msi,.exe,.ps1');
     label.textContent = 'Kurulum Dosyasi (.msi / .exe / .ps1)';
     hint.textContent = 'Windows: .msi, .exe, .ps1';
+  }
+  function isScriptPreviewable(fileType) {
+    const type = (fileType || '').toString().trim().toLowerCase();
+    return type === 'ps1' || type === 'sh';
+  }
+  function renderTypeCell(app, stateBadge) {
+    const fileType = (app.file_type || '-').toString();
+    const previewBtn = isScriptPreviewable(fileType)
+      ? `<button class="apps-script-preview-btn ms-2" type="button" title="Scripti gor" data-action="script-preview" data-id="${app.id}"><i class="ti ti-search"></i></button>`
+      : '';
+    return `
+      <div class="d-flex align-items-center">
+        <span>${esc(fileType)}</span>
+        ${previewBtn}
+      </div>
+      <div class="mt-1">${stateBadge}</div>
+    `;
+  }
+  async function openScriptPreview(appId) {
+    try {
+      const data = await AppCenterApi.req(`/applications/${appId}/script-preview`);
+      document.getElementById('app-script-preview-title').textContent =
+        `${data.filename || 'script'} (${(data.file_type || '').toUpperCase()})`;
+      document.getElementById('app-script-preview-content').textContent = data.content || '';
+      const truncated = document.getElementById('app-script-preview-truncated');
+      if (data.truncated) truncated.classList.remove('hidden');
+      else truncated.classList.add('hidden');
+      openModal(scriptPreviewModal);
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
   }
 
   function applyAppListFilters(items) {
@@ -411,10 +485,7 @@
           <td>${esc(app.version)}</td>
           <td>${platformBadge(app.target_platform)}</td>
           <td class="text-secondary">${esc(app.install_args || '-')}</td>
-          <td>
-            <div>${esc(app.file_type || '-')}</div>
-            <div class="mt-1">${stateBadge}</div>
-          </td>
+          <td>${renderTypeCell(app, stateBadge)}</td>
           <td>${formatBytes(app.file_size_bytes)}</td>
           <td class="col-actions">
             ${canEdit
@@ -463,6 +534,14 @@
           openModal(deleteModal);
         });
       });
+
+      rows.querySelectorAll('button[data-action="script-preview"]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = Number(btn.getAttribute('data-id') || '0');
+          if (!id) return;
+          openScriptPreview(id);
+        });
+      });
     } catch (err) {
       AppCenterApi.toast(err.message);
     }
@@ -478,10 +557,12 @@
   document.getElementById('app-create-cancel-btn-2').addEventListener('click', () => closeModal(createModal));
   document.getElementById('app-edit-cancel-btn-2').addEventListener('click', () => closeModal(editModal));
   document.getElementById('app-delete-cancel-btn').addEventListener('click', () => closeModal(deleteModal));
+  document.getElementById('app-script-preview-close-btn').addEventListener('click', () => closeModal(scriptPreviewModal));
 
   createModal.addEventListener('click', (e) => { if (e.target === createModal) closeModal(createModal); });
   editModal.addEventListener('click', (e) => { if (e.target === editModal) closeModal(editModal); });
   deleteModal.addEventListener('click', (e) => { if (e.target === deleteModal) closeModal(deleteModal); });
+  scriptPreviewModal.addEventListener('click', (e) => { if (e.target === scriptPreviewModal) closeModal(scriptPreviewModal); });
 
   document.getElementById('app-create-form').addEventListener('submit', async (e) => {
     e.preventDefault();

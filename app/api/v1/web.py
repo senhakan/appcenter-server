@@ -39,6 +39,7 @@ from app.schemas import (
     AgentResponse,
     AgentUpdateUploadResponse,
     ApplicationListResponse,
+    ApplicationScriptPreviewResponse,
     ApplicationResponse,
     ApplicationUpdateRequest,
     DashboardStatsResponse,
@@ -97,6 +98,8 @@ MAX_SESSION_TIMEOUT_MINUTES = 1440
 MIN_RECORDING_FPS = 1
 MAX_RECORDING_FPS = 30
 MIN_DYNAMIC_GROUP_SYNC_INTERVAL_SEC = 30
+MAX_SCRIPT_PREVIEW_BYTES = 256 * 1024
+SCRIPT_PREVIEW_FILE_TYPES = {"ps1", "sh"}
 
 
 def _as_utc(dt_value):
@@ -1079,6 +1082,36 @@ def applications_detail(
 ) -> ApplicationResponse:
     app = get_application(db, app_id)
     return ApplicationResponse.model_validate(app)
+
+
+@router.get("/applications/{app_id}/script-preview", response_model=ApplicationScriptPreviewResponse)
+def applications_script_preview(
+    app_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("applications.view")),
+) -> ApplicationScriptPreviewResponse:
+    app = get_application(db, app_id)
+    file_type = (app.file_type or "").strip().lower()
+    if file_type not in SCRIPT_PREVIEW_FILE_TYPES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Script preview only supports ps1/sh")
+
+    upload_root = Path(settings.upload_dir).resolve()
+    file_path = (upload_root / Path(app.filename or "").name).resolve()
+    if upload_root not in file_path.parents:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid file path")
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application file not found")
+
+    raw = file_path.read_bytes()
+    truncated = len(raw) > MAX_SCRIPT_PREVIEW_BYTES
+    content = raw[:MAX_SCRIPT_PREVIEW_BYTES].decode("utf-8", errors="replace")
+    return ApplicationScriptPreviewResponse(
+        app_id=app.id,
+        filename=app.original_filename or app.filename,
+        file_type=file_type,
+        content=content,
+        truncated=truncated,
+    )
 
 
 @router.post("/applications", response_model=ApplicationResponse)

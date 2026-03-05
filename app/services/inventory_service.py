@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import re
 import unicodedata
 from typing import Optional
 
@@ -17,6 +18,33 @@ from app.models import (
 
 
 # --- Normalization helpers ---
+
+_TRAILING_VERSION_RE = re.compile(
+    r"^(?P<base>.+?)\s+v?(?P<ver>\d+\.\d+(?:\.\d+){0,6})\s*$",
+    re.IGNORECASE,
+)
+
+
+def _strip_trailing_version_name(software_name: str) -> Optional[str]:
+    """
+    Generic fallback normalizer for names like:
+    - "Advanced IP Scanner 2.5"
+    - "Advanced IP Scanner 2.5.1"
+    - "Tool v1.2.3"
+
+    We intentionally require at least one dot in version token to avoid
+    collapsing names that end with a year-like token (e.g. "Office 2021").
+    """
+    m = _TRAILING_VERSION_RE.match((software_name or "").strip())
+    if not m:
+        return None
+    base = _clean_display_text(m.group("base")) or ""
+    base = re.sub(r"[\s\-_:./]+$", "", base).strip()
+    if len(base) < 3:
+        return None
+    if not any(ch.isalpha() for ch in base):
+        return None
+    return base
 
 
 def _apply_normalization(db: Session, software_name: str) -> Optional[str]:
@@ -35,6 +63,9 @@ def _apply_normalization(db: Session, software_name: str) -> Optional[str]:
             return rule.normalized_name
         if rule.match_type == "starts_with" and lower_name.startswith(pattern_lower):
             return rule.normalized_name
+    generic = _strip_trailing_version_name(software_name)
+    if generic:
+        return generic
     return None
 
 
