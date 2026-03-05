@@ -169,7 +169,7 @@
   </div>
 </div>
 
-<div id="app-edit-modal" class="apps-modal-backdrop hidden" aria-live="polite" data-required-permissions="applications.manage">
+<div id="app-edit-modal" class="apps-modal-backdrop hidden" aria-live="polite">
   <div class="apps-modal-dialog">
     <div class="card mb-0 ac-modal-warning">
       <div class="card-header d-flex align-items-center justify-content-between">
@@ -318,7 +318,9 @@
 
   async function loadApps() {
     try {
-      const canWrite = AppCenterApi.canPermission('applications.manage');
+      const canManage = AppCenterApi.canPermission('applications.manage');
+      // Legacy behavior: operator/admin can still see edit action (server keeps auth enforcement).
+      const canEdit = canManage || AppCenterApi.canAtLeast('operator');
       const data = await AppCenterApi.req('/applications');
       appItems = data.items || [];
       const rows = document.getElementById('app-rows');
@@ -354,10 +356,12 @@
           </td>
           <td>${formatBytes(app.file_size_bytes)}</td>
           <td class="col-actions">
-            ${canWrite
+            ${canEdit
               ? `<div class="btn-list flex-nowrap">
                    <button class="btn btn-outline-secondary btn-sm" type="button" data-action="edit" data-id="${app.id}"><i class="ti ti-edit me-1"></i>Duzenle</button>
-                   <button class="btn btn-outline-danger btn-sm" type="button" data-action="delete" data-id="${app.id}"><i class="ti ti-trash me-1"></i>Sil</button>
+                   ${canManage
+                     ? `<button class="btn btn-outline-danger btn-sm" type="button" data-action="delete" data-id="${app.id}"><i class="ti ti-trash me-1"></i>Sil</button>`
+                     : ''}
                  </div>`
               : '-'}
           </td>
