@@ -573,9 +573,57 @@ class SamReportSchedule(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
 
+class SamLifecyclePolicy(Base):
+    __tablename__ = "sam_lifecycle_policies"
+    __table_args__ = (
+        CheckConstraint("match_type IN ('exact','contains','starts_with')", name="ck_sam_lifecycle_match_type"),
+        CheckConstraint("platform IN ('all','windows','linux')", name="ck_sam_lifecycle_platform"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    software_name_pattern: Mapped[str] = mapped_column(String, nullable=False)
+    match_type: Mapped[str] = mapped_column(String, default="contains", nullable=False)
+    platform: Mapped[str] = mapped_column(String, default="all", nullable=False)
+    eol_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    eos_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+
+class SamCostProfile(Base):
+    __tablename__ = "sam_cost_profiles"
+    __table_args__ = (
+        CheckConstraint("match_type IN ('exact','contains','starts_with')", name="ck_sam_cost_match_type"),
+        CheckConstraint("platform IN ('all','windows','linux')", name="ck_sam_cost_platform"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    software_name_pattern: Mapped[str] = mapped_column(String, nullable=False)
+    match_type: Mapped[str] = mapped_column(String, default="contains", nullable=False)
+    platform: Mapped[str] = mapped_column(String, default="all", nullable=False)
+    monthly_cost_cents: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    currency: Mapped[str] = mapped_column(String, default="USD", nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+
 Index("idx_inv_agent", AgentSoftwareInventory.agent_uuid)
 Index("idx_inv_software_name", AgentSoftwareInventory.software_name)
 Index("idx_inv_normalized_name", AgentSoftwareInventory.normalized_name)
+Index("idx_sam_finding_status", SamComplianceFinding.status)
+Index("idx_sam_finding_platform", SamComplianceFinding.platform)
+Index("idx_sam_finding_software", SamComplianceFinding.software_name)
+Index("idx_sam_schedule_active", SamReportSchedule.is_active)
+Index("idx_sam_lifecycle_active", SamLifecyclePolicy.is_active)
+Index("idx_sam_lifecycle_pattern", SamLifecyclePolicy.software_name_pattern)
+Index("idx_sam_lifecycle_platform", SamLifecyclePolicy.platform)
+Index("idx_sam_cost_active", SamCostProfile.is_active)
+Index("idx_sam_cost_pattern", SamCostProfile.software_name_pattern)
+Index("idx_sam_cost_platform", SamCostProfile.platform)
 Index("idx_change_agent", SoftwareChangeHistory.agent_uuid)
 Index("idx_change_detected", SoftwareChangeHistory.detected_at)
 Index("idx_change_type", SoftwareChangeHistory.change_type)

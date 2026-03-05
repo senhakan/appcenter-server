@@ -955,6 +955,101 @@ class SamReportScheduleListResponse(BaseModel):
     total: int
 
 
+class SamLifecyclePolicyCreateRequest(BaseModel):
+    software_name_pattern: str
+    match_type: str = "contains"
+    platform: str = "all"
+    eol_date: Optional[datetime] = None
+    eos_date: Optional[datetime] = None
+    is_active: bool = True
+    notes: Optional[str] = None
+
+
+class SamLifecyclePolicyUpdateRequest(BaseModel):
+    software_name_pattern: Optional[str] = None
+    match_type: Optional[str] = None
+    platform: Optional[str] = None
+    eol_date: Optional[datetime] = None
+    eos_date: Optional[datetime] = None
+    is_active: Optional[bool] = None
+    notes: Optional[str] = None
+
+
+class SamLifecyclePolicyItem(BaseModel):
+    id: int
+    software_name_pattern: str
+    match_type: str
+    platform: str
+    eol_date: Optional[datetime] = None
+    eos_date: Optional[datetime] = None
+    is_active: bool
+    notes: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class SamLifecyclePolicyListResponse(BaseModel):
+    items: list[SamLifecyclePolicyItem]
+    total: int
+
+
+class SamCostProfileCreateRequest(BaseModel):
+    software_name_pattern: str
+    match_type: str = "contains"
+    platform: str = "all"
+    monthly_cost_cents: int = 0
+    currency: str = "USD"
+    is_active: bool = True
+    notes: Optional[str] = None
+
+
+class SamCostProfileUpdateRequest(BaseModel):
+    software_name_pattern: Optional[str] = None
+    match_type: Optional[str] = None
+    platform: Optional[str] = None
+    monthly_cost_cents: Optional[int] = None
+    currency: Optional[str] = None
+    is_active: Optional[bool] = None
+    notes: Optional[str] = None
+
+
+class SamCostProfileItem(BaseModel):
+    id: int
+    software_name_pattern: str
+    match_type: str
+    platform: str
+    monthly_cost_cents: int
+    currency: str
+    is_active: bool
+    notes: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class SamCostProfileListResponse(BaseModel):
+    items: list[SamCostProfileItem]
+    total: int
+
+
+class SamRiskOverviewItem(BaseModel):
+    software_name: str
+    platform: str
+    agent_count: int
+    lifecycle_status: str
+    days_to_eol: Optional[int] = None
+    days_to_eos: Optional[int] = None
+    estimated_monthly_cost_cents: int = 0
+    currency: str = "USD"
+
+
+class SamRiskOverviewResponse(BaseModel):
+    items: list[SamRiskOverviewItem]
+    total: int
+    critical_count: int
+    warning_count: int
+    monthly_cost_cents_total: int
+
+
 # --- Normalization rule schemas ---
 
 

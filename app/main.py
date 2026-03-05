@@ -158,6 +158,15 @@ NAV_SCHEMA: list[dict[str, Any]] = [
                 "feature_flag": None,
                 "permission": "inventory.view",
             },
+            {
+                "key": "sam_risk",
+                "title": "Risk ve Optimizasyon",
+                "path": "/inventory/risk",
+                "active_pages": ["sam_risk"],
+                "roles": ["admin", "operator", "viewer"],
+                "feature_flag": None,
+                "permission": "inventory.view",
+            },
         ],
     },
     {
@@ -227,6 +236,7 @@ PAGE_PERMISSION_BY_ACTIVE: dict[str, str] = {
     "inventory_normalization": "ui.page.inventory",
     "sam_compliance": "ui.page.inventory",
     "sam_reports": "ui.page.inventory",
+    "sam_risk": "ui.page.inventory",
     "licenses": "ui.page.licenses",
     "agent_deploy": "ui.page.agent_deploy",
     "settings": "ui.page.settings",
@@ -644,6 +654,11 @@ def inventory_compliance_page(request: Request):
 @app.get("/inventory/reports")
 def inventory_reports_page(request: Request):
     return templates.TemplateResponse("inventory/reports.html", _page_ctx(request, "sam_reports"))
+
+
+@app.get("/inventory/risk")
+def inventory_risk_page(request: Request):
+    return templates.TemplateResponse("inventory/risk.html", _page_ctx(request, "sam_risk"))
 
 
 @app.get("/licenses")

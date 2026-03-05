@@ -318,3 +318,47 @@ def test_cleanup_old_change_history(client):
         assert deleted >= 1
     finally:
         db.close()
+
+
+def test_sam_risk_overview_and_policy_crud(client, auth_headers):
+    uid, _secret, headers = _register_agent(client)
+    client.post("/api/v1/agent/inventory", json={
+        "inventory_hash": "risk-1",
+        "software_count": 1,
+        "items": [{"name": "Legacy Suite", "version": "5.2"}],
+    }, headers=headers)
+
+    p = client.post("/api/v1/sam/lifecycle-policies", json={
+        "software_name_pattern": "Legacy Suite",
+        "match_type": "exact",
+        "platform": "windows",
+        "eol_date": "2026-01-01T00:00:00Z",
+        "eos_date": "2026-02-01T00:00:00Z",
+        "is_active": True,
+    }, headers=auth_headers)
+    assert p.status_code == 201
+
+    c = client.post("/api/v1/sam/cost-profiles", json={
+        "software_name_pattern": "Legacy Suite",
+        "match_type": "exact",
+        "platform": "windows",
+        "monthly_cost_cents": 12345,
+        "currency": "USD",
+        "is_active": True,
+    }, headers=auth_headers)
+    assert c.status_code == 201
+
+    risk = client.get("/api/v1/sam/risk-overview?platform=windows&search=Legacy", headers=auth_headers)
+    assert risk.status_code == 200
+    payload = risk.json()
+    assert payload["total"] >= 1
+    first = payload["items"][0]
+    assert first["software_name"] == "Legacy Suite"
+    assert first["platform"] == "windows"
+    assert first["estimated_monthly_cost_cents"] >= 12345
+    assert first["lifecycle_status"] in {"eol", "eos"}
+
+    del_policy = client.delete(f"/api/v1/sam/lifecycle-policies/{p.json()['id']}", headers=auth_headers)
+    del_cost = client.delete(f"/api/v1/sam/cost-profiles/{c.json()['id']}", headers=auth_headers)
+    assert del_policy.status_code == 200
+    assert del_cost.status_code == 200

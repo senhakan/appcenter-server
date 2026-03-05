@@ -46,7 +46,17 @@ from app.schemas import (
     SamComplianceFindingItem,
     SamComplianceFindingListResponse,
     SamComplianceStatusUpdateRequest,
+    SamCostProfileCreateRequest,
+    SamCostProfileItem,
+    SamCostProfileListResponse,
+    SamCostProfileUpdateRequest,
     SamDashboardResponse,
+    SamLifecyclePolicyCreateRequest,
+    SamLifecyclePolicyItem,
+    SamLifecyclePolicyListResponse,
+    SamLifecyclePolicyUpdateRequest,
+    SamRiskOverviewItem,
+    SamRiskOverviewResponse,
     SamReportScheduleCreateRequest,
     SamReportScheduleItem,
     SamReportScheduleListResponse,
@@ -484,6 +494,197 @@ def delete_sam_report_schedule(
     if not ok:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
     return MessageResponse(status="ok", message="Schedule deleted")
+
+
+@router.get("/sam/risk-overview", response_model=SamRiskOverviewResponse)
+def get_sam_risk_overview(
+    platform: str = Query("all", pattern="^(all|windows|linux)$"),
+    search: str = Query("", max_length=200),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.view")),
+):
+    data = inventory_service.get_sam_risk_overview(
+        db,
+        platform=platform,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
+    return SamRiskOverviewResponse(
+        items=[SamRiskOverviewItem(**x) for x in data["items"]],
+        total=data["total"],
+        critical_count=data["critical_count"],
+        warning_count=data["warning_count"],
+        monthly_cost_cents_total=data["monthly_cost_cents_total"],
+    )
+
+
+@router.get("/sam/lifecycle-policies", response_model=SamLifecyclePolicyListResponse)
+def list_sam_lifecycle_policies(
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.view")),
+):
+    items = inventory_service.list_sam_lifecycle_policies(db)
+    return SamLifecyclePolicyListResponse(
+        items=[
+            SamLifecyclePolicyItem(
+                id=i.id,
+                software_name_pattern=i.software_name_pattern,
+                match_type=i.match_type,
+                platform=i.platform,
+                eol_date=i.eol_date,
+                eos_date=i.eos_date,
+                is_active=i.is_active,
+                notes=i.notes,
+                created_at=i.created_at,
+                updated_at=i.updated_at,
+            )
+            for i in items
+        ],
+        total=len(items),
+    )
+
+
+@router.post("/sam/lifecycle-policies", response_model=SamLifecyclePolicyItem, status_code=201)
+def create_sam_lifecycle_policy(
+    payload: SamLifecyclePolicyCreateRequest,
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.manage")),
+):
+    item = inventory_service.create_sam_lifecycle_policy(db, **payload.model_dump())
+    return SamLifecyclePolicyItem(
+        id=item.id,
+        software_name_pattern=item.software_name_pattern,
+        match_type=item.match_type,
+        platform=item.platform,
+        eol_date=item.eol_date,
+        eos_date=item.eos_date,
+        is_active=item.is_active,
+        notes=item.notes,
+        created_at=item.created_at,
+        updated_at=item.updated_at,
+    )
+
+
+@router.put("/sam/lifecycle-policies/{policy_id}", response_model=SamLifecyclePolicyItem)
+def update_sam_lifecycle_policy(
+    policy_id: int,
+    payload: SamLifecyclePolicyUpdateRequest,
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.manage")),
+):
+    item = inventory_service.update_sam_lifecycle_policy(db, policy_id, **payload.model_dump(exclude_unset=True))
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Policy not found")
+    return SamLifecyclePolicyItem(
+        id=item.id,
+        software_name_pattern=item.software_name_pattern,
+        match_type=item.match_type,
+        platform=item.platform,
+        eol_date=item.eol_date,
+        eos_date=item.eos_date,
+        is_active=item.is_active,
+        notes=item.notes,
+        created_at=item.created_at,
+        updated_at=item.updated_at,
+    )
+
+
+@router.delete("/sam/lifecycle-policies/{policy_id}", response_model=MessageResponse)
+def delete_sam_lifecycle_policy(
+    policy_id: int,
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.manage")),
+):
+    ok = inventory_service.delete_sam_lifecycle_policy(db, policy_id)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Policy not found")
+    return MessageResponse(status="ok", message="Lifecycle policy deleted")
+
+
+@router.get("/sam/cost-profiles", response_model=SamCostProfileListResponse)
+def list_sam_cost_profiles(
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.view")),
+):
+    items = inventory_service.list_sam_cost_profiles(db)
+    return SamCostProfileListResponse(
+        items=[
+            SamCostProfileItem(
+                id=i.id,
+                software_name_pattern=i.software_name_pattern,
+                match_type=i.match_type,
+                platform=i.platform,
+                monthly_cost_cents=i.monthly_cost_cents,
+                currency=i.currency,
+                is_active=i.is_active,
+                notes=i.notes,
+                created_at=i.created_at,
+                updated_at=i.updated_at,
+            )
+            for i in items
+        ],
+        total=len(items),
+    )
+
+
+@router.post("/sam/cost-profiles", response_model=SamCostProfileItem, status_code=201)
+def create_sam_cost_profile(
+    payload: SamCostProfileCreateRequest,
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.manage")),
+):
+    item = inventory_service.create_sam_cost_profile(db, **payload.model_dump())
+    return SamCostProfileItem(
+        id=item.id,
+        software_name_pattern=item.software_name_pattern,
+        match_type=item.match_type,
+        platform=item.platform,
+        monthly_cost_cents=item.monthly_cost_cents,
+        currency=item.currency,
+        is_active=item.is_active,
+        notes=item.notes,
+        created_at=item.created_at,
+        updated_at=item.updated_at,
+    )
+
+
+@router.put("/sam/cost-profiles/{profile_id}", response_model=SamCostProfileItem)
+def update_sam_cost_profile(
+    profile_id: int,
+    payload: SamCostProfileUpdateRequest,
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.manage")),
+):
+    item = inventory_service.update_sam_cost_profile(db, profile_id, **payload.model_dump(exclude_unset=True))
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cost profile not found")
+    return SamCostProfileItem(
+        id=item.id,
+        software_name_pattern=item.software_name_pattern,
+        match_type=item.match_type,
+        platform=item.platform,
+        monthly_cost_cents=item.monthly_cost_cents,
+        currency=item.currency,
+        is_active=item.is_active,
+        notes=item.notes,
+        created_at=item.created_at,
+        updated_at=item.updated_at,
+    )
+
+
+@router.delete("/sam/cost-profiles/{profile_id}", response_model=MessageResponse)
+def delete_sam_cost_profile(
+    profile_id: int,
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.manage")),
+):
+    ok = inventory_service.delete_sam_cost_profile(db, profile_id)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cost profile not found")
+    return MessageResponse(status="ok", message="Cost profile deleted")
 
 
 # --- Normalization rules ---

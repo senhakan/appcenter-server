@@ -13,6 +13,8 @@ from app.models import (
     Agent,
     AgentSoftwareInventory,
     SamComplianceFinding,
+    SamCostProfile,
+    SamLifecyclePolicy,
     SamReportSchedule,
     SoftwareChangeHistory,
     SoftwareLicense,
@@ -883,6 +885,259 @@ def delete_sam_report_schedule(db: Session, schedule_id: int) -> bool:
     db.delete(item)
     db.commit()
     return True
+
+
+# --- SAM lifecycle/cost and risk overview ---
+
+
+def _sam_pattern_matches(software_name: str, pattern: str, match_type: str) -> bool:
+    left = _canon_key(software_name or "")
+    right = _canon_key(pattern or "")
+    if not right:
+        return False
+    if match_type == "exact":
+        return left == right
+    if match_type == "starts_with":
+        return left.startswith(right)
+    return right in left
+
+
+def _sam_platform_matches(row_platform: str, policy_platform: str) -> bool:
+    rule_platform = (policy_platform or "all").strip().lower()
+    item_platform = (row_platform or "").strip().lower()
+    return rule_platform == "all" or rule_platform == item_platform
+
+
+def _sam_match_rank(match_type: str, pattern: str) -> tuple[int, int]:
+    # exact > starts_with > contains, then longer pattern wins.
+    rank = {"exact": 3, "starts_with": 2, "contains": 1}.get((match_type or "").strip().lower(), 0)
+    return rank, len((pattern or "").strip())
+
+
+def _pick_best_sam_lifecycle(
+    software_name: str,
+    platform: str,
+    policies: list[SamLifecyclePolicy],
+) -> Optional[SamLifecyclePolicy]:
+    best: Optional[SamLifecyclePolicy] = None
+    best_rank: tuple[int, int] = (0, 0)
+    for item in policies:
+        if not _sam_platform_matches(platform, item.platform):
+            continue
+        if not _sam_pattern_matches(software_name, item.software_name_pattern, item.match_type):
+            continue
+        candidate_rank = _sam_match_rank(item.match_type, item.software_name_pattern)
+        if candidate_rank > best_rank:
+            best = item
+            best_rank = candidate_rank
+    return best
+
+
+def _pick_best_sam_cost(
+    software_name: str,
+    platform: str,
+    profiles: list[SamCostProfile],
+) -> Optional[SamCostProfile]:
+    best: Optional[SamCostProfile] = None
+    best_rank: tuple[int, int] = (0, 0)
+    for item in profiles:
+        if not _sam_platform_matches(platform, item.platform):
+            continue
+        if not _sam_pattern_matches(software_name, item.software_name_pattern, item.match_type):
+            continue
+        candidate_rank = _sam_match_rank(item.match_type, item.software_name_pattern)
+        if candidate_rank > best_rank:
+            best = item
+            best_rank = candidate_rank
+    return best
+
+
+def list_sam_lifecycle_policies(db: Session) -> list[SamLifecyclePolicy]:
+    return db.query(SamLifecyclePolicy).order_by(SamLifecyclePolicy.id.desc()).all()
+
+
+def create_sam_lifecycle_policy(db: Session, **kwargs) -> SamLifecyclePolicy:
+    item = SamLifecyclePolicy(**kwargs)
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def update_sam_lifecycle_policy(db: Session, policy_id: int, **kwargs) -> Optional[SamLifecyclePolicy]:
+    item = db.query(SamLifecyclePolicy).filter(SamLifecyclePolicy.id == policy_id).first()
+    if not item:
+        return None
+    for k, v in kwargs.items():
+        if v is not None and hasattr(item, k):
+            setattr(item, k, v)
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def delete_sam_lifecycle_policy(db: Session, policy_id: int) -> bool:
+    item = db.query(SamLifecyclePolicy).filter(SamLifecyclePolicy.id == policy_id).first()
+    if not item:
+        return False
+    db.delete(item)
+    db.commit()
+    return True
+
+
+def list_sam_cost_profiles(db: Session) -> list[SamCostProfile]:
+    return db.query(SamCostProfile).order_by(SamCostProfile.id.desc()).all()
+
+
+def create_sam_cost_profile(db: Session, **kwargs) -> SamCostProfile:
+    item = SamCostProfile(**kwargs)
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def update_sam_cost_profile(db: Session, profile_id: int, **kwargs) -> Optional[SamCostProfile]:
+    item = db.query(SamCostProfile).filter(SamCostProfile.id == profile_id).first()
+    if not item:
+        return None
+    for k, v in kwargs.items():
+        if v is not None and hasattr(item, k):
+            setattr(item, k, v)
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def delete_sam_cost_profile(db: Session, profile_id: int) -> bool:
+    item = db.query(SamCostProfile).filter(SamCostProfile.id == profile_id).first()
+    if not item:
+        return False
+    db.delete(item)
+    db.commit()
+    return True
+
+
+def get_sam_risk_overview(
+    db: Session,
+    *,
+    platform: str = "all",
+    search: str = "",
+    limit: int = 100,
+    offset: int = 0,
+) -> dict:
+    name_col = func.coalesce(
+        AgentSoftwareInventory.normalized_name,
+        AgentSoftwareInventory.software_name,
+    )
+    q = (
+        db.query(
+            name_col.label("software_name"),
+            func.lower(Agent.platform).label("platform"),
+            func.count(func.distinct(AgentSoftwareInventory.agent_uuid)).label("agent_count"),
+        )
+        .select_from(AgentSoftwareInventory)
+        .join(Agent, Agent.uuid == AgentSoftwareInventory.agent_uuid)
+        .group_by(name_col, func.lower(Agent.platform))
+    )
+    safe_platform = (platform or "all").strip().lower()
+    if safe_platform != "all":
+        q = q.filter(func.lower(Agent.platform) == safe_platform)
+    if search:
+        q = q.filter(name_col.ilike(f"%{search}%"))
+    grouped = q.all()
+
+    lifecycle = (
+        db.query(SamLifecyclePolicy)
+        .filter(SamLifecyclePolicy.is_active.is_(True))
+        .order_by(SamLifecyclePolicy.id.asc())
+        .all()
+    )
+    cost_profiles = (
+        db.query(SamCostProfile)
+        .filter(SamCostProfile.is_active.is_(True))
+        .order_by(SamCostProfile.id.asc())
+        .all()
+    )
+
+    now = datetime.now(timezone.utc)
+    items: list[dict] = []
+    critical_count = 0
+    warning_count = 0
+    monthly_total = 0
+
+    for row in grouped:
+        software_name = str(row.software_name or "").strip()
+        row_platform = str(row.platform or "all").strip().lower()
+        agent_count = int(row.agent_count or 0)
+        if not software_name or agent_count <= 0:
+            continue
+
+        lifecycle_rule = _pick_best_sam_lifecycle(software_name, row_platform, lifecycle)
+        cost_rule = _pick_best_sam_cost(software_name, row_platform, cost_profiles)
+
+        lifecycle_status = "supported"
+        days_to_eol: Optional[int] = None
+        days_to_eos: Optional[int] = None
+        if lifecycle_rule:
+            if lifecycle_rule.eol_date:
+                days_to_eol = (lifecycle_rule.eol_date - now).days
+            if lifecycle_rule.eos_date:
+                days_to_eos = (lifecycle_rule.eos_date - now).days
+            if days_to_eos is not None and days_to_eos <= 0:
+                lifecycle_status = "eos"
+                critical_count += 1
+            elif days_to_eol is not None and days_to_eol <= 0:
+                lifecycle_status = "eol"
+                critical_count += 1
+            elif days_to_eos is not None and days_to_eos <= 90:
+                lifecycle_status = "eos_soon"
+                warning_count += 1
+            elif days_to_eol is not None and days_to_eol <= 90:
+                lifecycle_status = "eol_soon"
+                warning_count += 1
+
+        estimated_cost = 0
+        currency = "USD"
+        if cost_rule:
+            estimated_cost = int(cost_rule.monthly_cost_cents or 0) * agent_count
+            currency = str(cost_rule.currency or "USD")
+        monthly_total += estimated_cost
+
+        items.append(
+            {
+                "software_name": software_name,
+                "platform": row_platform,
+                "agent_count": agent_count,
+                "lifecycle_status": lifecycle_status,
+                "days_to_eol": days_to_eol,
+                "days_to_eos": days_to_eos,
+                "estimated_monthly_cost_cents": estimated_cost,
+                "currency": currency,
+            }
+        )
+
+    severity_order = {"eos": 4, "eol": 3, "eos_soon": 2, "eol_soon": 1, "supported": 0}
+    items.sort(
+        key=lambda x: (
+            -severity_order.get(str(x.get("lifecycle_status") or "supported"), 0),
+            -int(x.get("estimated_monthly_cost_cents") or 0),
+            -int(x.get("agent_count") or 0),
+            str(x.get("software_name") or "").lower(),
+        )
+    )
+    safe_offset = max(int(offset), 0)
+    safe_limit = min(max(int(limit), 1), 500)
+    paged = items[safe_offset:safe_offset + safe_limit]
+    return {
+        "items": paged,
+        "total": len(items),
+        "critical_count": critical_count,
+        "warning_count": warning_count,
+        "monthly_cost_cents_total": monthly_total,
+    }
 
 
 # --- Cleanup ---

@@ -1,0 +1,354 @@
+{% extends 'base.html' %}
+{% block title %}Risk ve Optimizasyon{% endblock %}
+{% block page_title %}Risk ve Optimizasyon{% endblock %}
+{% block page_actions %}
+<div class="btn-list">
+  <a class="btn btn-outline-primary btn-sm" href="/inventory/sam-dashboard"><i class="ti ti-dashboard me-1"></i>SAM Dashboard</a>
+  <a class="btn btn-outline-primary btn-sm" href="/inventory/compliance"><i class="ti ti-shield-x me-1"></i>Uyum ve Ihlaller</a>
+</div>
+{% endblock %}
+{% block content %}
+<div class="row row-deck row-cards mb-3">
+  <div class="col-sm-6 col-lg-3">
+    <div class="card">
+      <div class="card-body">
+        <div class="subheader">Kritik Risk</div>
+        <div class="h1 mb-0" id="risk-critical">-</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card">
+      <div class="card-body">
+        <div class="subheader">Uyari</div>
+        <div class="h1 mb-0" id="risk-warning">-</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card">
+      <div class="card-body">
+        <div class="subheader">Toplam Kayit</div>
+        <div class="h1 mb-0" id="risk-total">-</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card">
+      <div class="card-body">
+        <div class="subheader">Aylik Tahmini Maliyet</div>
+        <div class="h1 mb-0" id="risk-cost">-</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-header">
+    <div class="row g-2 w-100">
+      <div class="col-12 col-md-4">
+        <div class="input-icon">
+          <span class="input-icon-addon"><i class="ti ti-search"></i></span>
+          <input id="risk-search" class="form-control" placeholder="Yazilim ara..." />
+        </div>
+      </div>
+      <div class="col-6 col-md-2">
+        <select id="risk-platform" class="form-select">
+          <option value="all">Platform: Tum</option>
+          <option value="windows">Windows</option>
+          <option value="linux">Linux</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <button id="risk-filter-btn" class="btn btn-outline-primary w-100" type="button"><i class="ti ti-filter me-1"></i>Filtrele</button>
+      </div>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter">
+      <thead>
+        <tr>
+          <th>Yazilim</th>
+          <th>Platform</th>
+          <th>Ajan</th>
+          <th>Yasam Dongusu</th>
+          <th>EOL Gun</th>
+          <th>EOS Gun</th>
+          <th>Tahmini Aylik Maliyet</th>
+        </tr>
+      </thead>
+      <tbody id="risk-rows">
+        <tr><td colspan="7" class="text-secondary">Yukleniyor...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="row row-cards">
+  <div class="col-12 col-xl-6">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title mb-0">Lifecycle Politikalari</h3></div>
+      <div class="card-body">
+        <form id="lifecycle-form" class="row g-2 mb-3">
+          <div class="col-12 col-md-5"><input class="form-control" name="software_name_pattern" placeholder="Pattern" required /></div>
+          <div class="col-6 col-md-3">
+            <select class="form-select" name="match_type">
+              <option value="contains">contains</option>
+              <option value="exact">exact</option>
+              <option value="starts_with">starts_with</option>
+            </select>
+          </div>
+          <div class="col-6 col-md-2">
+            <select class="form-select" name="platform">
+              <option value="all">all</option>
+              <option value="windows">windows</option>
+              <option value="linux">linux</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-2"><button class="btn btn-primary w-100" type="submit"><i class="ti ti-plus"></i></button></div>
+          <div class="col-6 col-md-3"><input class="form-control" name="eol_date" type="date" /></div>
+          <div class="col-6 col-md-3"><input class="form-control" name="eos_date" type="date" /></div>
+          <div class="col-12 col-md-6"><input class="form-control" name="notes" placeholder="Not" /></div>
+        </form>
+        <div class="table-responsive">
+          <table class="table table-vcenter">
+            <thead>
+              <tr><th>Pattern</th><th>Tip</th><th>Platform</th><th>EOL</th><th>EOS</th><th></th></tr>
+            </thead>
+            <tbody id="lifecycle-rows"><tr><td colspan="6" class="text-secondary">Yukleniyor...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-6">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title mb-0">Maliyet Profilleri</h3></div>
+      <div class="card-body">
+        <form id="cost-form" class="row g-2 mb-3">
+          <div class="col-12 col-md-5"><input class="form-control" name="software_name_pattern" placeholder="Pattern" required /></div>
+          <div class="col-6 col-md-3">
+            <select class="form-select" name="match_type">
+              <option value="contains">contains</option>
+              <option value="exact">exact</option>
+              <option value="starts_with">starts_with</option>
+            </select>
+          </div>
+          <div class="col-6 col-md-2">
+            <select class="form-select" name="platform">
+              <option value="all">all</option>
+              <option value="windows">windows</option>
+              <option value="linux">linux</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-2"><button class="btn btn-primary w-100" type="submit"><i class="ti ti-plus"></i></button></div>
+          <div class="col-6 col-md-4"><input class="form-control" name="monthly_cost_cents" type="number" min="0" step="1" placeholder="Maliyet (cent)" /></div>
+          <div class="col-6 col-md-2"><input class="form-control" name="currency" value="USD" maxlength="8" /></div>
+          <div class="col-12 col-md-6"><input class="form-control" name="notes" placeholder="Not" /></div>
+        </form>
+        <div class="table-responsive">
+          <table class="table table-vcenter">
+            <thead>
+              <tr><th>Pattern</th><th>Tip</th><th>Platform</th><th>Maliyet</th><th>Doviz</th><th></th></tr>
+            </thead>
+            <tbody id="cost-rows"><tr><td colspan="6" class="text-secondary">Yukleniyor...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+  function esc(v) {
+    return (v ?? '').toString()
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+  function platformBadge(v) {
+    const p = (v || '').toLowerCase();
+    if (p === 'windows') return '<span class="badge bg-blue-lt text-blue">windows</span>';
+    if (p === 'linux') return '<span class="badge bg-azure-lt text-azure">linux</span>';
+    return `<span class="badge bg-secondary-lt text-secondary">${esc(v || 'all')}</span>`;
+  }
+  function lifecycleBadge(v) {
+    const s = (v || '').toLowerCase();
+    if (s === 'eos' || s === 'eol') return `<span class="badge bg-red-lt text-red">${esc(s)}</span>`;
+    if (s === 'eos_soon' || s === 'eol_soon') return `<span class="badge bg-orange-lt text-orange">${esc(s)}</span>`;
+    return `<span class="badge bg-green-lt text-green">${esc(s || 'supported')}</span>`;
+  }
+  function money(cents, currency) {
+    const value = Number(cents || 0) / 100;
+    return `${value.toFixed(2)} ${esc(currency || 'USD')}`;
+  }
+  async function loadRisk() {
+    try {
+      const search = document.getElementById('risk-search').value || '';
+      const platform = document.getElementById('risk-platform').value || 'all';
+      const data = await AppCenterApi.req(`/sam/risk-overview?search=${encodeURIComponent(search)}&platform=${encodeURIComponent(platform)}&limit=300&offset=0`);
+      document.getElementById('risk-critical').textContent = String(data.critical_count || 0);
+      document.getElementById('risk-warning').textContent = String(data.warning_count || 0);
+      document.getElementById('risk-total').textContent = String(data.total || 0);
+      document.getElementById('risk-cost').textContent = money(data.monthly_cost_cents_total || 0, 'USD');
+      const rows = document.getElementById('risk-rows');
+      const items = data.items || [];
+      if (!items.length) {
+        rows.innerHTML = '<tr><td colspan="7" class="text-secondary">Kayit yok</td></tr>';
+        return;
+      }
+      rows.innerHTML = items.map((i) => `
+        <tr>
+          <td class="fw-medium">${esc(i.software_name || '-')}</td>
+          <td>${platformBadge(i.platform)}</td>
+          <td><span class="badge bg-secondary-lt text-secondary">${Number(i.agent_count || 0)}</span></td>
+          <td>${lifecycleBadge(i.lifecycle_status)}</td>
+          <td>${i.days_to_eol == null ? '-' : Number(i.days_to_eol)}</td>
+          <td>${i.days_to_eos == null ? '-' : Number(i.days_to_eos)}</td>
+          <td class="fw-medium">${money(i.estimated_monthly_cost_cents || 0, i.currency || 'USD')}</td>
+        </tr>
+      `).join('');
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+  async function loadLifecyclePolicies() {
+    try {
+      const data = await AppCenterApi.req('/sam/lifecycle-policies');
+      const rows = document.getElementById('lifecycle-rows');
+      const items = data.items || [];
+      if (!items.length) {
+        rows.innerHTML = '<tr><td colspan="6" class="text-secondary">Kayit yok</td></tr>';
+        return;
+      }
+      rows.innerHTML = items.map((i) => `
+        <tr>
+          <td class="fw-medium">${esc(i.software_name_pattern || '-')}</td>
+          <td>${esc(i.match_type || '-')}</td>
+          <td>${platformBadge(i.platform)}</td>
+          <td>${i.eol_date ? esc(i.eol_date.slice(0, 10)) : '-'}</td>
+          <td>${i.eos_date ? esc(i.eos_date.slice(0, 10)) : '-'}</td>
+          <td><button class="btn btn-outline-danger btn-sm lp-del-btn" type="button" data-id="${i.id}"><i class="ti ti-trash"></i></button></td>
+        </tr>
+      `).join('');
+      rows.querySelectorAll('.lp-del-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const id = Number(btn.getAttribute('data-id') || '0');
+          if (!id) return;
+          if (!confirm(`Policy silinsin mi? (#${id})`)) return;
+          try {
+            await AppCenterApi.req(`/sam/lifecycle-policies/${id}`, { method: 'DELETE' });
+            AppCenterApi.toast('Silindi');
+            loadLifecyclePolicies();
+            loadRisk();
+          } catch (err) {
+            AppCenterApi.toast(err.message);
+          }
+        });
+      });
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+  async function loadCostProfiles() {
+    try {
+      const data = await AppCenterApi.req('/sam/cost-profiles');
+      const rows = document.getElementById('cost-rows');
+      const items = data.items || [];
+      if (!items.length) {
+        rows.innerHTML = '<tr><td colspan="6" class="text-secondary">Kayit yok</td></tr>';
+        return;
+      }
+      rows.innerHTML = items.map((i) => `
+        <tr>
+          <td class="fw-medium">${esc(i.software_name_pattern || '-')}</td>
+          <td>${esc(i.match_type || '-')}</td>
+          <td>${platformBadge(i.platform)}</td>
+          <td>${Number(i.monthly_cost_cents || 0)}</td>
+          <td>${esc(i.currency || 'USD')}</td>
+          <td><button class="btn btn-outline-danger btn-sm cp-del-btn" type="button" data-id="${i.id}"><i class="ti ti-trash"></i></button></td>
+        </tr>
+      `).join('');
+      rows.querySelectorAll('.cp-del-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const id = Number(btn.getAttribute('data-id') || '0');
+          if (!id) return;
+          if (!confirm(`Profil silinsin mi? (#${id})`)) return;
+          try {
+            await AppCenterApi.req(`/sam/cost-profiles/${id}`, { method: 'DELETE' });
+            AppCenterApi.toast('Silindi');
+            loadCostProfiles();
+            loadRisk();
+          } catch (err) {
+            AppCenterApi.toast(err.message);
+          }
+        });
+      });
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
+  document.getElementById('risk-filter-btn').addEventListener('click', loadRisk);
+  document.getElementById('lifecycle-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const eol = (fd.get('eol_date') || '').toString().trim();
+    const eos = (fd.get('eos_date') || '').toString().trim();
+    const payload = {
+      software_name_pattern: (fd.get('software_name_pattern') || '').toString().trim(),
+      match_type: (fd.get('match_type') || 'contains').toString(),
+      platform: (fd.get('platform') || 'all').toString(),
+      eol_date: eol ? `${eol}T00:00:00Z` : null,
+      eos_date: eos ? `${eos}T00:00:00Z` : null,
+      is_active: true,
+      notes: (fd.get('notes') || '').toString().trim() || null,
+    };
+    try {
+      await AppCenterApi.req('/sam/lifecycle-policies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      e.target.reset();
+      AppCenterApi.toast('Lifecycle policy eklendi');
+      loadLifecyclePolicies();
+      loadRisk();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+  document.getElementById('cost-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = {
+      software_name_pattern: (fd.get('software_name_pattern') || '').toString().trim(),
+      match_type: (fd.get('match_type') || 'contains').toString(),
+      platform: (fd.get('platform') || 'all').toString(),
+      monthly_cost_cents: Number(fd.get('monthly_cost_cents') || 0),
+      currency: (fd.get('currency') || 'USD').toString().trim() || 'USD',
+      is_active: true,
+      notes: (fd.get('notes') || '').toString().trim() || null,
+    };
+    try {
+      await AppCenterApi.req('/sam/cost-profiles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      e.target.reset();
+      AppCenterApi.toast('Maliyet profili eklendi');
+      loadCostProfiles();
+      loadRisk();
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  });
+  loadRisk();
+  loadLifecyclePolicies();
+  loadCostProfiles();
+</script>
+{% endblock %}

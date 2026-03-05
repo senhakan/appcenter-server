@@ -138,6 +138,7 @@ def _run_startup_migrations() -> None:
     _migrate_agent_runtime_network_columns()
     _migrate_application_platform_columns()
     _migrate_agent_update_platform_settings()
+    _migrate_sam_advanced_tables()
 
 
 def _migrate_role_profiles_table() -> None:
@@ -377,6 +378,60 @@ def _migrate_agent_update_platform_settings() -> None:
                 text("INSERT INTO settings (key, value, description, updated_at) VALUES (:k, :v, :d, :u)"),
                 {"k": new_key, "v": value, "d": desc, "u": now},
             )
+
+
+def _migrate_sam_advanced_tables() -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS sam_lifecycle_policies (
+                    id SERIAL PRIMARY KEY,
+                    software_name_pattern VARCHAR NOT NULL,
+                    match_type VARCHAR NOT NULL DEFAULT 'contains',
+                    platform VARCHAR NOT NULL DEFAULT 'all',
+                    eol_date TIMESTAMPTZ NULL,
+                    eos_date TIMESTAMPTZ NULL,
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    notes TEXT NULL,
+                    created_at TIMESTAMPTZ NOT NULL,
+                    updated_at TIMESTAMPTZ NOT NULL,
+                    CONSTRAINT ck_sam_lifecycle_match_type CHECK (match_type IN ('exact','contains','starts_with')),
+                    CONSTRAINT ck_sam_lifecycle_platform CHECK (platform IN ('all','windows','linux'))
+                )
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS sam_cost_profiles (
+                    id SERIAL PRIMARY KEY,
+                    software_name_pattern VARCHAR NOT NULL,
+                    match_type VARCHAR NOT NULL DEFAULT 'contains',
+                    platform VARCHAR NOT NULL DEFAULT 'all',
+                    monthly_cost_cents INTEGER NOT NULL DEFAULT 0,
+                    currency VARCHAR NOT NULL DEFAULT 'USD',
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    notes TEXT NULL,
+                    created_at TIMESTAMPTZ NOT NULL,
+                    updated_at TIMESTAMPTZ NOT NULL,
+                    CONSTRAINT ck_sam_cost_match_type CHECK (match_type IN ('exact','contains','starts_with')),
+                    CONSTRAINT ck_sam_cost_platform CHECK (platform IN ('all','windows','linux'))
+                )
+                """
+            )
+        )
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sam_finding_status ON sam_compliance_findings(status)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sam_finding_platform ON sam_compliance_findings(platform)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sam_finding_software ON sam_compliance_findings(software_name)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sam_schedule_active ON sam_report_schedules(is_active)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sam_lifecycle_active ON sam_lifecycle_policies(is_active)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sam_lifecycle_pattern ON sam_lifecycle_policies(software_name_pattern)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sam_lifecycle_platform ON sam_lifecycle_policies(platform)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sam_cost_active ON sam_cost_profiles(is_active)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sam_cost_pattern ON sam_cost_profiles(software_name_pattern)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sam_cost_platform ON sam_cost_profiles(platform)"))
 
 
 def seed_initial_data() -> None:

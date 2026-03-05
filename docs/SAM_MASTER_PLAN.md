@@ -40,8 +40,8 @@ Windows ve Linux ayrimi dashboard, katalog ve raporlarda zorunlu gorunur olacak.
 - [x] Dagitim alicilari alanlari (schedule recipients)
 
 ### Faz 4
-- [~] EOL/EOS surum riski (sonraki iterasyon)
-- [~] Maliyet ve optimizasyon gorunumu (sonraki iterasyon)
+- [x] EOL/EOS surum riski (lifecycle policy + risk overview)
+- [x] Maliyet ve optimizasyon gorunumu (cost profile + aylik tahmin)
 - [x] Role-based rapor erisimi
 
 ## 4. Veri ve KPI Standartlari
@@ -77,3 +77,7 @@ Windows ve Linux ayrimi dashboard, katalog ve raporlarda zorunlu gorunur olacak.
 - Uyum ve Ihlaller sayfasi, senkronizasyon endpoint'i, workflow durum guncelleme
 - Rapor Merkezi: CSV export endpointleri
 - Zamanlanmis rapor tanimlari (CRUD)
+- Risk ve Optimizasyon sayfasi
+- Lifecycle policy CRUD (`/api/v1/sam/lifecycle-policies`)
+- Cost profile CRUD (`/api/v1/sam/cost-profiles`)
+- Risk overview API (`/api/v1/sam/risk-overview`)
