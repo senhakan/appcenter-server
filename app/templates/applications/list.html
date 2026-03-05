@@ -104,6 +104,7 @@
           <th>Ikon</th>
           <th>Ad</th>
           <th>Versiyon</th>
+          <th>Platform</th>
           <th>Param.</th>
           <th>Tip</th>
           <th>Boyut</th>
@@ -111,7 +112,7 @@
         </tr>
       </thead>
       <tbody id="app-rows">
-        <tr><td colspan="8" class="text-secondary">Yukleniyor...</td></tr>
+        <tr><td colspan="9" class="text-secondary">Yukleniyor...</td></tr>
       </tbody>
     </table>
   </div>
@@ -137,6 +138,13 @@
             <label class="form-label">Versiyon</label>
             <input class="form-control" name="version" required />
           </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Hedef Platform</label>
+            <select class="form-select" name="target_platform" id="app-create-target-platform">
+              <option value="windows">Windows</option>
+              <option value="linux">Linux</option>
+            </select>
+          </div>
           <div class="col-12">
             <label class="form-label">Aciklama</label>
             <textarea class="form-control" name="description" rows="2"></textarea>
@@ -154,8 +162,9 @@
             <input class="form-control" name="icon" type="file" accept=".png,.jpg,.jpeg,.webp,.svg" />
           </div>
           <div class="col-12 col-md-6">
-            <label class="form-label">Kurulum Dosyasi (.msi / .exe)</label>
-            <input class="form-control" name="file" type="file" accept=".msi,.exe" required />
+            <label class="form-label" id="app-create-file-label">Kurulum Dosyasi (.msi / .exe)</label>
+            <input class="form-control" id="app-create-file-input" name="file" type="file" accept=".msi,.exe" required />
+            <div class="form-hint" id="app-create-file-hint">Windows: .msi, .exe</div>
           </div>
           <div class="col-12 d-flex justify-content-end">
             <div class="btn-list">
@@ -189,6 +198,13 @@
           <div class="col-12 col-md-6">
             <label class="form-label">Versiyon</label>
             <input class="form-control" name="version" required />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Hedef Platform</label>
+            <select class="form-select" name="target_platform" id="app-edit-target-platform">
+              <option value="windows">Windows</option>
+              <option value="linux">Linux</option>
+            </select>
           </div>
           <div class="col-12">
             <label class="form-label">Aciklama</label>
@@ -289,6 +305,31 @@
 
   function openModal(modal) { modal.classList.remove('hidden'); }
   function closeModal(modal) { modal.classList.add('hidden'); }
+  function normalizePlatform(v) {
+    const p = (v || 'windows').toString().trim().toLowerCase();
+    return p === 'linux' ? 'linux' : 'windows';
+  }
+  function platformBadge(p) {
+    return normalizePlatform(p) === 'linux'
+      ? '<span class="badge bg-azure-lt text-azure">linux</span>'
+      : '<span class="badge bg-blue-lt text-blue">windows</span>';
+  }
+  function applyCreatePlatformUi() {
+    const platform = normalizePlatform(document.getElementById('app-create-target-platform')?.value || 'windows');
+    const input = document.getElementById('app-create-file-input');
+    const label = document.getElementById('app-create-file-label');
+    const hint = document.getElementById('app-create-file-hint');
+    if (!input || !label || !hint) return;
+    if (platform === 'linux') {
+      input.setAttribute('accept', '.deb,.tar.gz,.sh');
+      label.textContent = 'Kurulum Dosyasi (.deb / .tar.gz / .sh)';
+      hint.textContent = 'Linux: .deb, .tar.gz, .sh';
+      return;
+    }
+    input.setAttribute('accept', '.msi,.exe');
+    label.textContent = 'Kurulum Dosyasi (.msi / .exe)';
+    hint.textContent = 'Windows: .msi, .exe';
+  }
 
   function applyAppListFilters(items) {
     const q = (document.getElementById('apps-search').value || '').toLowerCase().trim();
@@ -331,7 +372,7 @@
 
       const filtered = applyAppListFilters(appItems);
       if (!filtered.length) {
-        rows.innerHTML = '<tr><td colspan="8" class="text-secondary">Kayit yok</td></tr>';
+        rows.innerHTML = '<tr><td colspan="9" class="text-secondary">Kayit yok</td></tr>';
         return;
       }
 
@@ -350,6 +391,7 @@
             <div class="text-secondary">${esc(app.category || 'kategori yok')}</div>
           </td>
           <td>${esc(app.version)}</td>
+          <td>${platformBadge(app.target_platform)}</td>
           <td class="text-secondary">${esc(app.install_args || '-')}</td>
           <td>
             <div>${esc(app.file_type || '-')}</div>
@@ -379,6 +421,7 @@
           form.id.value = String(app.id);
           form.display_name.value = app.display_name || '';
           form.version.value = app.version || '';
+          form.target_platform.value = normalizePlatform(app.target_platform || 'windows');
           form.description.value = app.description || '';
           form.install_args.value = app.install_args || '';
           form.uninstall_args.value = app.uninstall_args || '';
@@ -412,6 +455,7 @@
   document.getElementById('apps-search').addEventListener('input', () => loadApps());
   document.getElementById('apps-filter-active').addEventListener('change', () => loadApps());
   document.getElementById('apps-sort').addEventListener('change', () => loadApps());
+  document.getElementById('app-create-target-platform').addEventListener('change', applyCreatePlatformUi);
 
   document.getElementById('app-create-cancel-btn-2').addEventListener('click', () => closeModal(createModal));
   document.getElementById('app-edit-cancel-btn-2').addEventListener('click', () => closeModal(editModal));
@@ -427,6 +471,8 @@
       const form = new FormData(e.target);
       await AppCenterApi.req('/applications', { method: 'POST', body: form });
       e.target.reset();
+      document.getElementById('app-create-target-platform').value = 'windows';
+      applyCreatePlatformUi();
       closeModal(createModal);
       AppCenterApi.toast('Yukleme tamamlandi');
       await loadApps();
@@ -447,6 +493,7 @@
       install_args: (form.get('install_args') || '').toString() || null,
       uninstall_args: (form.get('uninstall_args') || '').toString() || null,
       category: (form.get('category') || '').toString() || null,
+      target_platform: normalizePlatform((form.get('target_platform') || 'windows').toString()),
       is_visible_in_store: form.get('is_visible_in_store') === 'on',
       is_active: form.get('is_active') === 'on',
     };
@@ -498,6 +545,7 @@
     }
   });
 
+  applyCreatePlatformUi();
   loadApps();
 </script>
 {% endblock %}
