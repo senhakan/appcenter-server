@@ -538,3 +538,15 @@ curl -f http://127.0.0.1:8000/health
 
 - Root path davranisi `/login`e yonlendirecek sekilde ayarlidir.
 - App upstream: `127.0.0.1:8000`
+
+## 7. Sistem/Servis Gecmisi Ayrimi (2026-03-05)
+
+- Ajan detayinda `Sistem Gecmisi` sekmesi yalnizca:
+  - `GET /api/v1/agents/{uuid}/system/history`
+  endpointini kullanir.
+- Servis durum/startup degisimleri yalnizca:
+  - `GET /api/v1/agents/{uuid}/services/history`
+  sekmesinde gorunur.
+- Canli temizlik sorgusu:
+  - `agent_system_profile_history` icindeki servis metni tasiyan legacy satirlar silindi.
+  - 2026-03-05 calistirmasinda silinen satir: `0`.

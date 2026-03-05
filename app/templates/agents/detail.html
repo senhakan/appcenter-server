@@ -910,8 +910,9 @@
       await AppCenterApi.initUi();
       const safePage = Math.max(1, Number(page || 1));
       const offset = (safePage - 1) * SYSTEM_PAGE_SIZE;
-      const data = await AppCenterApi.req(`/agents/${agentId}/timeline?limit=${SYSTEM_PAGE_SIZE}&offset=${offset}`);
+      const data = await AppCenterApi.req(`/agents/${agentId}/system/history?limit=${SYSTEM_PAGE_SIZE}&offset=${offset}`);
       const items = data.items || [];
+      const total = Number(data.total || 0);
       const body = document.getElementById('sys-body');
       body.innerHTML = '';
       if (!items.length) {
@@ -919,53 +920,24 @@
       }
       items.forEach(i => {
         let details = '';
-        if (i.event_type === 'identity') {
-          const hOld = i.old_hostname || '-';
-          const hNew = i.new_hostname || '-';
-          const ipOld = i.old_ip_address || '-';
-          const ipNew = i.new_ip_address || '-';
-          details = `
-            <div><b>hostname</b>: ${hOld} → ${hNew}</div>
-            <div><b>ip</b>: ${ipOld} → ${ipNew}</div>
-          `;
-        } else if (i.event_type === 'status') {
-          const sOld = i.old_status || '-';
-          const sNew = i.new_status || '-';
-          const reason = i.reason ? ` (${i.reason})` : '';
-          details = `<div><b>status</b>: ${sOld} → ${sNew}${reason}</div>`;
-        } else if (i.event_type === 'task') {
-          const act = i.task_action || '-';
-          const st = i.task_status || '-';
-          const app = i.app_name || '-';
-          const exit = (i.exit_code != null) ? ` (exit=${i.exit_code})` : '';
-          const msg = i.message ? ` | ${i.message}` : '';
-          details = `<div><b>task</b>: ${act} ${app} → ${st}${exit}${msg}</div>`;
-        } else if (i.event_type === 'service') {
-          const nm = i.service_display_name || i.service_name || '-';
-          const ch = serviceChangeLabel(i.service_change_type);
-          details = `<div><b>service</b>: ${nm} | ${ch}</div>
-            <div><b>status</b>: ${i.old_status || '-'} → ${i.new_status || '-'}</div>
-            <div><b>startup</b>: ${i.old_startup_type || '-'} → ${i.new_startup_type || '-'}</div>`;
+        const p = i.system_profile || {};
+        const fields = (i.changed_fields || []);
+        if (fields.includes('initial')) {
+          const summary = `${p.os_full_name || '-'} | ${(p.manufacturer || '-') + ' ' + (p.model || '')} | ${p.cpu_model || '-'} | ${p.total_memory_gb != null ? (p.total_memory_gb + ' GB') : '-'}`;
+          details = `<div><b>initial</b>: ${summary}</div>`;
         } else {
-          const p = i.system_profile || {};
-          const fields = (i.changed_fields || []);
-          if (fields.includes('initial')) {
-            const summary = `${p.os_full_name || '-'} | ${(p.manufacturer || '-') + ' ' + (p.model || '')} | ${p.cpu_model || '-'} | ${p.total_memory_gb != null ? (p.total_memory_gb + ' GB') : '-'}`;
-            details = `<div><b>initial</b>: ${summary}</div>`;
-          } else if (!fields.length) {
+          const diff = (i.diff || []);
+          if (!fields.length) {
             details = `<div class="text-secondary">-</div>`;
+          } else if (!diff.length) {
+            details = fields.map(f => `<div><b>${f}</b>: ${p[f] != null && p[f] !== '' ? p[f] : '-'}</div>`).join('');
           } else {
-            const diff = (i.diff || []);
-            if (!diff.length) {
-              details = fields.map(f => `<div><b>${f}</b>: ${p[f] != null && p[f] !== '' ? p[f] : '-'}</div>`).join('');
-            } else {
-              details = diff.map(d => {
-                const f = d.field || '';
-                const oldV = d.old != null && d.old !== '' ? d.old : '-';
-                const newV = d.new != null && d.new !== '' ? d.new : '-';
-                return `<div><b>${f}</b>: ${oldV} → ${newV}</div>`;
-              }).join('');
-            }
+            details = diff.map(d => {
+              const f = d.field || '';
+              const oldV = d.old != null && d.old !== '' ? d.old : '-';
+              const newV = d.new != null && d.new !== '' ? d.new : '-';
+              return `<div><b>${f}</b>: ${oldV} → ${newV}</div>`;
+            }).join('');
           }
         }
         body.innerHTML += `<tr>
@@ -980,11 +952,11 @@
         appendFillerRows(body, 2, SYSTEM_PAGE_SIZE - 1);
       }
       systemPage = safePage;
-      systemHasNext = items.length === SYSTEM_PAGE_SIZE;
+      systemHasNext = (offset + items.length) < total;
       const from = items.length ? offset + 1 : 0;
       const to = offset + items.length;
       const info = document.getElementById('sys-page-info');
-      if (info) info.innerHTML = `Gosterilen <strong>${from}-${to}</strong> (Sayfa <strong>${systemPage}</strong>)`;
+      if (info) info.innerHTML = `Gosterilen <strong>${from}-${to}</strong> / Toplam <strong>${total}</strong> (Sayfa <strong>${systemPage}</strong>)`;
       renderPager(
         'sys-pagination',
         systemPage,
