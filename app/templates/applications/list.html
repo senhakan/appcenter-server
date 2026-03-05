@@ -314,6 +314,19 @@
       ? '<span class="badge bg-azure-lt text-azure">linux</span>'
       : '<span class="badge bg-blue-lt text-blue">windows</span>';
   }
+  function appIconCell(app) {
+    if (app.icon_url) {
+      return `<span class="avatar avatar-sm" style="background-image:url('${esc(app.icon_url)}')"></span>`;
+    }
+    const fileType = (app.file_type || '').toString().trim().toLowerCase();
+    if (fileType === 'ps1') {
+      return '<span class="avatar avatar-sm bg-blue-lt text-blue"><i class="ti ti-brand-powershell"></i></span>';
+    }
+    if (fileType === 'sh') {
+      return '<span class="avatar avatar-sm bg-azure-lt text-azure"><i class="ti ti-brand-linux"></i></span>';
+    }
+    return '<span class="avatar avatar-sm">-</span>';
+  }
   function applyCreatePlatformUi() {
     const platform = normalizePlatform(document.getElementById('app-create-target-platform')?.value || 'windows');
     const input = document.getElementById('app-create-file-input');
@@ -383,9 +396,7 @@
           : '<span class="badge bg-secondary-lt text-secondary">pasif</span>';
         tr.innerHTML = `
           <td>${app.id}</td>
-          <td>${app.icon_url
-            ? `<span class="avatar avatar-sm" style="background-image:url('${esc(app.icon_url)}')"></span>`
-            : '<span class="avatar avatar-sm">-</span>'}</td>
+          <td>${appIconCell(app)}</td>
           <td>
             <div class="fw-medium">${esc(app.display_name)}</div>
             <div class="text-secondary">${esc(app.category || 'kategori yok')}</div>
