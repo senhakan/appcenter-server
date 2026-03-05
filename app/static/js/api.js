@@ -167,9 +167,37 @@
   }
 
   function toast(message, type) {
+    const tone = (type || _guessToastType(message) || "info").toString().trim().toLowerCase();
+    const fw = document.getElementById("fw-global-toast");
+    const fwTypeMap = { info: "inprogress", success: "success", warning: "warning", error: "error" };
+    const fwPayload = {
+      type: fwTypeMap[tone] || "inprogress",
+      content: (message || "").toString(),
+      timeout: 2600,
+      pauseOnHover: true,
+      sticky: false,
+    };
+    if (fw) {
+      const tryTrigger = () => {
+        try {
+          if (typeof fw.trigger === "function") {
+            fw.trigger(fwPayload);
+            return true;
+          }
+        } catch (_) {}
+        return false;
+      };
+      if (tryTrigger()) return;
+      if (window.customElements && typeof window.customElements.whenDefined === "function") {
+        window.customElements.whenDefined("fw-toast").then(() => {
+          tryTrigger();
+        });
+        return;
+      }
+    }
+
     const container = document.getElementById("toast");
     if (!container) return;
-    const tone = (type || _guessToastType(message) || "info").toString().trim().toLowerCase();
     const map = {
       info: { icon: "ti ti-info-circle", avatarClass: "bg-blue-lt text-blue", title: "Bilgi" },
       success: { icon: "ti ti-circle-check", avatarClass: "bg-green-lt text-green", title: "Basarili" },

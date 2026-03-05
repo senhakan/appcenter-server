@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/static/vendor/tabler-icons/tabler-icons.min.css?v={{ ASSET_VERSION }}" />
     <link rel="stylesheet" href="/static/css/app.css?v={{ ASSET_VERSION }}" />
     <link rel="stylesheet" href="/static/css/app-overrides.css?v={{ ASSET_VERSION }}" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@freshworks/crayons@4.1.0/css/crayons-min.css" />
     {% block extra_css %}{% endblock %}
   </head>
   <body class="app-shell" data-page-roles="{{ page_roles|default('') }}" data-page-permissions="{{ page_permissions|default('') }}">
@@ -51,8 +52,11 @@
         </div>
       </div>
     </div>
+    <fw-toast id="fw-global-toast" position="top-right"></fw-toast>
     <div id="toast" class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1090;"></div>
     <script src="/static/vendor/tabler-1.4.0/js/tabler.min.js?v={{ ASSET_VERSION }}"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@freshworks/crayons@4.1.0/dist/crayons/crayons.esm.js"></script>
+    <script nomodule src="https://cdn.jsdelivr.net/npm/@freshworks/crayons@4.1.0/dist/crayons/crayons.js"></script>
     <script src="/static/js/api.js?v={{ ASSET_VERSION }}"></script>
     {% block scripts %}{% endblock %}
   </body>
