@@ -202,22 +202,28 @@
       container.removeChild(container.firstElementChild);
     }
 
-    if (window.bootstrap && window.bootstrap.Toast) {
-      const instance = new window.bootstrap.Toast(item, { autohide: true, delay: 2600 });
-      item.addEventListener(
-        "hidden.bs.toast",
-        () => {
+    const closeBtn = item.querySelector("[data-bs-dismiss='toast']");
+    if (closeBtn) {
+      closeBtn.addEventListener("click", () => {
+        item.classList.remove("show");
+        setTimeout(() => {
           if (item.parentElement) item.parentElement.removeChild(item);
-        },
-        { once: true }
-      );
-      instance.show();
-    } else {
+        }, 180);
+      });
+    }
+
+    item.style.display = "block";
+    item.classList.add("showing");
+    requestAnimationFrame(() => {
+      item.classList.remove("showing");
       item.classList.add("show");
+    });
+    setTimeout(() => {
+      item.classList.remove("show");
       setTimeout(() => {
         if (item.parentElement) item.parentElement.removeChild(item);
-      }, 2600);
-    }
+      }, 180);
+    }, 2600);
   }
 
   function clearSessionTimers() {
