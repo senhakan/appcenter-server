@@ -46,6 +46,26 @@
 </div>
 
 <div class="row row-cards">
+  <div class="col-12 col-xl-6">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Platform Dagilimi</h3>
+      </div>
+      <div class="card-body">
+        <div id="sam-platform-donut" style="min-height: 280px;"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-6">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Top Yazilim Platform Karsilastirma</h3>
+      </div>
+      <div class="card-body">
+        <div id="sam-top-sw-bar" style="min-height: 280px;"></div>
+      </div>
+    </div>
+  </div>
   <div class="col-12 col-xl-7">
     <div class="card">
       <div class="card-header">
@@ -93,8 +113,11 @@
 </div>
 {% endblock %}
 {% block scripts %}
+<script src="/static/vendor/apexcharts/apexcharts.min.js?v={{ ASSET_VERSION }}"></script>
 <script>
   AppCenterApi.protectPage();
+  let platformDonut = null;
+  let topSoftwareBar = null;
   function esc(v) {
     return (v ?? '').toString()
       .replaceAll('&', '&amp;')
@@ -108,6 +131,63 @@
     if (p === 'windows') return '<span class="badge bg-blue-lt text-blue">windows</span>';
     if (p === 'linux') return '<span class="badge bg-azure-lt text-azure">linux</span>';
     return `<span class="badge bg-secondary-lt text-secondary">${esc(v || '-')}</span>`;
+  }
+  function destroyChart(instance) {
+    if (!instance) return null;
+    try { instance.destroy(); } catch (e) {}
+    return null;
+  }
+  function renderPlatformDonut(items) {
+    const win = (items || []).find((x) => (x.platform || '').toLowerCase() === 'windows');
+    const lin = (items || []).find((x) => (x.platform || '').toLowerCase() === 'linux');
+    const values = [Number(win?.total_agents || 0), Number(lin?.total_agents || 0)];
+    platformDonut = destroyChart(platformDonut);
+    if (!window.ApexCharts) return;
+    platformDonut = new ApexCharts(document.getElementById('sam-platform-donut'), {
+      chart: { type: 'donut', height: 280, fontFamily: 'inherit', toolbar: { show: false }, animations: { enabled: false } },
+      labels: ['Windows', 'Linux'],
+      series: values,
+      colors: ['#206bc4', '#4299e1'],
+      legend: { position: 'bottom' },
+      dataLabels: { enabled: true },
+      tooltip: { theme: 'dark' },
+      stroke: { width: 1 },
+    });
+    platformDonut.render();
+  }
+  function renderTopSoftwareBar(topItems) {
+    const byName = new Map();
+    (topItems || []).forEach((x) => {
+      const name = (x.name || '').trim();
+      if (!name) return;
+      const key = name.toLowerCase();
+      if (!byName.has(key)) byName.set(key, { name, windows: 0, linux: 0 });
+      const row = byName.get(key);
+      if ((x.platform || '').toLowerCase() === 'windows') row.windows += Number(x.agent_count || 0);
+      if ((x.platform || '').toLowerCase() === 'linux') row.linux += Number(x.agent_count || 0);
+    });
+    const list = Array.from(byName.values())
+      .sort((a, b) => (b.windows + b.linux) - (a.windows + a.linux))
+      .slice(0, 8);
+    const labels = list.map((x) => x.name);
+    const win = list.map((x) => x.windows);
+    const lin = list.map((x) => x.linux);
+    topSoftwareBar = destroyChart(topSoftwareBar);
+    if (!window.ApexCharts) return;
+    topSoftwareBar = new ApexCharts(document.getElementById('sam-top-sw-bar'), {
+      chart: { type: 'bar', height: 280, stacked: true, fontFamily: 'inherit', toolbar: { show: false }, animations: { enabled: false } },
+      series: [
+        { name: 'Windows', data: win },
+        { name: 'Linux', data: lin },
+      ],
+      xaxis: { categories: labels, labels: { rotate: -25, trim: true } },
+      colors: ['#206bc4', '#4299e1'],
+      legend: { position: 'top' },
+      tooltip: { theme: 'dark' },
+      plotOptions: { bar: { horizontal: false, borderRadius: 4, columnWidth: '55%' } },
+      grid: { strokeDashArray: 4 },
+    });
+    topSoftwareBar.render();
   }
   async function loadSamDashboard() {
     try {
@@ -143,6 +223,8 @@
 
       const swRows = document.getElementById('top-sw-rows');
       const tops = data.top_software || [];
+      renderPlatformDonut(data.platform_items || []);
+      renderTopSoftwareBar(tops);
       if (!tops.length) {
         swRows.innerHTML = '<tr><td colspan="3" class="text-secondary">Kayit yok</td></tr>';
       } else {
