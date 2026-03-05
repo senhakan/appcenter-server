@@ -309,6 +309,28 @@ def _migrate_application_platform_columns() -> None:
         existing = {row[0] for row in rows}
         if "target_platform" not in existing:
             conn.execute(text("ALTER TABLE applications ADD COLUMN target_platform VARCHAR NOT NULL DEFAULT 'windows'"))
+        constraint_row = conn.execute(
+            text(
+                """
+                SELECT pg_get_constraintdef(oid)
+                FROM pg_constraint
+                WHERE conrelid = 'applications'::regclass
+                  AND conname = 'ck_application_file_type'
+                """
+            )
+        ).first()
+        if constraint_row:
+            definition = str(constraint_row[0] or "").lower()
+            linux_types_present = all(token in definition for token in ("deb", "tar.gz", "sh"))
+            if not linux_types_present:
+                conn.execute(text("ALTER TABLE applications DROP CONSTRAINT ck_application_file_type"))
+                conn.execute(
+                    text(
+                        "ALTER TABLE applications "
+                        "ADD CONSTRAINT ck_application_file_type "
+                        "CHECK (file_type IN ('msi', 'exe', 'deb', 'tar.gz', 'sh'))"
+                    )
+                )
 
 
 def _migrate_agent_runtime_network_columns() -> None:
