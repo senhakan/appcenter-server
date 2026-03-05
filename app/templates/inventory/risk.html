@@ -239,7 +239,14 @@
         btn.addEventListener('click', async () => {
           const id = Number(btn.getAttribute('data-id') || '0');
           if (!id) return;
-          if (!confirm(`Policy silinsin mi? (#${id})`)) return;
+          const ok = await AppCenterApi.confirm({
+            title: 'Policy Sil',
+            message: `Policy silinsin mi? (#${id})`,
+            confirmText: 'Sil',
+            cancelText: 'Vazgec',
+            tone: 'danger',
+          });
+          if (!ok) return;
           try {
             await AppCenterApi.req(`/sam/lifecycle-policies/${id}`, { method: 'DELETE' });
             AppCenterApi.toast('Silindi');
@@ -277,7 +284,14 @@
         btn.addEventListener('click', async () => {
           const id = Number(btn.getAttribute('data-id') || '0');
           if (!id) return;
-          if (!confirm(`Profil silinsin mi? (#${id})`)) return;
+          const ok = await AppCenterApi.confirm({
+            title: 'Profil Sil',
+            message: `Profil silinsin mi? (#${id})`,
+            confirmText: 'Sil',
+            cancelText: 'Vazgec',
+            tone: 'danger',
+          });
+          if (!ok) return;
           try {
             await AppCenterApi.req(`/sam/cost-profiles/${id}`, { method: 'DELETE' });
             AppCenterApi.toast('Silindi');

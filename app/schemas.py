@@ -759,6 +759,7 @@ class InventoryItemResponse(BaseModel):
     software_name: str
     software_version: Optional[str] = None
     publisher: Optional[str] = None
+    normalized_publisher: Optional[str] = None
     install_date: Optional[str] = None
     estimated_size_kb: Optional[int] = None
     architecture: Optional[str] = None
@@ -777,6 +778,7 @@ class ChangeHistoryItemResponse(BaseModel):
     software_name: str
     software_version: Optional[str] = None
     publisher: Optional[str] = None
+    normalized_publisher: Optional[str] = None
     previous_version: Optional[str] = None
     change_type: str
     detected_at: datetime
@@ -821,6 +823,7 @@ class AgentServiceHistoryListResponse(BaseModel):
 
 class SoftwareSummaryItem(BaseModel):
     name: str
+    publisher: Optional[str] = None
     agent_count: int
     versions: list[str]
 
@@ -1148,3 +1151,62 @@ class LicenseUsageReportItem(BaseModel):
 class LicenseUsageReportResponse(BaseModel):
     items: list[LicenseUsageReportItem]
     total: int
+
+
+class LicenseRecommendationItem(BaseModel):
+    pattern: str
+    severity: str
+    action: str
+    reason: str
+    affected: int
+    delta: int
+
+
+class LicenseRecommendationResponse(BaseModel):
+    items: list[LicenseRecommendationItem]
+    total: int
+
+
+class InventoryTrendPoint(BaseModel):
+    date: str
+    installed: int
+    removed: int
+    updated: int
+    total: int
+    alert_level: str = "normal"
+    alert_reason: Optional[str] = None
+
+
+class InventoryTrendAlert(BaseModel):
+    date: str
+    level: str
+    total: int
+    baseline: float
+
+
+class InventoryTrendSummary(BaseModel):
+    days: int
+    total_events: int
+    avg_daily_events: float
+    last_day_events: int
+    max_daily_events: int
+
+
+class InventoryTrendResponse(BaseModel):
+    points: list[InventoryTrendPoint]
+    alerts: list[InventoryTrendAlert]
+    summary: InventoryTrendSummary
+
+
+class SamPerformanceCheck(BaseModel):
+    query: str
+    duration_ms: float
+    target_ms: float
+    within_target: bool
+
+
+class SamPerformanceResponse(BaseModel):
+    target_ms: float
+    max_duration_ms: float
+    within_target: bool
+    checks: list[SamPerformanceCheck]

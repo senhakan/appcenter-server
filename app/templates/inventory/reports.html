@@ -11,44 +11,71 @@
 {% block content %}
 <div class="row row-cards">
   <div class="col-12 col-md-6 col-xl-4">
-    <div class="card">
+    <div class="card" id="sam-card-sam_prevalence">
       <div class="card-body">
         <div class="d-flex align-items-center mb-2">
           <span class="avatar avatar-sm me-2 bg-blue-lt text-blue"><i class="ti ti-report"></i></span>
           <div class="fw-medium">RPT-SAM-001 Yayginlik</div>
         </div>
         <div class="text-secondary small">Platform kirilimli yazilim yayginligi ve ajan kapsama raporu.</div>
+        <div class="mt-3 d-flex flex-wrap gap-2">
+          <span id="sam-card-status-sam_prevalence" class="badge bg-secondary-lt text-secondary">Yukleniyor</span>
+          <span id="sam-card-schedule-sam_prevalence" class="badge bg-secondary-lt text-secondary">Schedule: -</span>
+        </div>
+        <div class="text-secondary small mt-2">Son uretim: <span id="sam-card-last-sam_prevalence">-</span></div>
       </div>
       <div class="card-footer">
-        <span class="badge bg-secondary-lt text-secondary">Hazirlaniyor</span>
+        <div class="btn-list">
+          <a class="btn btn-outline-primary btn-sm" href="/api/v1/sam/reports/export?report_type=sam_prevalence&platform=all" target="_blank"><i class="ti ti-player-play me-1"></i>Hemen Uret</a>
+          <button class="btn btn-outline-secondary btn-sm" type="button" onclick="prefillSchedule('sam_prevalence')"><i class="ti ti-calendar-plus me-1"></i>Schedule</button>
+          <a id="sam-card-file-sam_prevalence" class="btn btn-outline-success btn-sm d-none" href="#" target="_blank"><i class="ti ti-download me-1"></i>Son Dosya</a>
+        </div>
       </div>
     </div>
   </div>
   <div class="col-12 col-md-6 col-xl-4">
-    <div class="card">
+    <div class="card" id="sam-card-sam_compliance">
       <div class="card-body">
         <div class="d-flex align-items-center mb-2">
           <span class="avatar avatar-sm me-2 bg-green-lt text-green"><i class="ti ti-license"></i></span>
           <div class="fw-medium">RPT-SAM-002 Lisans/Uyum</div>
         </div>
         <div class="text-secondary small">Lisans tahsisi, kullanim ve asim durumlarini platform bazli raporlar.</div>
+        <div class="mt-3 d-flex flex-wrap gap-2">
+          <span id="sam-card-status-sam_compliance" class="badge bg-secondary-lt text-secondary">Yukleniyor</span>
+          <span id="sam-card-schedule-sam_compliance" class="badge bg-secondary-lt text-secondary">Schedule: -</span>
+        </div>
+        <div class="text-secondary small mt-2">Son uretim: <span id="sam-card-last-sam_compliance">-</span></div>
       </div>
       <div class="card-footer">
-        <span class="badge bg-secondary-lt text-secondary">Hazirlaniyor</span>
+        <div class="btn-list">
+          <a class="btn btn-outline-primary btn-sm" href="/api/v1/sam/reports/export?report_type=sam_compliance&platform=all" target="_blank"><i class="ti ti-player-play me-1"></i>Hemen Uret</a>
+          <button class="btn btn-outline-secondary btn-sm" type="button" onclick="prefillSchedule('sam_compliance')"><i class="ti ti-calendar-plus me-1"></i>Schedule</button>
+          <a id="sam-card-file-sam_compliance" class="btn btn-outline-success btn-sm d-none" href="#" target="_blank"><i class="ti ti-download me-1"></i>Son Dosya</a>
+        </div>
       </div>
     </div>
   </div>
   <div class="col-12 col-md-6 col-xl-4">
-    <div class="card">
+    <div class="card" id="sam-card-sam_catalog">
       <div class="card-body">
         <div class="d-flex align-items-center mb-2">
           <span class="avatar avatar-sm me-2 bg-red-lt text-red"><i class="ti ti-shield-x"></i></span>
           <div class="fw-medium">RPT-SAM-003 Riskli Yazilim</div>
         </div>
-        <div class="text-secondary small">Yasakli/uygunsuz yazilim ve etkilenen ajan listesi.</div>
+        <div class="text-secondary small">Yazilim katalogu ve platform dagilimi raporu.</div>
+        <div class="mt-3 d-flex flex-wrap gap-2">
+          <span id="sam-card-status-sam_catalog" class="badge bg-secondary-lt text-secondary">Yukleniyor</span>
+          <span id="sam-card-schedule-sam_catalog" class="badge bg-secondary-lt text-secondary">Schedule: -</span>
+        </div>
+        <div class="text-secondary small mt-2">Son uretim: <span id="sam-card-last-sam_catalog">-</span></div>
       </div>
       <div class="card-footer">
-        <span class="badge bg-secondary-lt text-secondary">Hazirlaniyor</span>
+        <div class="btn-list">
+          <a class="btn btn-outline-primary btn-sm" href="/api/v1/sam/reports/export?report_type=sam_catalog&platform=all" target="_blank"><i class="ti ti-player-play me-1"></i>Hemen Uret</a>
+          <button class="btn btn-outline-secondary btn-sm" type="button" onclick="prefillSchedule('sam_catalog')"><i class="ti ti-calendar-plus me-1"></i>Schedule</button>
+          <a id="sam-card-file-sam_catalog" class="btn btn-outline-success btn-sm d-none" href="#" target="_blank"><i class="ti ti-download me-1"></i>Son Dosya</a>
+        </div>
       </div>
     </div>
   </div>
@@ -132,6 +159,9 @@
 {% block scripts %}
 <script>
   AppCenterApi.protectPage();
+  const SAM_REPORT_TYPES = ['sam_prevalence', 'sam_compliance', 'sam_catalog'];
+  let _samSchedules = [];
+  let _samGeneratedFiles = [];
   function esc(v) {
     return (v ?? '').toString()
       .replaceAll('&', '&amp;')
@@ -140,11 +170,75 @@
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#39;');
   }
+  function prefillSchedule(reportType) {
+    const form = document.getElementById('sam-schedule-form');
+    if (!form) return;
+    const typeInput = form.querySelector('[name="report_type"]');
+    if (typeInput) typeInput.value = reportType;
+    const nameInput = form.querySelector('[name="name"]');
+    if (nameInput && !nameInput.value) {
+      nameInput.value = `Rapor - ${reportType}`;
+    }
+    const cronInput = form.querySelector('[name="cron_expr"]');
+    if (cronInput && !cronInput.value) {
+      cronInput.value = '0 8 * * 1';
+    }
+    form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (nameInput) nameInput.focus();
+  }
+  function pickLatestIso(a, b) {
+    if (!a) return b || '';
+    if (!b) return a || '';
+    return new Date(a).getTime() >= new Date(b).getTime() ? a : b;
+  }
+  function updateReportCards() {
+    SAM_REPORT_TYPES.forEach((type) => {
+      const statusEl = document.getElementById(`sam-card-status-${type}`);
+      const scheduleEl = document.getElementById(`sam-card-schedule-${type}`);
+      const lastEl = document.getElementById(`sam-card-last-${type}`);
+      const fileEl = document.getElementById(`sam-card-file-${type}`);
+      if (!statusEl || !scheduleEl || !lastEl || !fileEl) return;
+
+      const schedules = _samSchedules.filter((x) => (x.report_type || '') === type);
+      const activeSchedules = schedules.filter((x) => !!x.is_active);
+      const files = _samGeneratedFiles
+        .filter((x) => (x.report_type || '') === type)
+        .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+      const latestFile = files[0] || null;
+
+      if (!schedules.length) {
+        statusEl.className = 'badge bg-secondary-lt text-secondary';
+        statusEl.textContent = 'Tanimli Degil';
+      } else if (activeSchedules.length) {
+        statusEl.className = 'badge bg-green-lt text-green';
+        statusEl.textContent = 'Aktif';
+      } else {
+        statusEl.className = 'badge bg-yellow-lt text-yellow';
+        statusEl.textContent = 'Pasif';
+      }
+      scheduleEl.textContent = `Schedule: ${schedules.length}`;
+
+      let latestAt = '';
+      schedules.forEach((s) => { latestAt = pickLatestIso(latestAt, s.last_run_at || ''); });
+      if (latestFile && latestFile.created_at) latestAt = pickLatestIso(latestAt, latestFile.created_at);
+      lastEl.textContent = latestAt ? AppCenterApi.formatDate(latestAt) : '-';
+
+      if (latestFile && latestFile.download_url) {
+        fileEl.classList.remove('d-none');
+        fileEl.href = latestFile.download_url;
+      } else {
+        fileEl.classList.add('d-none');
+        fileEl.href = '#';
+      }
+    });
+  }
   async function loadSchedules() {
     try {
       const data = await AppCenterApi.req('/sam/report-schedules');
       const rows = document.getElementById('sam-schedule-rows');
       const items = data.items || [];
+      _samSchedules = items;
+      updateReportCards();
       if (!items.length) {
         rows.innerHTML = '<tr><td colspan="7" class="text-secondary">Kayit yok</td></tr>';
         return;
@@ -188,7 +282,14 @@
         btn.addEventListener('click', async () => {
           const id = Number(btn.getAttribute('data-id') || '0');
           if (!id) return;
-          if (!confirm(`Schedule silinsin mi? (#${id})`)) return;
+          const ok = await AppCenterApi.confirm({
+            title: 'Schedule Sil',
+            message: `Schedule silinsin mi? (#${id})`,
+            confirmText: 'Sil',
+            cancelText: 'Vazgec',
+            tone: 'danger',
+          });
+          if (!ok) return;
           try {
             await AppCenterApi.req(`/sam/report-schedules/${id}`, { method: 'DELETE' });
             AppCenterApi.toast('Silindi');
@@ -213,6 +314,8 @@
       const data = await AppCenterApi.req('/sam/reports/generated?limit=100');
       const rows = document.getElementById('sam-generated-rows');
       const items = data.items || [];
+      _samGeneratedFiles = items;
+      updateReportCards();
       if (!items.length) {
         rows.innerHTML = '<tr><td colspan="5" class="text-secondary">Dosya yok</td></tr>';
         return;
@@ -235,7 +338,14 @@
         btn.addEventListener('click', async () => {
           const filename = (btn.getAttribute('data-filename') || '').trim();
           if (!filename) return;
-          if (!confirm(`Rapor dosyasi silinsin mi?\n${filename}`)) return;
+          const ok = await AppCenterApi.confirm({
+            title: 'Rapor Dosyasi Sil',
+            message: `Rapor dosyasi silinsin mi?\n${filename}`,
+            confirmText: 'Sil',
+            cancelText: 'Vazgec',
+            tone: 'danger',
+          });
+          if (!ok) return;
           try {
             await AppCenterApi.req(`/sam/reports/generated/${encodeURIComponent(filename)}`, { method: 'DELETE' });
             AppCenterApi.toast('Rapor dosyasi silindi');

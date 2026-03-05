@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 import re
+import time
 import unicodedata
 from typing import Optional
 
@@ -29,6 +30,31 @@ _TRAILING_VERSION_RE = re.compile(
     r"^(?P<base>.+?)\s+v?(?P<ver>\d+\.\d+(?:\.\d+){0,6})\s*$",
     re.IGNORECASE,
 )
+
+_PUBLISHER_SUFFIX_RE = re.compile(
+    r"\b(corporation|corp\.?|inc\.?|incorporated|ltd\.?|limited|co\.?|company|gmbh|llc|s\.a\.|a\.s\.)\b",
+    re.IGNORECASE,
+)
+
+_PUBLISHER_ALIAS_MAP = {
+    "microsoft corporation": "Microsoft",
+    "microsoft corp": "Microsoft",
+    "microsoft": "Microsoft",
+    "google llc": "Google",
+    "google inc": "Google",
+    "google": "Google",
+    "oracle corporation": "Oracle",
+    "oracle corp": "Oracle",
+    "oracle": "Oracle",
+    "adobe systems incorporated": "Adobe",
+    "adobe inc": "Adobe",
+    "adobe": "Adobe",
+    "vmware inc": "VMware",
+    "vmware": "VMware",
+    "advanced micro devices inc": "AMD",
+    "advanced micro devices": "AMD",
+    "amd": "AMD",
+}
 
 
 def _strip_trailing_version_name(software_name: str) -> Optional[str]:
@@ -93,6 +119,23 @@ def _canon_key(value: str) -> str:
     return cleaned.casefold()
 
 
+def _normalize_publisher_name(value: Optional[str]) -> Optional[str]:
+    cleaned = _clean_display_text(value)
+    if not cleaned:
+        return None
+    key = _canon_key(cleaned).replace(",", " ")
+    key = " ".join(key.split())
+    if key in _PUBLISHER_ALIAS_MAP:
+        return _PUBLISHER_ALIAS_MAP[key]
+    key_wo_suffix = _PUBLISHER_SUFFIX_RE.sub("", key)
+    key_wo_suffix = " ".join(key_wo_suffix.split()).strip(" .,-")
+    if key_wo_suffix in _PUBLISHER_ALIAS_MAP:
+        return _PUBLISHER_ALIAS_MAP[key_wo_suffix]
+    if not key_wo_suffix:
+        return cleaned
+    return " ".join(x.capitalize() for x in key_wo_suffix.split())
+
+
 # --- Inventory submission ---
 
 
@@ -107,7 +150,7 @@ def _compute_diff(
         name = _clean_display_text(name) or ""
         version = item.version if hasattr(item, "version") else item.get("version")
         publisher = item.publisher if hasattr(item, "publisher") else item.get("publisher")
-        publisher = _clean_display_text(publisher)
+        publisher = _normalize_publisher_name(publisher)
         new_dict[_canon_key(name)] = {"name": name, "version": version, "publisher": publisher}
 
     for key, info in new_dict.items():
@@ -135,7 +178,7 @@ def _compute_diff(
             changes.append({
                 "software_name": _clean_display_text(old_row.software_name) or old_row.software_name,
                 "software_version": old_row.software_version,
-                "publisher": _clean_display_text(old_row.publisher) or old_row.publisher,
+                "publisher": _normalize_publisher_name(old_row.publisher) or old_row.publisher,
                 "change_type": "removed",
             })
 
@@ -184,7 +227,7 @@ def submit_inventory(
             agent_uuid=agent_uuid,
             software_name=name,
             software_version=item.version if hasattr(item, "version") else item.get("version"),
-            publisher=_clean_display_text(item.publisher if hasattr(item, "publisher") else item.get("publisher")),
+            publisher=_normalize_publisher_name(item.publisher if hasattr(item, "publisher") else item.get("publisher")),
             install_date=item.install_date if hasattr(item, "install_date") else item.get("install_date"),
             estimated_size_kb=item.estimated_size_kb if hasattr(item, "estimated_size_kb") else item.get("estimated_size_kb"),
             architecture=item.architecture if hasattr(item, "architecture") else item.get("architecture"),
@@ -254,11 +297,16 @@ def get_software_summary(
         func.distinct(cast(AgentSoftwareInventory.software_version, String)),
         ",",
     )
+    publisher_agg = func.string_agg(
+        func.distinct(cast(AgentSoftwareInventory.publisher, String)),
+        ",",
+    )
 
     q = db.query(
         name_col.label("name"),
         func.count(func.distinct(AgentSoftwareInventory.agent_uuid)).label("agent_count"),
         versions_agg.label("versions"),
+        publisher_agg.label("publishers"),
     ).group_by(name_col)
 
     if search:
@@ -270,8 +318,10 @@ def get_software_summary(
     items = []
     for row in rows:
         versions = [v for v in (row.versions or "").split(",") if v] if row.versions else []
+        publishers = [p for p in (row.publishers or "").split(",") if p] if row.publishers else []
         items.append({
             "name": row.name,
+            "publisher": publishers[0] if publishers else None,
             "agent_count": row.agent_count,
             "versions": versions,
         })
@@ -713,6 +763,61 @@ def get_license_usage_report(db: Session) -> list[dict]:
             "is_violation": is_violation,
         })
     return result
+
+
+def get_license_recommendations(db: Session, limit: int = 100) -> list[dict]:
+    report = get_license_usage_report(db)
+    recs: list[dict] = []
+    for row in report:
+        pattern = str(row.get("pattern") or "")
+        usage = int(row.get("usage") or 0)
+        total = int(row.get("total_licenses") or 0)
+        surplus = int(row.get("surplus") or 0)
+        license_type = str(row.get("license_type") or "licensed")
+        is_violation = bool(row.get("is_violation"))
+        if license_type == "prohibited" and usage > 0:
+            recs.append({
+                "pattern": pattern,
+                "severity": "critical",
+                "action": "block_or_uninstall",
+                "reason": f"Yasakli yazilim {usage} ajan uzerinde tespit edildi",
+                "affected": usage,
+                "delta": usage,
+            })
+            continue
+        if license_type == "licensed" and surplus < 0:
+            deficit = abs(surplus)
+            recs.append({
+                "pattern": pattern,
+                "severity": "high",
+                "action": "purchase_or_reduce_usage",
+                "reason": f"Lisans acigi var: {deficit}",
+                "affected": usage,
+                "delta": deficit,
+            })
+            continue
+        if license_type == "licensed" and total > 0 and surplus > max(10, int(total * 0.5)):
+            recs.append({
+                "pattern": pattern,
+                "severity": "info",
+                "action": "optimize_or_reallocate",
+                "reason": f"Kullanilmayan lisans fazlasi: {surplus}",
+                "affected": usage,
+                "delta": surplus,
+            })
+            continue
+        if is_violation:
+            recs.append({
+                "pattern": pattern,
+                "severity": "warning",
+                "action": "review_policy",
+                "reason": "Politika ihlali tespit edildi",
+                "affected": usage,
+                "delta": abs(surplus),
+            })
+    order = {"critical": 4, "high": 3, "warning": 2, "info": 1}
+    recs.sort(key=lambda x: (-order.get(str(x.get("severity")), 0), -int(x.get("affected") or 0), str(x.get("pattern") or "")))
+    return recs[: max(1, min(int(limit), 500))]
 
 
 # --- SAM compliance findings ---
@@ -1236,6 +1341,111 @@ def get_sam_risk_overview(
         "critical_count": critical_count,
         "warning_count": warning_count,
         "monthly_cost_cents_total": monthly_total,
+    }
+
+
+def get_inventory_delta_trend(db: Session, days: int = 30) -> dict:
+    safe_days = max(7, min(int(days), 120))
+    now = datetime.now(timezone.utc)
+    start = (now - timedelta(days=safe_days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    rows = (
+        db.query(
+            func.date_trunc("day", SoftwareChangeHistory.detected_at).label("day"),
+            SoftwareChangeHistory.change_type.label("change_type"),
+            func.count(SoftwareChangeHistory.id).label("count"),
+        )
+        .filter(SoftwareChangeHistory.detected_at >= start)
+        .group_by(func.date_trunc("day", SoftwareChangeHistory.detected_at), SoftwareChangeHistory.change_type)
+        .all()
+    )
+
+    by_day: dict[str, dict] = {}
+    for i in range(safe_days):
+        d = (start + timedelta(days=i)).date().isoformat()
+        by_day[d] = {"date": d, "installed": 0, "removed": 0, "updated": 0, "total": 0}
+
+    for row in rows:
+        key = (row.day.date().isoformat() if getattr(row, "day", None) else None)
+        ctype = str(getattr(row, "change_type", "") or "")
+        count = int(getattr(row, "count", 0) or 0)
+        if key not in by_day:
+            continue
+        if ctype in {"installed", "removed", "updated"}:
+            by_day[key][ctype] += count
+            by_day[key]["total"] += count
+
+    points = [by_day[k] for k in sorted(by_day.keys())]
+    totals = [int(p["total"]) for p in points]
+    alerts: list[dict] = []
+    for idx, point in enumerate(points):
+        prev = totals[max(0, idx - 7):idx]
+        if len(prev) < 3:
+            point["alert_level"] = "normal"
+            point["alert_reason"] = None
+            continue
+        avg = sum(prev) / len(prev)
+        total = float(point["total"])
+        ratio = (total / avg) if avg > 0 else (2.0 if total > 0 else 1.0)
+        if total >= max(20.0, avg * 2.5):
+            point["alert_level"] = "critical"
+            point["alert_reason"] = f"Degisim hacmi bazalin {ratio:.1f}x uzerinde"
+            alerts.append({"date": point["date"], "level": "critical", "total": int(total), "baseline": round(avg, 2)})
+        elif total >= max(10.0, avg * 1.8):
+            point["alert_level"] = "warning"
+            point["alert_reason"] = f"Degisim hacmi bazalin {ratio:.1f}x uzerinde"
+            alerts.append({"date": point["date"], "level": "warning", "total": int(total), "baseline": round(avg, 2)})
+        else:
+            point["alert_level"] = "normal"
+            point["alert_reason"] = None
+
+    last_total = totals[-1] if totals else 0
+    avg_total = (sum(totals) / len(totals)) if totals else 0.0
+    return {
+        "points": points,
+        "alerts": alerts,
+        "summary": {
+            "days": safe_days,
+            "total_events": int(sum(totals)),
+            "avg_daily_events": round(avg_total, 2),
+            "last_day_events": int(last_total),
+            "max_daily_events": int(max(totals) if totals else 0),
+        },
+    }
+
+
+def get_sam_performance_snapshot(db: Session) -> dict:
+    """
+    Lightweight runtime profiling for SAM-critical queries.
+    Used to monitor the <2s target without external APM dependency.
+    """
+    target_ms = 2000.0
+    items: list[dict] = []
+
+    def _measure(name: str, fn) -> None:
+        start = time.perf_counter()
+        fn()
+        elapsed = (time.perf_counter() - start) * 1000.0
+        items.append(
+            {
+                "query": name,
+                "duration_ms": round(elapsed, 2),
+                "target_ms": target_ms,
+                "within_target": elapsed <= target_ms,
+            }
+        )
+
+    _measure("sam_dashboard", lambda: get_sam_dashboard(db))
+    _measure("sam_catalog_page1", lambda: get_sam_catalog(db, search="", platform="all", page=1, per_page=50))
+    _measure("inventory_trends_30d", lambda: get_inventory_delta_trend(db, days=30))
+    _measure("license_recommendations", lambda: get_license_recommendations(db, limit=100))
+
+    max_duration = max((float(i["duration_ms"]) for i in items), default=0.0)
+    return {
+        "target_ms": target_ms,
+        "max_duration_ms": round(max_duration, 2),
+        "within_target": max_duration <= target_ms,
+        "checks": items,
     }
 
 

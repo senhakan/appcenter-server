@@ -110,6 +110,35 @@
       </div>
     </div>
   </div>
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title mb-0">SAM Performans (API)</h3>
+      </div>
+      <div class="card-body py-2">
+        <div class="d-flex flex-wrap gap-3">
+          <div class="text-secondary">Hedef: <span class="fw-semibold" id="sam-perf-target">-</span></div>
+          <div class="text-secondary">En Yuksek: <span class="fw-semibold" id="sam-perf-max">-</span></div>
+          <div id="sam-perf-state"></div>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table card-table table-vcenter">
+          <thead>
+            <tr>
+              <th>Sorgu</th>
+              <th>Sure (ms)</th>
+              <th>Hedef (ms)</th>
+              <th>Durum</th>
+            </tr>
+          </thead>
+          <tbody id="sam-perf-rows">
+            <tr><td colspan="4" class="text-secondary">Yukleniyor...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}
 {% block scripts %}
@@ -136,6 +165,14 @@
     if (!instance) return null;
     try { instance.destroy(); } catch (e) {}
     return null;
+  }
+  function ms(v) {
+    return Number(v || 0).toFixed(2);
+  }
+  function badgeStatus(ok) {
+    return ok
+      ? '<span class="badge bg-green-lt text-green">Hedef Icinde</span>'
+      : '<span class="badge bg-red-lt text-red">Hedef Disi</span>';
   }
   function renderPlatformDonut(items) {
     const win = (items || []).find((x) => (x.platform || '').toLowerCase() === 'windows');
@@ -236,8 +273,33 @@
           </tr>
         `).join('');
       }
+      await loadSamPerformance();
     } catch (err) {
       AppCenterApi.toast(err.message);
+    }
+  }
+  async function loadSamPerformance() {
+    const rows = document.getElementById('sam-perf-rows');
+    try {
+      const perf = await AppCenterApi.req('/sam/performance');
+      document.getElementById('sam-perf-target').textContent = `${ms(perf.target_ms)} ms`;
+      document.getElementById('sam-perf-max').textContent = `${ms(perf.max_duration_ms)} ms`;
+      document.getElementById('sam-perf-state').innerHTML = badgeStatus(!!perf.within_target);
+      const checks = perf.checks || [];
+      if (!checks.length) {
+        rows.innerHTML = '<tr><td colspan="4" class="text-secondary">Kayit yok</td></tr>';
+        return;
+      }
+      rows.innerHTML = checks.map((c) => `
+        <tr>
+          <td class="fw-medium">${esc(c.query || '-')}</td>
+          <td>${ms(c.duration_ms)}</td>
+          <td>${ms(c.target_ms)}</td>
+          <td>${badgeStatus(!!c.within_target)}</td>
+        </tr>
+      `).join('');
+    } catch (_err) {
+      rows.innerHTML = '<tr><td colspan="4" class="text-danger">Performans verisi alinamadi</td></tr>';
     }
   }
   loadSamDashboard();

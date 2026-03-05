@@ -34,9 +34,17 @@ from app.schemas import (
     LicenseCreateRequest,
     LicenseListResponse,
     LicenseResponse,
+    LicenseRecommendationItem,
+    LicenseRecommendationResponse,
     LicenseUpdateRequest,
     LicenseUsageReportItem,
     LicenseUsageReportResponse,
+    InventoryTrendResponse,
+    InventoryTrendPoint,
+    InventoryTrendAlert,
+    InventoryTrendSummary,
+    SamPerformanceResponse,
+    SamPerformanceCheck,
     MessageResponse,
     NormalizationRuleCreateRequest,
     NormalizationRuleListResponse,
@@ -86,8 +94,14 @@ def get_agent_inventory(
     _user=Depends(require_permission("inventory.view")),
 ):
     items = inventory_service.get_agent_inventory(db, agent_uuid)
+    payload = []
+    for i in items:
+        p = InventoryItemResponse.model_validate(i).model_dump()
+        if not p.get("normalized_publisher"):
+            p["normalized_publisher"] = p.get("publisher")
+        payload.append(InventoryItemResponse(**p))
     return AgentInventoryListResponse(
-        items=[InventoryItemResponse.model_validate(i) for i in items],
+        items=payload,
         total=len(items),
     )
 
@@ -101,8 +115,14 @@ def get_agent_change_history(
     _user=Depends(require_permission("inventory.view")),
 ):
     items, total = inventory_service.get_agent_change_history(db, agent_uuid, limit, offset)
+    payload = []
+    for i in items:
+        p = ChangeHistoryItemResponse.model_validate(i).model_dump()
+        if not p.get("normalized_publisher"):
+            p["normalized_publisher"] = p.get("publisher")
+        payload.append(ChangeHistoryItemResponse(**p))
     return AgentChangeHistoryListResponse(
-        items=[ChangeHistoryItemResponse.model_validate(i) for i in items],
+        items=payload,
         total=total,
     )
 
@@ -229,6 +249,40 @@ def get_inventory_dashboard(
 ):
     stats = inventory_service.get_inventory_dashboard_stats(db)
     return InventoryDashboardResponse(**stats)
+
+
+@router.get("/inventory/trends", response_model=InventoryTrendResponse)
+def get_inventory_trends(
+    days: int = Query(30, ge=7, le=120),
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.view")),
+):
+    data = inventory_service.get_inventory_delta_trend(db, days=days)
+    return InventoryTrendResponse(
+        points=[InventoryTrendPoint(**x) for x in data.get("points", [])],
+        alerts=[InventoryTrendAlert(**x) for x in data.get("alerts", [])],
+        summary=InventoryTrendSummary(**(data.get("summary") or {
+            "days": days,
+            "total_events": 0,
+            "avg_daily_events": 0.0,
+            "last_day_events": 0,
+            "max_daily_events": 0,
+        })),
+    )
+
+
+@router.get("/sam/performance", response_model=SamPerformanceResponse)
+def get_sam_performance(
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.view")),
+):
+    data = inventory_service.get_sam_performance_snapshot(db)
+    return SamPerformanceResponse(
+        target_ms=float(data.get("target_ms") or 2000.0),
+        max_duration_ms=float(data.get("max_duration_ms") or 0.0),
+        within_target=bool(data.get("within_target")),
+        checks=[SamPerformanceCheck(**x) for x in data.get("checks", [])],
+    )
 
 
 @router.get("/sam/dashboard", response_model=SamDashboardResponse)
@@ -797,6 +851,19 @@ def get_license_usage_report(
     items = inventory_service.get_license_usage_report(db)
     return LicenseUsageReportResponse(
         items=[LicenseUsageReportItem(**i) for i in items],
+        total=len(items),
+    )
+
+
+@router.get("/licenses/recommendations", response_model=LicenseRecommendationResponse)
+def get_license_recommendations(
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("licenses.view")),
+):
+    items = inventory_service.get_license_recommendations(db, limit=limit)
+    return LicenseRecommendationResponse(
+        items=[LicenseRecommendationItem(**x) for x in items],
         total=len(items),
     )
 

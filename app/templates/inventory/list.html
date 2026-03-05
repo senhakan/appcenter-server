@@ -25,6 +25,28 @@
   }
 </style>
 
+<div class="card mb-3">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <h3 class="card-title mb-0">Envanter Delta/Trend (Son 30 Gun)</h3>
+    <button id="trend-refresh-btn" class="btn btn-outline-primary btn-sm" type="button"><i class="ti ti-refresh me-1"></i>Yenile</button>
+  </div>
+  <div class="card-body">
+    <div class="row row-cards mb-3">
+      <div class="col-6 col-md-3"><div class="text-secondary small">Toplam Olay</div><div class="h3 m-0" id="trend-kpi-total">-</div></div>
+      <div class="col-6 col-md-3"><div class="text-secondary small">Gunluk Ortalama</div><div class="h3 m-0" id="trend-kpi-avg">-</div></div>
+      <div class="col-6 col-md-3"><div class="text-secondary small">Son Gun</div><div class="h3 m-0" id="trend-kpi-last">-</div></div>
+      <div class="col-6 col-md-3"><div class="text-secondary small">Tepe Gun</div><div class="h3 m-0" id="trend-kpi-max">-</div></div>
+    </div>
+    <div id="inv-trend-chart" style="min-height: 260px;"></div>
+    <div class="table-responsive mt-3">
+      <table class="table table-vcenter">
+        <thead><tr><th>Tarih</th><th>Seviye</th><th>Detay</th><th>Toplam</th><th>Bazal</th></tr></thead>
+        <tbody id="inv-trend-alerts"><tr><td colspan="5" class="text-secondary">Yukleniyor...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <div class="card">
   <div class="card-header">
     <div class="row g-2 w-100 inventory-toolbar">
@@ -63,10 +85,12 @@
 </div>
 {% endblock %}
 {% block scripts %}
+<script src="/static/vendor/apexcharts/apexcharts.min.js?v={{ ASSET_VERSION }}"></script>
 <script>
   AppCenterApi.protectPage();
   let currentPage = 1;
   const perPage = 50;
+  let trendChart = null;
 
   function esc(s) {
     return (s || '')
@@ -76,6 +100,73 @@
       .replaceAll('>', '&gt;')
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#39;');
+  }
+
+  function badgeAlert(level) {
+    const k = (level || '').toLowerCase();
+    if (k === 'critical') return '<span class="badge bg-red-lt text-red">critical</span>';
+    if (k === 'warning') return '<span class="badge bg-yellow-lt text-yellow">warning</span>';
+    return '<span class="badge bg-secondary-lt text-secondary">normal</span>';
+  }
+
+  function destroyTrendChart() {
+    if (!trendChart) return;
+    try { trendChart.destroy(); } catch (_) {}
+    trendChart = null;
+  }
+
+  function renderTrendChart(points) {
+    destroyTrendChart();
+    if (!window.ApexCharts) return;
+    const labels = (points || []).map((p) => p.date || '-');
+    const installed = (points || []).map((p) => Number(p.installed || 0));
+    const removed = (points || []).map((p) => Number(p.removed || 0));
+    const updated = (points || []).map((p) => Number(p.updated || 0));
+    trendChart = new ApexCharts(document.getElementById('inv-trend-chart'), {
+      chart: { type: 'line', height: 260, fontFamily: 'inherit', toolbar: { show: false }, animations: { enabled: false } },
+      series: [
+        { name: 'Installed', data: installed },
+        { name: 'Removed', data: removed },
+        { name: 'Updated', data: updated },
+      ],
+      xaxis: { categories: labels },
+      colors: ['#2fb344', '#d63939', '#206bc4'],
+      stroke: { width: 2, curve: 'smooth' },
+      dataLabels: { enabled: false },
+      legend: { position: 'top' },
+      grid: { strokeDashArray: 4 },
+      tooltip: { theme: 'dark' },
+    });
+    trendChart.render();
+  }
+
+  async function loadTrend() {
+    try {
+      const data = await AppCenterApi.req('/inventory/trends?days=30');
+      const summary = data.summary || {};
+      document.getElementById('trend-kpi-total').textContent = String(summary.total_events || 0);
+      document.getElementById('trend-kpi-avg').textContent = String(summary.avg_daily_events || 0);
+      document.getElementById('trend-kpi-last').textContent = String(summary.last_day_events || 0);
+      document.getElementById('trend-kpi-max').textContent = String(summary.max_daily_events || 0);
+      renderTrendChart(data.points || []);
+      const rows = document.getElementById('inv-trend-alerts');
+      const alerts = data.alerts || [];
+      if (!alerts.length) {
+        rows.innerHTML = '<tr><td colspan="5" class="text-secondary">Alarm yok</td></tr>';
+      } else {
+        rows.innerHTML = alerts.map((a) => `
+          <tr>
+            <td>${esc(a.date || '-')}</td>
+            <td>${badgeAlert(a.level)}</td>
+            <td class="text-secondary">Degisim hacmi bazalin ustunde</td>
+            <td><span class="badge bg-secondary-lt text-secondary">${Number(a.total || 0)}</span></td>
+            <td>${Number(a.baseline || 0).toFixed(2)}</td>
+          </tr>
+        `).join('');
+      }
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
   }
 
   async function loadSoftware() {
@@ -132,7 +223,9 @@
       loadSoftware();
     }
   });
+  document.getElementById('trend-refresh-btn').addEventListener('click', loadTrend);
 
+  loadTrend();
   loadSoftware();
 </script>
 {% endblock %}

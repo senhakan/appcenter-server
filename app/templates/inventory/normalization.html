@@ -68,7 +68,14 @@
   });
 
   async function deleteRule(id) {
-    if (!confirm('Kurali silmek istediginize emin misiniz?')) return;
+    const ok = await AppCenterApi.confirm({
+      title: 'Kural Sil',
+      message: 'Kurali silmek istediginize emin misiniz?',
+      confirmText: 'Sil',
+      cancelText: 'Vazgec',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       await AppCenterApi.req(`/inventory/normalization/${id}`, { method: 'DELETE' });
       AppCenterApi.toast('Kural silindi');

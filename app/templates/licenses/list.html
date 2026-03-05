@@ -10,6 +10,18 @@
 <div class="row row-cards">
   <div class="col-12">
     <div class="card">
+      <div class="card-header"><h3 class="card-title mb-0">Otomatik Oneriler</h3></div>
+      <div class="table-responsive">
+        <table class="table card-table table-vcenter">
+          <thead><tr><th>Pattern</th><th>Seviye</th><th>Aksiyon</th><th>Neden</th><th>Etki</th></tr></thead>
+          <tbody id="rec-body"><tr><td colspan="5" class="text-secondary">Yukleniyor...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card">
       <div class="card-header"><h3 class="card-title mb-0">Lisans Tanimlari</h3></div>
       <div class="table-responsive">
         <table class="table card-table table-vcenter">
@@ -36,6 +48,45 @@
 {% block scripts %}
 <script>
   AppCenterApi.protectPage();
+  function esc(s) {
+    return (s || '')
+      .toString()
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+  function badgeSeverity(v) {
+    const s = (v || '').toLowerCase();
+    if (s === 'critical') return '<span class="badge bg-red-lt text-red">critical</span>';
+    if (s === 'high') return '<span class="badge bg-orange-lt text-orange">high</span>';
+    if (s === 'warning') return '<span class="badge bg-yellow-lt text-yellow">warning</span>';
+    return '<span class="badge bg-secondary-lt text-secondary">info</span>';
+  }
+
+  async function loadRecommendations() {
+    try {
+      const data = await AppCenterApi.req('/licenses/recommendations?limit=100');
+      const body = document.getElementById('rec-body');
+      const items = data.items || [];
+      if (!items.length) {
+        body.innerHTML = '<tr><td colspan="5" class="text-secondary">Oneri yok</td></tr>';
+        return;
+      }
+      body.innerHTML = items.map((i) => `
+        <tr>
+          <td class="fw-medium">${esc(i.pattern || '-')}</td>
+          <td>${badgeSeverity(i.severity)}</td>
+          <td><span class="badge bg-blue-lt text-blue">${esc(i.action || '-')}</span></td>
+          <td class="text-secondary">${esc(i.reason || '-')}</td>
+          <td><span class="badge bg-secondary-lt text-secondary">${Number(i.affected || 0)}</span></td>
+        </tr>
+      `).join('');
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
 
   async function loadLicenses() {
     try {
@@ -87,15 +138,24 @@
   }
 
   async function deleteLicense(id) {
-    if (!confirm('Lisansi silmek istediginize emin misiniz?')) return;
+    const ok = await AppCenterApi.confirm({
+      title: 'Lisans Sil',
+      message: 'Lisansi silmek istediginize emin misiniz?',
+      confirmText: 'Sil',
+      cancelText: 'Vazgec',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       await AppCenterApi.req(`/licenses/${id}`, { method: 'DELETE' });
       AppCenterApi.toast('Lisans silindi');
       loadLicenses();
       loadReport();
+      loadRecommendations();
     } catch (err) { AppCenterApi.toast(err.message); }
   }
 
+  loadRecommendations();
   loadLicenses();
   loadReport();
 </script>

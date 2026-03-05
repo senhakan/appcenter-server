@@ -299,6 +299,15 @@ Not:
 
 ### 2.2 Bu Sunucuda Kullanilan Rsync Deploy Akisi
 
+Tercih edilen yol:
+
+```bash
+cd /root/appcenter/server
+./scripts/deploy-live.sh
+```
+
+Manuel alternatif:
+
 ```bash
 rsync -av --delete \
   --exclude '.git' \

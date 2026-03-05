@@ -23,7 +23,7 @@ Windows ve Linux ayrimi dashboard, katalog ve raporlarda zorunlu gorunur olacak.
 
 ## 3. Fazlar
 
-### Faz 1 (Baslatildi)
+### Faz 1 (Tamamlandi)
 - [x] Menu/alt menu SAM yapisi
 - [x] SAM Dashboard (platform bazli KPI + top software)
 - [x] Yazilim Katalogu (platform filtreli, Windows/Linux kolonlari)
@@ -48,6 +48,13 @@ Windows ve Linux ayrimi dashboard, katalog ve raporlarda zorunlu gorunur olacak.
 - [x] Zamanlanmis raporlarin otomatik calistirilmasi (scheduler)
 - [x] CSV ciktilarinin sunucuda saklanmasi (`uploads/reports/sam`)
 - [x] Rapor Merkezi uzerinden olusan dosyalari listeleme/indirme
+
+### Faz 6 (Tamamlandi)
+- [x] Publisher normalizasyonu (inventory ingest + API response)
+- [x] Envanter delta/trend (gunluk trend + anomali alarmi)
+- [x] Lisans oneri motoru (`/api/v1/licenses/recommendations`)
+- [x] Performans fazi: SAM sorgulari icin ek index + runtime olcum API (`/api/v1/sam/performance`)
+- [x] SAM test otomasyonu: API/UI smoke paketi (`tests/test_sam_smoke.py`)
 
 ## 4. Veri ve KPI Standartlari
 
@@ -87,3 +94,14 @@ Windows ve Linux ayrimi dashboard, katalog ve raporlarda zorunlu gorunur olacak.
 - Cost profile CRUD (`/api/v1/sam/cost-profiles`)
 - Risk overview API (`/api/v1/sam/risk-overview`)
 - Scheduler tabanli SAM rapor uretimi ve dosya listesi API (`/api/v1/sam/reports/generated`)
+- Faz 6 baslangic teslimleri:
+  - `/api/v1/inventory/trends`
+  - `/api/v1/licenses/recommendations`
+  - `/api/v1/sam/performance`
+  - `tests/test_sam_smoke.py`
+
+## 8. Modul Kapanis Durumu
+
+- Tarih: 2026-03-05
+- Durum: SAM modulunun bu fazdaki kapsam maddeleri tamamlandi.
+- Not: Sonraki gelistirmeler yeni faz/plana alinacaktir.

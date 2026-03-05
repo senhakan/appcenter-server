@@ -155,6 +155,10 @@
       .replaceAll("'", "&#39;");
   }
 
+  function _escapeHtmlWithBreaks(value) {
+    return _escapeHtml(value).replaceAll("\n", "<br>");
+  }
+
   function _guessToastType(message) {
     const text = (message || "").toString().toLowerCase();
     if (text.includes("hata") || text.includes("failed") || text.includes("error") || text.includes("not found") || text.includes("unauthorized")) {
@@ -252,6 +256,66 @@
         if (item.parentElement) item.parentElement.removeChild(item);
       }, 180);
     }, 2600);
+  }
+
+  function confirm(options) {
+    const opts = options && typeof options === "object" ? options : { message: options };
+    const title = (opts.title || "Onay").toString();
+    const message = (opts.message || "Bu islemi onayliyor musunuz?").toString();
+    const confirmText = (opts.confirmText || "Onayla").toString();
+    const cancelText = (opts.cancelText || "Vazgec").toString();
+    const tone = (opts.tone || "warning").toString().trim().toLowerCase();
+    const toneMap = {
+      warning: { card: "ac-modal-warning", iconClass: "warning", icon: "ti ti-alert-triangle", btn: "btn-warning" },
+      danger: { card: "ac-modal-danger", iconClass: "danger", icon: "ti ti-alert-circle", btn: "btn-danger" },
+      success: { card: "ac-modal-success", iconClass: "success", icon: "ti ti-circle-check", btn: "btn-success" },
+      info: { card: "", iconClass: "warning", icon: "ti ti-info-circle", btn: "btn-primary" },
+    };
+    const selected = toneMap[tone] || toneMap.warning;
+
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.className = "session-modal";
+      overlay.setAttribute("role", "presentation");
+      overlay.innerHTML = `
+        <div class="session-modal-card ${selected.card}" role="dialog" aria-modal="true">
+          <h3>${_escapeHtml(title)}</h3>
+          <div class="ac-modal-status-block">
+            <span class="ac-modal-status-icon ${selected.iconClass}"><i class="${selected.icon}"></i></span>
+            <div class="text-secondary">${_escapeHtmlWithBreaks(message)}</div>
+          </div>
+          <div class="d-flex gap-2 justify-content-end">
+            <button type="button" class="btn btn-outline-secondary" data-modal-close>${_escapeHtml(cancelText)}</button>
+            <button type="button" class="btn ${selected.btn}" data-modal-primary>${_escapeHtml(confirmText)}</button>
+          </div>
+        </div>
+      `;
+
+      const closeBtn = overlay.querySelector("[data-modal-close]");
+      const confirmBtn = overlay.querySelector("[data-modal-primary]");
+      const card = overlay.querySelector(".session-modal-card");
+
+      let done = false;
+      const cleanup = (result) => {
+        if (done) return;
+        done = true;
+        overlay.remove();
+        resolve(!!result);
+      };
+
+      overlay.addEventListener("click", (evt) => {
+        if (evt.target === overlay) cleanup(false);
+      });
+      if (closeBtn) closeBtn.addEventListener("click", () => cleanup(false));
+      if (confirmBtn) confirmBtn.addEventListener("click", () => cleanup(true));
+
+      document.body.appendChild(overlay);
+      if (confirmBtn && typeof confirmBtn.focus === "function") {
+        confirmBtn.focus();
+      } else if (card && typeof card.focus === "function") {
+        card.focus();
+      }
+    });
   }
 
   function clearSessionTimers() {
@@ -724,6 +788,7 @@
     formatDate,
     relTime,
     toast,
+    confirm,
     closeCustomModal,
     triggerCustomModalPrimary,
     getCurrentUser,

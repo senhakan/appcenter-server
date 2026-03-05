@@ -139,6 +139,7 @@ def _run_startup_migrations() -> None:
     _migrate_application_platform_columns()
     _migrate_agent_update_platform_settings()
     _migrate_sam_advanced_tables()
+    _migrate_inventory_perf_indexes()
 
 
 def _migrate_role_profiles_table() -> None:
@@ -357,6 +358,26 @@ def _migrate_agent_runtime_network_columns() -> None:
         for col, sql_type in expected.items():
             if col not in existing:
                 conn.execute(text(f"ALTER TABLE agents ADD COLUMN {col} {sql_type}"))
+
+
+def _migrate_inventory_perf_indexes() -> None:
+    with engine.begin() as conn:
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_agent_platform ON agents(platform)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_agent_status ON agents(status)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_agent_last_seen ON agents(last_seen DESC)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_agent_platform_status ON agents(platform, status)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_inv_agent_uuid ON agent_software_inventory(agent_uuid)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_inv_normalized_name ON agent_software_inventory(normalized_name)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_inv_agent_norm_name ON agent_software_inventory(agent_uuid, normalized_name)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_inv_publisher ON agent_software_inventory(publisher)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_inv_norm_name_agent ON agent_software_inventory(normalized_name, agent_uuid)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_chg_agent_detected ON software_change_history(agent_uuid, detected_at DESC)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_chg_detected ON software_change_history(detected_at DESC)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_chg_type_detected ON software_change_history(change_type, detected_at DESC)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_license_active_type ON software_licenses(is_active, license_type)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_license_pattern ON software_licenses(software_name_pattern)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sam_find_platform_status ON sam_compliance_findings(platform, status)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sam_find_last_seen ON sam_compliance_findings(last_seen_at DESC)"))
 
 
 def _migrate_agent_update_platform_settings() -> None:

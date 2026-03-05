@@ -407,3 +407,59 @@ def test_sam_schedule_runner_generates_files(client, auth_headers):
     payload = files.json()
     assert payload["total"] >= 1
     assert any(str(x.get("filename", "")).startswith("sam_catalog_schedule_") for x in payload["items"])
+
+
+def test_inventory_trends_endpoint(client, auth_headers):
+    uid, _secret, headers = _register_agent(client)
+    client.post("/api/v1/agent/inventory", json={
+        "inventory_hash": "trend-1",
+        "software_count": 1,
+        "items": [{"name": "Trend App", "version": "1.0"}],
+    }, headers=headers)
+    client.post("/api/v1/agent/inventory", json={
+        "inventory_hash": "trend-2",
+        "software_count": 1,
+        "items": [{"name": "Trend App", "version": "1.1"}],
+    }, headers=headers)
+    resp = client.get("/api/v1/inventory/trends?days=14", headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "points" in data and isinstance(data["points"], list)
+    assert "alerts" in data and isinstance(data["alerts"], list)
+    assert "summary" in data and isinstance(data["summary"], dict)
+    assert data["summary"]["days"] == 14
+
+
+def test_license_recommendations_endpoint(client, auth_headers):
+    uid, _secret, headers = _register_agent(client)
+    client.post("/api/v1/agent/inventory", json={
+        "inventory_hash": "rec-1",
+        "software_count": 1,
+        "items": [{"name": "Forbidden Rec Tool", "version": "1.0"}],
+    }, headers=headers)
+    create = client.post("/api/v1/licenses", json={
+        "software_name_pattern": "Forbidden Rec Tool",
+        "match_type": "exact",
+        "license_type": "prohibited",
+    }, headers=auth_headers)
+    assert create.status_code == 201
+    rec = client.get("/api/v1/licenses/recommendations?limit=20", headers=auth_headers)
+    assert rec.status_code == 200
+    payload = rec.json()
+    assert payload["total"] >= 1
+    assert any(i["pattern"] == "Forbidden Rec Tool" for i in payload["items"])
+
+
+def test_publisher_normalization_on_inventory(client, auth_headers):
+    uid, _secret, headers = _register_agent(client)
+    client.post("/api/v1/agent/inventory", json={
+        "inventory_hash": "pub-1",
+        "software_count": 1,
+        "items": [{"name": "Publisher App", "version": "1.0", "publisher": "Microsoft Corporation"}],
+    }, headers=headers)
+    inv = client.get(f"/api/v1/agents/{uid}/inventory", headers=auth_headers)
+    assert inv.status_code == 200
+    assert inv.json()["total"] == 1
+    first = inv.json()["items"][0]
+    assert first["publisher"] == "Microsoft"
+    assert first["normalized_publisher"] == "Microsoft"
