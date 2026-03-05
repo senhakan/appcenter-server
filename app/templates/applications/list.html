@@ -318,6 +318,7 @@
 
   async function loadApps() {
     try {
+      await AppCenterApi.getCurrentUser();
       const canManage = AppCenterApi.canPermission('applications.manage');
       // Legacy behavior: operator/admin can still see edit action (server keeps auth enforcement).
       const canEdit = canManage || AppCenterApi.canAtLeast('operator');
