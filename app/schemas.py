@@ -401,6 +401,31 @@ class DeploymentListResponse(BaseModel):
     total: int
 
 
+class DeploymentClientLogItemResponse(BaseModel):
+    agent_uuid: str
+    agent_hostname: str
+    agent_platform: str
+    agent_status: str
+    app_status: str
+    installed_version: Optional[str] = None
+    agent_error: Optional[str] = None
+    task_id: Optional[int] = None
+    task_status: Optional[str] = None
+    task_message: Optional[str] = None
+    exit_code: Optional[int] = None
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    task_created_at: Optional[datetime] = None
+    download_duration_sec: Optional[int] = None
+    install_duration_sec: Optional[int] = None
+    updated_at: Optional[datetime] = None
+
+
+class DeploymentClientLogListResponse(BaseModel):
+    items: list[DeploymentClientLogItemResponse]
+    total: int
+
+
 class TaskStatusRequest(BaseModel):
     status: str
     progress: Optional[int] = None

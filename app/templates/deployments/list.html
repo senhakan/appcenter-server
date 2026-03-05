@@ -287,6 +287,47 @@
     </div>
   </div>
 </div>
+
+<div id="dep-logs-modal" class="dep-modal-backdrop hidden" aria-live="polite">
+  <div class="dep-modal-dialog" style="max-width: 1100px;">
+    <div class="card mb-0">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Dagitim Loglari</h3>
+        <button class="btn btn-outline-secondary btn-sm" id="dep-logs-close-btn" type="button"><i class="ti ti-x"></i></button>
+      </div>
+      <div class="card-body">
+        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+          <div class="text-secondary" id="dep-logs-summary">-</div>
+          <div class="btn-list">
+            <button class="btn btn-outline-primary btn-sm" id="dep-logs-refresh-btn" type="button"><i class="ti ti-refresh me-1"></i>Yenile</button>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm table-vcenter">
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Ajan</th>
+                <th>Dagitim</th>
+                <th>Task</th>
+                <th>Mesaj</th>
+                <th>Guncelleme</th>
+              </tr>
+            </thead>
+            <tbody id="dep-logs-rows">
+              <tr><td colspan="6" class="text-secondary">Yukleniyor...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="d-flex justify-content-between align-items-center mt-3">
+          <button class="btn btn-outline-secondary btn-sm" id="dep-logs-prev-btn" type="button"><i class="ti ti-chevron-left me-1"></i>Onceki</button>
+          <div class="text-secondary small" id="dep-logs-page-info">-</div>
+          <button class="btn btn-outline-secondary btn-sm" id="dep-logs-next-btn" type="button">Sonraki<i class="ti ti-chevron-right ms-1"></i></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -300,6 +341,16 @@
 
   const createModal = document.getElementById('dep-create-modal');
   const editModal = document.getElementById('dep-edit-modal');
+  const logsModal = document.getElementById('dep-logs-modal');
+  const logsRows = document.getElementById('dep-logs-rows');
+  const logsSummary = document.getElementById('dep-logs-summary');
+  const logsPageInfo = document.getElementById('dep-logs-page-info');
+  const logsPrevBtn = document.getElementById('dep-logs-prev-btn');
+  const logsNextBtn = document.getElementById('dep-logs-next-btn');
+  const logsPageSize = 50;
+  let logsDeploymentId = 0;
+  let logsOffset = 0;
+  let logsTotal = 0;
 
   function esc(v) {
     return (v ?? '').toString()
@@ -312,6 +363,94 @@
 
   function openModal(modal) { modal.classList.remove('hidden'); }
   function closeModal(modal) { modal.classList.add('hidden'); }
+
+  function statusBadge(kind, value) {
+    const v = (value || '-').toString().toLowerCase();
+    if (kind === 'task') {
+      if (v === 'success') return '<span class="badge bg-green-lt text-green">success</span>';
+      if (v === 'failed' || v === 'timeout') return `<span class="badge bg-red-lt text-red">${esc(v)}</span>`;
+      if (v === 'downloading') return '<span class="badge bg-blue-lt text-blue">downloading</span>';
+      if (v === 'pending') return '<span class="badge bg-yellow-lt text-yellow">pending</span>';
+      return `<span class="badge bg-secondary-lt text-secondary">${esc(v)}</span>`;
+    }
+    if (kind === 'app') {
+      if (v === 'installed') return '<span class="badge bg-green-lt text-green">installed</span>';
+      if (v === 'failed') return '<span class="badge bg-red-lt text-red">failed</span>';
+      if (v === 'downloading') return '<span class="badge bg-blue-lt text-blue">downloading</span>';
+      if (v === 'pending') return '<span class="badge bg-yellow-lt text-yellow">pending</span>';
+      return `<span class="badge bg-secondary-lt text-secondary">${esc(v)}</span>`;
+    }
+    if (v === 'online') return '<span class="badge bg-green-lt text-green">online</span>';
+    if (v === 'offline') return '<span class="badge bg-secondary-lt text-secondary">offline</span>';
+    return `<span class="badge bg-secondary-lt text-secondary">${esc(v)}</span>`;
+  }
+
+  async function loadDeploymentLogs() {
+    if (!logsDeploymentId) return;
+    logsRows.innerHTML = '<tr><td colspan="6" class="text-secondary">Yukleniyor...</td></tr>';
+    try {
+      const data = await AppCenterApi.req(`/deployments/${logsDeploymentId}/logs?limit=${logsPageSize}&offset=${logsOffset}`);
+      const items = data.items || [];
+      logsTotal = Number(data.total || 0);
+      logsSummary.textContent = `Deployment #${logsDeploymentId} · Toplam client: ${logsTotal}`;
+
+      if (!items.length) {
+        logsRows.innerHTML = '<tr><td colspan="6" class="text-secondary">Log kaydi yok</td></tr>';
+      } else {
+        logsRows.innerHTML = items.map((it) => {
+          const taskMeta = it.task_id
+            ? `#${it.task_id}${it.exit_code !== null && it.exit_code !== undefined ? ` / exit=${it.exit_code}` : ''}`
+            : '-';
+          const taskTime = it.completed_at
+            ? `Tamam: ${esc(AppCenterApi.formatDate(it.completed_at))}`
+            : (it.started_at ? `Baslangic: ${esc(AppCenterApi.formatDate(it.started_at))}` : '-');
+          const updatedAt = it.updated_at ? AppCenterApi.formatDate(it.updated_at) : '-';
+          const msg = it.task_message || it.agent_error || '-';
+          const dur = [
+            it.download_duration_sec != null ? `dl:${it.download_duration_sec}s` : null,
+            it.install_duration_sec != null ? `ins:${it.install_duration_sec}s` : null,
+          ].filter(Boolean).join(' ');
+          return `
+            <tr>
+              <td>
+                <div>${esc(it.agent_hostname || it.agent_uuid)}</div>
+                <div class="text-secondary">${esc(it.agent_uuid)}</div>
+                <div class="text-secondary">${esc(it.agent_platform || '-')}</div>
+              </td>
+              <td>${statusBadge('agent', it.agent_status)}</td>
+              <td>${statusBadge('app', it.app_status)}</td>
+              <td>
+                <div>${statusBadge('task', it.task_status || '-')} <span class="text-secondary">${esc(taskMeta)}</span></div>
+                <div class="text-secondary">${esc(taskTime)}</div>
+                <div class="text-secondary">${esc(dur || '-')}</div>
+              </td>
+              <td><span title="${esc(msg)}">${esc(msg)}</span></td>
+              <td>${esc(updatedAt)}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      const pageStart = logsTotal ? (logsOffset + 1) : 0;
+      const pageEnd = Math.min(logsOffset + logsPageSize, logsTotal);
+      logsPageInfo.textContent = `${pageStart}-${pageEnd} / ${logsTotal}`;
+      logsPrevBtn.disabled = logsOffset <= 0;
+      logsNextBtn.disabled = logsOffset + logsPageSize >= logsTotal;
+    } catch (err) {
+      logsRows.innerHTML = '<tr><td colspan="6" class="text-danger">Loglar yuklenemedi</td></tr>';
+      AppCenterApi.toast(err.message);
+    }
+  }
+
+  function openLogsModal(deploymentId) {
+    logsDeploymentId = Number(deploymentId || 0);
+    logsOffset = 0;
+    logsTotal = 0;
+    logsSummary.textContent = '-';
+    logsPageInfo.textContent = '-';
+    openModal(logsModal);
+    loadDeploymentLogs();
+  }
 
   function clearFormErrors(formEl) {
     formEl.querySelectorAll('.field-error').forEach((el) => el.remove());
@@ -397,6 +536,7 @@
   function renderTable() {
     const rows = document.getElementById('dep-rows');
     rows.innerHTML = '';
+    const canView = AppCenterApi.canPermission('deployments.view');
     const canWrite = AppCenterApi.canPermission('deployments.manage');
     const searchQ = (document.getElementById('dep-search').value || '').toLowerCase().trim();
     const activeFilter = (document.getElementById('dep-filter-active').value || 'all').toLowerCase();
@@ -455,15 +595,23 @@
         <td><span class="badge bg-blue-lt text-blue">${Number(d.priority) || 0}</span></td>
         <td>${statusBadge}</td>
         <td class="col-actions">
-          ${canWrite
+          ${(canView || canWrite)
             ? `<div class="btn-list flex-nowrap">
-                 <button class="btn btn-outline-secondary btn-sm" type="button" data-action="edit" data-id="${d.id}"><i class="ti ti-edit me-1"></i>Duzenle</button>
-                 <button class="btn btn-outline-danger btn-sm" type="button" data-action="delete" data-id="${d.id}"><i class="ti ti-trash me-1"></i>Sil</button>
+                 ${canView ? `<button class="btn btn-outline-primary btn-sm" type="button" data-action="logs" data-id="${d.id}"><i class="ti ti-list-details me-1"></i>Loglar</button>` : ''}
+                 ${canWrite ? `<button class="btn btn-outline-secondary btn-sm" type="button" data-action="edit" data-id="${d.id}"><i class="ti ti-edit me-1"></i>Duzenle</button>` : ''}
+                 ${canWrite ? `<button class="btn btn-outline-danger btn-sm" type="button" data-action="delete" data-id="${d.id}"><i class="ti ti-trash me-1"></i>Sil</button>` : ''}
                </div>`
             : '-'}
         </td>
       `;
       rows.appendChild(tr);
+    });
+
+    rows.querySelectorAll('button[data-action="logs"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = Number(btn.getAttribute('data-id') || '0');
+        openLogsModal(id);
+      });
     });
 
     rows.querySelectorAll('button[data-action="edit"]').forEach((btn) => {
@@ -595,8 +743,20 @@
   document.getElementById('dep-sort').addEventListener('change', renderTable);
   document.getElementById('dep-create-cancel-btn-2').addEventListener('click', () => closeModal(createModal));
   document.getElementById('dep-edit-cancel-btn-2').addEventListener('click', () => closeModal(editModal));
+  document.getElementById('dep-logs-close-btn').addEventListener('click', () => closeModal(logsModal));
+  document.getElementById('dep-logs-refresh-btn').addEventListener('click', () => loadDeploymentLogs());
+  logsPrevBtn.addEventListener('click', () => {
+    logsOffset = Math.max(0, logsOffset - logsPageSize);
+    loadDeploymentLogs();
+  });
+  logsNextBtn.addEventListener('click', () => {
+    if (logsOffset + logsPageSize >= logsTotal) return;
+    logsOffset += logsPageSize;
+    loadDeploymentLogs();
+  });
   createModal.addEventListener('click', (e) => { if (e.target === createModal) closeModal(createModal); });
   editModal.addEventListener('click', (e) => { if (e.target === editModal) closeModal(editModal); });
+  logsModal.addEventListener('click', (e) => { if (e.target === logsModal) closeModal(logsModal); });
 
   document.getElementById('dep-create-form').addEventListener('submit', async (e) => {
     e.preventDefault();

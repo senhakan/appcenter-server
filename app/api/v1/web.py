@@ -51,6 +51,8 @@ from app.schemas import (
     DashboardComplianceClientItemResponse,
     DashboardRemoteMetricsResponse,
     DeploymentCreateRequest,
+    DeploymentClientLogItemResponse,
+    DeploymentClientLogListResponse,
     DeploymentListResponse,
     DeploymentResponse,
     DeploymentUpdateRequest,
@@ -1218,6 +1220,108 @@ def deployments_detail(
 ) -> DeploymentResponse:
     item = get_deployment(db, deployment_id)
     return DeploymentResponse.model_validate(item)
+
+
+@router.get("/deployments/{deployment_id}/logs", response_model=DeploymentClientLogListResponse)
+def deployments_client_logs(
+    deployment_id: int,
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("deployments.view")),
+) -> DeploymentClientLogListResponse:
+    _ = get_deployment(db, deployment_id)
+    safe_limit = min(max(int(limit), 1), 500)
+    safe_offset = max(int(offset), 0)
+
+    total = (
+        db.query(func.count(AgentApplication.id))
+        .filter(AgentApplication.deployment_id == deployment_id)
+        .scalar()
+        or 0
+    )
+
+    latest_task_subq = (
+        db.query(
+            TaskHistory.agent_uuid.label("agent_uuid"),
+            func.max(TaskHistory.id).label("task_id"),
+        )
+        .filter(TaskHistory.deployment_id == deployment_id)
+        .group_by(TaskHistory.agent_uuid)
+        .subquery()
+    )
+
+    rows = (
+        db.query(
+            AgentApplication.agent_uuid,
+            Agent.hostname,
+            Agent.platform,
+            Agent.status,
+            AgentApplication.status,
+            AgentApplication.installed_version,
+            AgentApplication.error_message,
+            AgentApplication.updated_at,
+            TaskHistory.id,
+            TaskHistory.status,
+            TaskHistory.message,
+            TaskHistory.exit_code,
+            TaskHistory.started_at,
+            TaskHistory.completed_at,
+            TaskHistory.created_at,
+            TaskHistory.download_duration_sec,
+            TaskHistory.install_duration_sec,
+        )
+        .join(Agent, Agent.uuid == AgentApplication.agent_uuid)
+        .outerjoin(latest_task_subq, latest_task_subq.c.agent_uuid == AgentApplication.agent_uuid)
+        .outerjoin(TaskHistory, TaskHistory.id == latest_task_subq.c.task_id)
+        .filter(AgentApplication.deployment_id == deployment_id)
+        .order_by(AgentApplication.updated_at.desc(), AgentApplication.agent_uuid.asc())
+        .offset(safe_offset)
+        .limit(safe_limit)
+        .all()
+    )
+
+    items = [
+        DeploymentClientLogItemResponse(
+            agent_uuid=str(agent_uuid),
+            agent_hostname=(hostname or str(agent_uuid)),
+            agent_platform=(platform or "windows"),
+            agent_status=(agent_status or "unknown"),
+            app_status=(app_status or "unknown"),
+            installed_version=installed_version,
+            agent_error=error_message,
+            task_id=task_id,
+            task_status=task_status,
+            task_message=task_message,
+            exit_code=exit_code,
+            started_at=started_at,
+            completed_at=completed_at,
+            task_created_at=task_created_at,
+            download_duration_sec=download_duration_sec,
+            install_duration_sec=install_duration_sec,
+            updated_at=updated_at,
+        )
+        for (
+            agent_uuid,
+            hostname,
+            platform,
+            agent_status,
+            app_status,
+            installed_version,
+            error_message,
+            updated_at,
+            task_id,
+            task_status,
+            task_message,
+            exit_code,
+            started_at,
+            completed_at,
+            task_created_at,
+            download_duration_sec,
+            install_duration_sec,
+        ) in rows
+    ]
+    return DeploymentClientLogListResponse(items=items, total=int(total))
 
 
 @router.post("/deployments", response_model=DeploymentResponse)
