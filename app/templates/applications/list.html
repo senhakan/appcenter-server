@@ -65,6 +65,13 @@
     width: 1%;
     white-space: nowrap;
   }
+  .apps-table td.app-icon-cell .avatar.avatar-sm {
+    width: 3rem;
+    height: 3rem;
+    font-size: 1.25rem;
+    background-size: cover;
+    background-position: center;
+  }
 </style>
 
 <div class="card">
@@ -396,7 +403,7 @@
           : '<span class="badge bg-secondary-lt text-secondary">pasif</span>';
         tr.innerHTML = `
           <td>${app.id}</td>
-          <td>${appIconCell(app)}</td>
+          <td class="app-icon-cell">${appIconCell(app)}</td>
           <td>
             <div class="fw-medium">${esc(app.display_name)}</div>
             <div class="text-secondary">${esc(app.category || 'kategori yok')}</div>
