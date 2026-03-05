@@ -12,7 +12,6 @@
   let _sessionExtending = false;
   let _currentUser = null;
   let _currentUserLoading = null;
-  let _toastTimer = null;
   const ROLE_WEIGHTS = { viewer: 10, operator: 20, admin: 30 };
 
   function getToken() {
@@ -168,33 +167,57 @@
   }
 
   function toast(message, type) {
-    const el = document.getElementById("toast");
-    if (!el) return;
+    const container = document.getElementById("toast");
+    if (!container) return;
     const tone = (type || _guessToastType(message) || "info").toString().trim().toLowerCase();
     const map = {
-      info: { cls: "alert-info", icon: "ti ti-info-circle" },
-      success: { cls: "alert-success", icon: "ti ti-circle-check" },
-      warning: { cls: "alert-warning", icon: "ti ti-alert-triangle" },
-      error: { cls: "alert-danger", icon: "ti ti-alert-circle" },
+      info: { cls: "text-bg-info", icon: "ti ti-info-circle", title: "Bilgi" },
+      success: { cls: "text-bg-success", icon: "ti ti-circle-check", title: "Basarili" },
+      warning: { cls: "text-bg-warning", icon: "ti ti-alert-triangle", title: "Uyari" },
+      error: { cls: "text-bg-danger", icon: "ti ti-alert-circle", title: "Hata" },
     };
     const selected = map[tone] || map.info;
-    el.innerHTML = `
-      <div class="alert ${selected.cls} ac-toast-card mb-0" role="alert">
-        <div class="d-flex align-items-start">
-          <div class="ac-toast-icon me-2"><i class="${selected.icon}"></i></div>
-          <div class="ac-toast-text">${_escapeHtml(message || "")}</div>
-        </div>
+    const item = document.createElement("div");
+    item.className = `toast ${selected.cls} border-0`;
+    item.setAttribute("role", "alert");
+    item.setAttribute("aria-live", "assertive");
+    item.setAttribute("aria-atomic", "true");
+    item.setAttribute("data-bs-autohide", "true");
+    item.setAttribute("data-bs-delay", "2600");
+    item.innerHTML = `
+      <div class="toast-header">
+        <span class="me-2"><i class="${selected.icon}"></i></span>
+        <strong class="me-auto">${selected.title}</strong>
+        <small>${new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</small>
+        <button type="button" class="ms-2 btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+      <div class="toast-body">
+        ${_escapeHtml(message || "")}
       </div>
     `;
-    if (_toastTimer) {
-      clearTimeout(_toastTimer);
-      _toastTimer = null;
+    container.appendChild(item);
+
+    const maxToasts = 4;
+    while (container.children.length > maxToasts) {
+      container.removeChild(container.firstElementChild);
     }
-    el.classList.add("show");
-    _toastTimer = setTimeout(() => {
-      el.classList.remove("show");
-      _toastTimer = null;
-    }, 2600);
+
+    if (window.bootstrap && window.bootstrap.Toast) {
+      const instance = new window.bootstrap.Toast(item, { autohide: true, delay: 2600 });
+      item.addEventListener(
+        "hidden.bs.toast",
+        () => {
+          if (item.parentElement) item.parentElement.removeChild(item);
+        },
+        { once: true }
+      );
+      instance.show();
+    } else {
+      item.classList.add("show");
+      setTimeout(() => {
+        if (item.parentElement) item.parentElement.removeChild(item);
+      }, 2600);
+    }
   }
 
   function clearSessionTimers() {
