@@ -10,7 +10,7 @@ from uuid import uuid4
 import aiofiles
 from fastapi import HTTPException, UploadFile, status
 
-ALLOWED_EXTENSIONS = {".msi", ".exe", ".deb", ".tar.gz", ".sh"}
+ALLOWED_EXTENSIONS = {".msi", ".exe", ".ps1", ".deb", ".tar.gz", ".sh"}
 ALLOWED_ICON_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".svg"}
 ALLOWED_AVATAR_EXTENSIONS = ALLOWED_ICON_EXTENSIONS
 READ_CHUNK_SIZE = 1024 * 1024  # 1MB
@@ -34,7 +34,7 @@ def sanitize_filename(app_id: int, file_hash_hex: str, original_filename: str) -
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid file type. Only .msi and .exe allowed.",
+            detail="Invalid file type.",
         )
     safe_hash = re.sub(r"[^a-f0-9]", "", file_hash_hex.lower())[:8]
     return f"{app_id}_{safe_hash}{ext}"

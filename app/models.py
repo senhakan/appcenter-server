@@ -196,7 +196,7 @@ class AgentGroup(Base):
 class Application(Base):
     __tablename__ = "applications"
     __table_args__ = (
-        CheckConstraint("file_type IN ('msi', 'exe', 'deb', 'tar.gz', 'sh')", name="ck_application_file_type"),
+        CheckConstraint("file_type IN ('msi', 'exe', 'ps1', 'deb', 'tar.gz', 'sh')", name="ck_application_file_type"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

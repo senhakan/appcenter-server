@@ -162,9 +162,9 @@
             <input class="form-control" name="icon" type="file" accept=".png,.jpg,.jpeg,.webp,.svg" />
           </div>
           <div class="col-12 col-md-6">
-            <label class="form-label" id="app-create-file-label">Kurulum Dosyasi (.msi / .exe)</label>
-            <input class="form-control" id="app-create-file-input" name="file" type="file" accept=".msi,.exe" required />
-            <div class="form-hint" id="app-create-file-hint">Windows: .msi, .exe</div>
+            <label class="form-label" id="app-create-file-label">Kurulum Dosyasi (.msi / .exe / .ps1)</label>
+            <input class="form-control" id="app-create-file-input" name="file" type="file" accept=".msi,.exe,.ps1" required />
+            <div class="form-hint" id="app-create-file-hint">Windows: .msi, .exe, .ps1</div>
           </div>
           <div class="col-12 d-flex justify-content-end">
             <div class="btn-list">
@@ -326,9 +326,9 @@
       hint.textContent = 'Linux: .deb, .tar.gz, .sh';
       return;
     }
-    input.setAttribute('accept', '.msi,.exe');
-    label.textContent = 'Kurulum Dosyasi (.msi / .exe)';
-    hint.textContent = 'Windows: .msi, .exe';
+    input.setAttribute('accept', '.msi,.exe,.ps1');
+    label.textContent = 'Kurulum Dosyasi (.msi / .exe / .ps1)';
+    hint.textContent = 'Windows: .msi, .exe, .ps1';
   }
 
   function applyAppListFilters(items) {
