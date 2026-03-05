@@ -149,11 +149,17 @@ body.app-shell {
   color: var(--tblr-danger, #d63939);
 }
 
+.app-shell #toast,
 #toast.toast-container {
   z-index: 1090;
   opacity: 1;
   transform: none;
   pointer-events: none;
+  background: transparent !important;
+  color: inherit !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  width: auto !important;
 }
 
 #toast.toast-container .toast {
