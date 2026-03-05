@@ -171,14 +171,14 @@
     if (!container) return;
     const tone = (type || _guessToastType(message) || "info").toString().trim().toLowerCase();
     const map = {
-      info: { cls: "text-bg-info", icon: "ti ti-info-circle", title: "Bilgi" },
-      success: { cls: "text-bg-success", icon: "ti ti-circle-check", title: "Basarili" },
-      warning: { cls: "text-bg-warning", icon: "ti ti-alert-triangle", title: "Uyari" },
-      error: { cls: "text-bg-danger", icon: "ti ti-alert-circle", title: "Hata" },
+      info: { icon: "ti ti-info-circle", avatarClass: "bg-blue-lt text-blue", title: "Bilgi" },
+      success: { icon: "ti ti-circle-check", avatarClass: "bg-green-lt text-green", title: "Basarili" },
+      warning: { icon: "ti ti-alert-triangle", avatarClass: "bg-yellow-lt text-yellow", title: "Uyari" },
+      error: { icon: "ti ti-alert-circle", avatarClass: "bg-red-lt text-red", title: "Hata" },
     };
     const selected = map[tone] || map.info;
     const item = document.createElement("div");
-    item.className = `toast ${selected.cls} border-0`;
+    item.className = "toast";
     item.setAttribute("role", "alert");
     item.setAttribute("aria-live", "assertive");
     item.setAttribute("aria-atomic", "true");
@@ -186,9 +186,9 @@
     item.setAttribute("data-bs-delay", "2600");
     item.innerHTML = `
       <div class="toast-header">
-        <span class="me-2"><i class="${selected.icon}"></i></span>
+        <span class="avatar avatar-xs me-2 ${selected.avatarClass}"><i class="${selected.icon}"></i></span>
         <strong class="me-auto">${selected.title}</strong>
-        <small>${new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</small>
+        <small>simdi</small>
         <button type="button" class="ms-2 btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
       </div>
       <div class="toast-body">
