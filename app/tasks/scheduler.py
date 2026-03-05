@@ -1,17 +1,23 @@
 from __future__ import annotations
 
+import csv
 from datetime import datetime, timedelta, timezone
+import logging
+from pathlib import Path
 from typing import Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from app.config import get_settings
 from app.database import SessionLocal
-from app.models import Agent, AgentStatusHistory, Setting, SoftwareChangeHistory, TaskHistory
+from app.models import Agent, AgentStatusHistory, SamReportSchedule, Setting, SoftwareChangeHistory, TaskHistory
 from app.services import dynamic_group_service
+from app.services import inventory_service
 from app.services import remote_support_service
 from app.services.system_profile_service import cleanup_old_identity_history, cleanup_old_status_history, cleanup_old_system_history
 
 scheduler: Optional[AsyncIOScheduler] = None
 _last_dynamic_group_sync_at: Optional[datetime] = None
+logger = logging.getLogger("appcenter.scheduler")
 
 
 def _get_setting(db, key: str, default: str) -> str:
@@ -111,6 +117,50 @@ def sync_dynamic_groups_job() -> None:
         db.close()
 
 
+def run_due_sam_report_schedules() -> None:
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        rows = db.query(SamReportSchedule).filter(SamReportSchedule.is_active.is_(True)).all()
+        settings = get_settings()
+        report_dir = Path(settings.upload_dir) / "reports" / "sam"
+        report_dir.mkdir(parents=True, exist_ok=True)
+
+        for item in rows:
+            try:
+                if item.next_run_at is None:
+                    item.next_run_at = inventory_service.compute_sam_schedule_following_run(item.cron_expr, now - timedelta(minutes=1))
+                    db.add(item)
+                    db.commit()
+                    db.refresh(item)
+                if item.next_run_at is None or item.next_run_at > now:
+                    continue
+
+                header, data_rows = inventory_service.build_sam_report_data(
+                    db,
+                    report_type=item.report_type,
+                    platform="all",
+                )
+                stamp = now.strftime("%Y%m%d_%H%M%S")
+                file_name = f"{item.report_type}_schedule_{item.id}_{stamp}.csv"
+                file_path = report_dir / file_name
+                with file_path.open("w", encoding="utf-8", newline="") as fp:
+                    writer = csv.writer(fp)
+                    writer.writerow(header)
+                    for row in data_rows:
+                        writer.writerow(row)
+
+                item.last_run_at = now
+                item.next_run_at = inventory_service.compute_sam_schedule_following_run(item.cron_expr, now)
+                db.add(item)
+                db.commit()
+            except Exception as exc:
+                db.rollback()
+                logger.exception("SAM schedule execution failed (id=%s): %s", item.id, exc)
+    finally:
+        db.close()
+
+
 def start_scheduler() -> None:
     global scheduler
     if scheduler is None:
@@ -125,6 +175,7 @@ def start_scheduler() -> None:
     scheduler.add_job(cleanup_old_system_history_job, "cron", hour=3, minute=20, id="system_history_cleanup", replace_existing=True)
     scheduler.add_job(check_remote_support_timeouts, "interval", seconds=30, id="rs_timeouts", replace_existing=True)
     scheduler.add_job(sync_dynamic_groups_job, "interval", seconds=15, id="dynamic_group_sync", replace_existing=True)
+    scheduler.add_job(run_due_sam_report_schedules, "interval", seconds=30, id="sam_report_schedules", replace_existing=True)
     try:
         scheduler.start()
     except RuntimeError:
@@ -136,6 +187,7 @@ def start_scheduler() -> None:
         scheduler.add_job(cleanup_old_system_history_job, "cron", hour=3, minute=20, id="system_history_cleanup", replace_existing=True)
         scheduler.add_job(check_remote_support_timeouts, "interval", seconds=30, id="rs_timeouts", replace_existing=True)
         scheduler.add_job(sync_dynamic_groups_job, "interval", seconds=15, id="dynamic_group_sync", replace_existing=True)
+        scheduler.add_job(run_due_sam_report_schedules, "interval", seconds=30, id="sam_report_schedules", replace_existing=True)
         scheduler.start()
 
 

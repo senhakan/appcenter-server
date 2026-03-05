@@ -1050,6 +1050,19 @@ class SamRiskOverviewResponse(BaseModel):
     monthly_cost_cents_total: int
 
 
+class SamGeneratedReportItem(BaseModel):
+    filename: str
+    report_type: str
+    created_at: datetime
+    size_bytes: int
+    download_url: str
+
+
+class SamGeneratedReportListResponse(BaseModel):
+    items: list[SamGeneratedReportItem]
+    total: int
+
+
 # --- Normalization rule schemas ---
 
 

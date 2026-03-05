@@ -3,12 +3,15 @@ from __future__ import annotations
 import csv
 import json
 import io
+from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.auth import require_permission
+from app.config import get_settings
 from app.database import get_db
 from app.models import Agent, AgentServiceHistory
 from app.services import inventory_service
@@ -51,6 +54,8 @@ from app.schemas import (
     SamCostProfileListResponse,
     SamCostProfileUpdateRequest,
     SamDashboardResponse,
+    SamGeneratedReportItem,
+    SamGeneratedReportListResponse,
     SamLifecyclePolicyCreateRequest,
     SamLifecyclePolicyItem,
     SamLifecyclePolicyListResponse,
@@ -68,6 +73,7 @@ from app.schemas import (
 )
 
 router = APIRouter(tags=["inventory"])
+settings = get_settings()
 
 
 # --- Agent inventory queries ---
@@ -352,44 +358,13 @@ def export_sam_report(
     buf = io.StringIO()
     writer = csv.writer(buf)
     filename = f"{report_type}.csv"
-    if report_type == "sam_prevalence":
-        items, _ = inventory_service.get_sam_catalog(db, platform=platform, page=1, per_page=5000)
-        writer.writerow(["name", "total_agents", "windows_agents", "linux_agents", "install_rows", "versions"])
-        for i in items:
-            writer.writerow([
-                i["name"],
-                i["total_agents"],
-                i["windows_agents"],
-                i["linux_agents"],
-                i["install_rows"],
-                "|".join(i.get("versions", [])),
-            ])
-    elif report_type == "sam_catalog":
-        items, _ = inventory_service.get_sam_catalog(db, platform=platform, page=1, per_page=5000)
-        writer.writerow(["name", "total_agents", "windows_agents", "linux_agents", "install_rows"])
-        for i in items:
-            writer.writerow([
-                i["name"],
-                i["total_agents"],
-                i["windows_agents"],
-                i["linux_agents"],
-                i["install_rows"],
-            ])
-    else:
-        items, _ = inventory_service.list_sam_compliance_findings(db, platform=platform, limit=5000, offset=0)
-        writer.writerow(["id", "software_name", "platform", "finding_type", "severity", "status", "affected_agents", "first_seen_at", "last_seen_at"])
-        for i in items:
-            writer.writerow([
-                i.id,
-                i.software_name,
-                i.platform,
-                i.finding_type,
-                i.severity,
-                i.status,
-                i.affected_agents,
-                i.first_seen_at.isoformat() if i.first_seen_at else "",
-                i.last_seen_at.isoformat() if i.last_seen_at else "",
-            ])
+    try:
+        header, rows = inventory_service.build_sam_report_data(db, report_type=report_type, platform=platform)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    writer.writerow(header)
+    for row in rows:
+        writer.writerow(row)
     buf.seek(0)
     return StreamingResponse(
         iter([buf.getvalue()]),
@@ -432,16 +407,19 @@ def create_sam_report_schedule(
     db: Session = Depends(get_db),
     user=Depends(require_permission("inventory.manage")),
 ):
-    item = inventory_service.create_sam_report_schedule(
-        db,
-        name=payload.name,
-        report_type=payload.report_type,
-        format=payload.format,
-        cron_expr=payload.cron_expr,
-        recipients=payload.recipients,
-        is_active=payload.is_active,
-        created_by=getattr(user, "username", None),
-    )
+    try:
+        item = inventory_service.create_sam_report_schedule(
+            db,
+            name=payload.name,
+            report_type=payload.report_type,
+            format=payload.format,
+            cron_expr=payload.cron_expr,
+            recipients=payload.recipients,
+            is_active=payload.is_active,
+            created_by=getattr(user, "username", None),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return SamReportScheduleItem(
         id=item.id,
         name=item.name,
@@ -465,7 +443,10 @@ def update_sam_report_schedule(
     db: Session = Depends(get_db),
     _user=Depends(require_permission("inventory.manage")),
 ):
-    item = inventory_service.update_sam_report_schedule(db, schedule_id, **payload.model_dump(exclude_unset=True))
+    try:
+        item = inventory_service.update_sam_report_schedule(db, schedule_id, **payload.model_dump(exclude_unset=True))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     if not item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
     return SamReportScheduleItem(
@@ -685,6 +666,41 @@ def delete_sam_cost_profile(
     if not ok:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cost profile not found")
     return MessageResponse(status="ok", message="Cost profile deleted")
+
+
+@router.get("/sam/reports/generated", response_model=SamGeneratedReportListResponse)
+def list_generated_sam_reports(
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    _user=Depends(require_permission("inventory.view")),
+):
+    _ = db  # keep dependency for consistent auth/db pattern
+    report_dir = Path(settings.upload_dir) / "reports" / "sam"
+    if not report_dir.exists():
+        return SamGeneratedReportListResponse(items=[], total=0)
+    files: list[SamGeneratedReportItem] = []
+    for fp in sorted(report_dir.glob("*.csv"), key=lambda p: p.stat().st_mtime, reverse=True):
+        name = fp.name
+        report_type = "unknown"
+        if name.startswith("sam_prevalence_"):
+            report_type = "sam_prevalence"
+        elif name.startswith("sam_catalog_"):
+            report_type = "sam_catalog"
+        elif name.startswith("sam_compliance_"):
+            report_type = "sam_compliance"
+        st = fp.stat()
+        files.append(
+            SamGeneratedReportItem(
+                filename=name,
+                report_type=report_type,
+                created_at=datetime.fromtimestamp(st.st_mtime, tz=timezone.utc),
+                size_bytes=int(st.st_size),
+                download_url=f"/uploads/reports/sam/{name}",
+            )
+        )
+        if len(files) >= limit:
+            break
+    return SamGeneratedReportListResponse(items=files, total=len(files))
 
 
 # --- Normalization rules ---

@@ -6,6 +6,7 @@ import re
 import unicodedata
 from typing import Optional
 
+from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import String, case, cast, func
 from sqlalchemy.orm import Session
 
@@ -857,7 +858,25 @@ def list_sam_report_schedules(db: Session) -> list[SamReportSchedule]:
     return db.query(SamReportSchedule).order_by(SamReportSchedule.id.desc()).all()
 
 
+def _compute_sam_schedule_next_run(cron_expr: str, now: Optional[datetime] = None) -> Optional[datetime]:
+    base_now = now or datetime.now(timezone.utc)
+    expr = (cron_expr or "").strip()
+    if not expr:
+        return None
+    try:
+        trigger = CronTrigger.from_crontab(expr, timezone=timezone.utc)
+    except Exception as exc:
+        raise ValueError("Invalid cron expression") from exc
+    next_at = trigger.get_next_fire_time(None, base_now)
+    if not next_at:
+        return None
+    return next_at if next_at.tzinfo else next_at.replace(tzinfo=timezone.utc)
+
+
 def create_sam_report_schedule(db: Session, **kwargs) -> SamReportSchedule:
+    now = datetime.now(timezone.utc)
+    cron_expr = str(kwargs.get("cron_expr") or "").strip()
+    kwargs["next_run_at"] = _compute_sam_schedule_next_run(cron_expr, now)
     item = SamReportSchedule(**kwargs)
     db.add(item)
     db.commit()
@@ -869,9 +888,14 @@ def update_sam_report_schedule(db: Session, schedule_id: int, **kwargs) -> Optio
     item = db.query(SamReportSchedule).filter(SamReportSchedule.id == schedule_id).first()
     if not item:
         return None
+    cron_changed = False
     for k, v in kwargs.items():
         if v is not None and hasattr(item, k):
+            if k == "cron_expr" and str(v).strip() != str(item.cron_expr or "").strip():
+                cron_changed = True
             setattr(item, k, v)
+    if cron_changed:
+        item.next_run_at = _compute_sam_schedule_next_run(str(item.cron_expr or "").strip(), datetime.now(timezone.utc))
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -885,6 +909,81 @@ def delete_sam_report_schedule(db: Session, schedule_id: int) -> bool:
     db.delete(item)
     db.commit()
     return True
+
+
+def compute_sam_schedule_following_run(cron_expr: str, reference_time: datetime) -> Optional[datetime]:
+    ref = reference_time if reference_time.tzinfo else reference_time.replace(tzinfo=timezone.utc)
+    expr = (cron_expr or "").strip()
+    if not expr:
+        return None
+    try:
+        trigger = CronTrigger.from_crontab(expr, timezone=timezone.utc)
+    except Exception as exc:
+        raise ValueError("Invalid cron expression") from exc
+    next_at = trigger.get_next_fire_time(ref, ref + timedelta(seconds=1))
+    if not next_at:
+        return None
+    return next_at if next_at.tzinfo else next_at.replace(tzinfo=timezone.utc)
+
+
+def build_sam_report_data(
+    db: Session,
+    *,
+    report_type: str = "sam_prevalence",
+    platform: str = "all",
+) -> tuple[list[str], list[list[str]]]:
+    safe_type = (report_type or "sam_prevalence").strip().lower()
+    safe_platform = (platform or "all").strip().lower()
+    if safe_type not in {"sam_prevalence", "sam_compliance", "sam_catalog"}:
+        raise ValueError("Unsupported report type")
+    if safe_platform not in {"all", "windows", "linux"}:
+        raise ValueError("Unsupported platform")
+    if safe_type == "sam_prevalence":
+        items, _ = get_sam_catalog(db, platform=safe_platform, page=1, per_page=5000)
+        header = ["name", "total_agents", "windows_agents", "linux_agents", "install_rows", "versions"]
+        rows = [
+            [
+                str(i["name"]),
+                str(i["total_agents"]),
+                str(i["windows_agents"]),
+                str(i["linux_agents"]),
+                str(i["install_rows"]),
+                "|".join(i.get("versions", [])),
+            ]
+            for i in items
+        ]
+        return header, rows
+    if safe_type == "sam_catalog":
+        items, _ = get_sam_catalog(db, platform=safe_platform, page=1, per_page=5000)
+        header = ["name", "total_agents", "windows_agents", "linux_agents", "install_rows"]
+        rows = [
+            [
+                str(i["name"]),
+                str(i["total_agents"]),
+                str(i["windows_agents"]),
+                str(i["linux_agents"]),
+                str(i["install_rows"]),
+            ]
+            for i in items
+        ]
+        return header, rows
+    items, _ = list_sam_compliance_findings(db, platform=safe_platform, limit=5000, offset=0)
+    header = ["id", "software_name", "platform", "finding_type", "severity", "status", "affected_agents", "first_seen_at", "last_seen_at"]
+    rows = [
+        [
+            str(i.id),
+            str(i.software_name),
+            str(i.platform),
+            str(i.finding_type),
+            str(i.severity),
+            str(i.status),
+            str(i.affected_agents),
+            i.first_seen_at.isoformat() if i.first_seen_at else "",
+            i.last_seen_at.isoformat() if i.last_seen_at else "",
+        ]
+        for i in items
+    ]
+    return header, rows
 
 
 # --- SAM lifecycle/cost and risk overview ---

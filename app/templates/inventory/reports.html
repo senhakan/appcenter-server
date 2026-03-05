@@ -105,6 +105,29 @@
     </div>
   </div>
 </div>
+
+<div class="card mt-3">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <h3 class="card-title mb-0">Uretilen Rapor Dosyalari</h3>
+    <button id="sam-files-refresh" class="btn btn-outline-primary btn-sm" type="button"><i class="ti ti-refresh me-1"></i>Yenile</button>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-vcenter">
+      <thead>
+        <tr>
+          <th>Dosya</th>
+          <th>Tip</th>
+          <th>Olusturma</th>
+          <th>Boyut</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="sam-generated-rows">
+        <tr><td colspan="5" class="text-secondary">Yukleniyor...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -155,6 +178,34 @@
       AppCenterApi.toast(err.message);
     }
   }
+  function fmtSize(v) {
+    const n = Number(v || 0);
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  async function loadGeneratedFiles() {
+    try {
+      const data = await AppCenterApi.req('/sam/reports/generated?limit=100');
+      const rows = document.getElementById('sam-generated-rows');
+      const items = data.items || [];
+      if (!items.length) {
+        rows.innerHTML = '<tr><td colspan="5" class="text-secondary">Dosya yok</td></tr>';
+        return;
+      }
+      rows.innerHTML = items.map((i) => `
+        <tr>
+          <td class="fw-medium">${esc(i.filename || '-')}</td>
+          <td>${esc(i.report_type || '-')}</td>
+          <td>${esc(i.created_at ? AppCenterApi.formatDate(i.created_at) : '-')}</td>
+          <td>${esc(fmtSize(i.size_bytes || 0))}</td>
+          <td><a class="btn btn-outline-primary btn-sm" href="${esc(i.download_url || '#')}" target="_blank"><i class="ti ti-download"></i></a></td>
+        </tr>
+      `).join('');
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    }
+  }
   document.getElementById('sam-schedule-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
@@ -175,10 +226,13 @@
       e.target.reset();
       AppCenterApi.toast('Zamanlanmis rapor eklendi');
       loadSchedules();
+      loadGeneratedFiles();
     } catch (err) {
       AppCenterApi.toast(err.message);
     }
   });
+  document.getElementById('sam-files-refresh').addEventListener('click', loadGeneratedFiles);
   loadSchedules();
+  loadGeneratedFiles();
 </script>
 {% endblock %}

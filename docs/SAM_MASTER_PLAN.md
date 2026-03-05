@@ -44,6 +44,11 @@ Windows ve Linux ayrimi dashboard, katalog ve raporlarda zorunlu gorunur olacak.
 - [x] Maliyet ve optimizasyon gorunumu (cost profile + aylik tahmin)
 - [x] Role-based rapor erisimi
 
+### Faz 5
+- [x] Zamanlanmis raporlarin otomatik calistirilmasi (scheduler)
+- [x] CSV ciktilarinin sunucuda saklanmasi (`uploads/reports/sam`)
+- [x] Rapor Merkezi uzerinden olusan dosyalari listeleme/indirme
+
 ## 4. Veri ve KPI Standartlari
 
 - Ham ve normalize yazilim adlari birlikte saklanir.
@@ -81,3 +86,4 @@ Windows ve Linux ayrimi dashboard, katalog ve raporlarda zorunlu gorunur olacak.
 - Lifecycle policy CRUD (`/api/v1/sam/lifecycle-policies`)
 - Cost profile CRUD (`/api/v1/sam/cost-profiles`)
 - Risk overview API (`/api/v1/sam/risk-overview`)
+- Scheduler tabanli SAM rapor uretimi ve dosya listesi API (`/api/v1/sam/reports/generated`)

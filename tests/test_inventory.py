@@ -362,3 +362,48 @@ def test_sam_risk_overview_and_policy_crud(client, auth_headers):
     del_cost = client.delete(f"/api/v1/sam/cost-profiles/{c.json()['id']}", headers=auth_headers)
     assert del_policy.status_code == 200
     assert del_cost.status_code == 200
+
+
+def test_sam_schedule_runner_generates_files(client, auth_headers):
+    from datetime import datetime, timedelta, timezone
+
+    from app.database import SessionLocal
+    from app.models import SamReportSchedule
+    from app.tasks.scheduler import run_due_sam_report_schedules
+
+    uid, _secret, headers = _register_agent(client)
+    client.post("/api/v1/agent/inventory", json={
+        "inventory_hash": "sched-1",
+        "software_count": 1,
+        "items": [{"name": "Sched App", "version": "1.0"}],
+    }, headers=headers)
+
+    create = client.post("/api/v1/sam/report-schedules", json={
+        "name": "test minute",
+        "report_type": "sam_catalog",
+        "format": "csv",
+        "cron_expr": "* * * * *",
+        "recipients": None,
+        "is_active": True,
+    }, headers=auth_headers)
+    assert create.status_code == 201
+    sched_id = create.json()["id"]
+    assert create.json()["next_run_at"] is not None
+
+    db = SessionLocal()
+    try:
+        item = db.query(SamReportSchedule).filter(SamReportSchedule.id == sched_id).first()
+        assert item is not None
+        item.next_run_at = datetime.now(timezone.utc) - timedelta(minutes=2)
+        db.add(item)
+        db.commit()
+    finally:
+        db.close()
+
+    run_due_sam_report_schedules()
+
+    files = client.get("/api/v1/sam/reports/generated?limit=20", headers=auth_headers)
+    assert files.status_code == 200
+    payload = files.json()
+    assert payload["total"] >= 1
+    assert any(str(x.get("filename", "")).startswith("sam_catalog_schedule_") for x in payload["items"])
