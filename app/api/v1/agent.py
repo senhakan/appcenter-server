@@ -202,6 +202,7 @@ def heartbeat(
                 reason=pending.reason or "",
                 requested_at=pending.requested_at,
                 timeout_at=pending.approval_timeout_at,
+                requires_approval=rs.is_approval_required_for_agent(db, x_agent_uuid),
             )
         else:
             end_sig = rs.get_end_signal_for_agent(db, x_agent_uuid)

@@ -81,6 +81,13 @@
             </label>
             <div class="form-hint">Ajanlar servis izlemeyi bu ayara gore acar/kapatir (agent override yoksa).</div>
           </div>
+          <div class="col-12 col-md-6">
+            <label class="form-check form-switch mt-4">
+              <input class="form-check-input" id="s-remote-support-approval-required" type="checkbox" />
+              <span class="form-check-label">Remote Support Onay Zorunlu (Global)</span>
+            </label>
+            <div class="form-hint">Agent override yoksa uzak destek onayi bu ayara gore belirlenir.</div>
+          </div>
 
           <div class="col-12"><hr class="my-2" /></div>
           <div class="col-12">
@@ -153,6 +160,7 @@
 {% block scripts %}
 <script>
   AppCenterApi.protectPage();
+  let initialRemoteSupportApprovalRequired = true;
 
   async function loadSettings() {
     try {
@@ -172,6 +180,8 @@
       document.getElementById('s-runtime-jitter').value = map.runtime_update_jitter_sec || '300';
       document.getElementById('s-dynamic-group-sync').value = map.dynamic_group_sync_interval_sec || '120';
       document.getElementById('s-service-monitoring-enabled').checked = ['1', 'true', 'yes', 'on'].includes((map.service_monitoring_enabled || 'false').toString().toLowerCase());
+      document.getElementById('s-remote-support-approval-required').checked = ['1', 'true', 'yes', 'on'].includes((map.remote_support_approval_required || 'true').toString().toLowerCase());
+      initialRemoteSupportApprovalRequired = document.getElementById('s-remote-support-approval-required').checked;
       document.getElementById('s-session-recording-enabled').checked = ['1', 'true', 'yes', 'on'].includes((map.session_recording_enabled || 'false').toString().toLowerCase());
       document.getElementById('s-session-recording-fps').value = map.session_recording_fps || '10';
       document.getElementById('s-session-recording-watermark-enabled').checked = ['1', 'true', 'yes', 'on'].includes((map.session_recording_watermark_enabled || 'false').toString().toLowerCase());
@@ -214,6 +224,12 @@
   document.getElementById('settings-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
+      const nextRemoteApprovalRequired = document.getElementById('s-remote-support-approval-required').checked;
+      const remoteApprovalChanged = nextRemoteApprovalRequired !== initialRemoteSupportApprovalRequired;
+      if (remoteApprovalChanged) {
+        const ok = window.confirm('Global remote support onay ayari degisecek. Tum client bazli remote support onay ayarlari sifirlanacaktir. Devam edilsin mi?');
+        if (!ok) return;
+      }
       await AppCenterApi.req('/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -232,14 +248,20 @@
             runtime_update_jitter_sec: document.getElementById('s-runtime-jitter').value,
             dynamic_group_sync_interval_sec: document.getElementById('s-dynamic-group-sync').value,
             service_monitoring_enabled: document.getElementById('s-service-monitoring-enabled').checked ? 'true' : 'false',
+            remote_support_approval_required: document.getElementById('s-remote-support-approval-required').checked ? 'true' : 'false',
             session_recording_enabled: document.getElementById('s-session-recording-enabled').checked ? 'true' : 'false',
             session_recording_fps: document.getElementById('s-session-recording-fps').value,
             session_recording_watermark_enabled: document.getElementById('s-session-recording-watermark-enabled').checked ? 'true' : 'false',
           },
         }),
       });
-      AppCenterApi.toast('Ayarlar kaydedildi');
+      if (remoteApprovalChanged) {
+        AppCenterApi.toast('Ayarlar kaydedildi. Client bazli remote support onay ayarlari sifirlandi.');
+      } else {
+        AppCenterApi.toast('Ayarlar kaydedildi');
+      }
       await AppCenterApi.initUi(true);
+      initialRemoteSupportApprovalRequired = nextRemoteApprovalRequired;
       await loadRecordingServiceStatus();
     } catch (err) {
       AppCenterApi.toast(err.message);

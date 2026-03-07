@@ -54,6 +54,7 @@ DEFAULT_SETTINGS = {
     "session_timeout_minutes": ("60", "Web session timeout (minutes)"),
     "inventory_scan_interval_min": ("10", "Agent envanter tarama araligi (dakika)"),
     "service_monitoring_enabled": ("true", "Ajan servis izleme (Windows+Linux) global ac/kapat"),
+    "remote_support_approval_required": ("true", "Uzak destek baglantilarinda son kullanici onayi zorunlulugu"),
     "inventory_history_retention_days": ("90", "Yazilim degisim gecmisi saklama suresi (gun)"),
     "system_history_retention_days": ("360", "Sistem profili degisim gecmisi saklama suresi (gun)"),
     "runtime_update_interval_min": ("60", "Agent runtime update kontrol araligi (dakika)"),
@@ -344,6 +345,7 @@ def _migrate_agent_runtime_network_columns() -> None:
         "services_hash": "VARCHAR",
         "services_updated_at": "TIMESTAMPTZ",
         "service_monitoring_enabled": "BOOLEAN",
+        "remote_support_approval_required": "BOOLEAN",
     }
     with engine.begin() as conn:
         table_exists = conn.execute(

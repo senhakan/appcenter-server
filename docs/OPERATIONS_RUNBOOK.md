@@ -559,3 +559,27 @@ curl -f http://127.0.0.1:8000/health
 - Canli temizlik sorgusu:
   - `agent_system_profile_history` icindeki servis metni tasiyan legacy satirlar silindi.
   - 2026-03-05 calistirmasinda silinen satir: `0`.
+
+## 8. Remote Support Onay Politikasi (2026-03-07)
+
+- Merkezi parametre:
+  - `remote_support_approval_required` (default `true`)
+- Agent override endpoint:
+  - `PUT /api/v1/agents/{agent_uuid}/remote-support-approval`
+  - `{"enabled": null}` -> global ayar
+  - `{"enabled": true}` -> bu agentta onay zorunlu
+  - `{"enabled": false}` -> bu agentta promptsiz auto-approve
+- Heartbeat payload:
+  - `remote_support_request.requires_approval`
+  - Agentlar bu alana gore prompt acar veya direkt approve+ready akisina gecer.
+
+Canli dogrulama:
+
+- Linux `d85705fd-d8ee-4654-9879-d982141e558c`:
+  - inherit (`enabled=null`) -> `pending_approval`
+  - override false (`enabled=false`) -> `active`
+- Windows `54d2ad5c-5b66-477d-82da-e5a22ef6dc01`:
+  - inherit (`enabled=null`) -> `pending_approval`
+  - override false (`enabled=false`) -> `active`
+- Not:
+  - Windows `03dff9e6-0d3a-4bc5-baec-3b3b121ea919` testinde timeout goruldu (agent tarafi signal/heartbeat gecikmesi).

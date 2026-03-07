@@ -190,6 +190,7 @@ class RemoteSupportRequest(BaseModel):
     reason: str = ""
     requested_at: datetime
     timeout_at: datetime
+    requires_approval: bool = True
 
 
 class RemoteSupportEnd(BaseModel):
@@ -456,6 +457,7 @@ class AgentResponse(BaseModel):
     services_updated_at: Optional[datetime] = None
     services_hash: Optional[str] = None
     service_monitoring_enabled: Optional[bool] = None
+    remote_support_approval_required: Optional[bool] = None
     os_user: Optional[str] = None
     os_version: Optional[str] = None
     platform: str = "windows"
@@ -693,6 +695,11 @@ class SettingsUpdateRequest(BaseModel):
 
 
 class AgentServiceMonitoringUpdateRequest(BaseModel):
+    # null means "inherit global setting"
+    enabled: Optional[bool] = None
+
+
+class AgentRemoteSupportApprovalUpdateRequest(BaseModel):
     # null means "inherit global setting"
     enabled: Optional[bool] = None
 

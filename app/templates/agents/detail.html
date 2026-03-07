@@ -250,6 +250,13 @@
         </select>
         <button id="svc-monitoring-save" class="btn btn-sm btn-outline-primary" type="button" data-required-permissions="agents.manage">Kaydet</button>
       </div>
+      <div class="d-flex align-items-center gap-2 w-100 justify-content-end">
+        <span class="text-secondary small" id="rs-approval-effective-text">Support onay: -</span>
+        <label class="form-check form-switch m-0" data-required-permissions="agents.manage">
+          <input class="form-check-input" type="checkbox" id="rs-approval-required-switch">
+          <span class="form-check-label small">Support onay gereksin.</span>
+        </label>
+      </div>
     </div>
     <div class="table-responsive">
       <table class="table card-table table-vcenter">
@@ -316,6 +323,9 @@
   let filteredServices = [];
   let globalServiceMonitoringEnabled = false;
   let currentServiceOverride = null;
+  let globalRemoteApprovalRequired = true;
+  let currentRemoteApprovalOverride = null;
+  let remoteApprovalSaveInFlight = false;
   let savedNote = '';
   const deleteModal = document.getElementById('agent-delete-modal');
 
@@ -445,6 +455,37 @@
       const src = currentServiceOverride == null ? 'global' : 'override';
       label.textContent = `Takip: ${effective ? 'acik' : 'kapali'} (${src})`;
     }
+  }
+
+  function getEffectiveRemoteApprovalRequired() {
+    if (currentRemoteApprovalOverride === true) return true;
+    if (currentRemoteApprovalOverride === false) return false;
+    return !!globalRemoteApprovalRequired;
+  }
+
+  function renderRemoteApprovalState() {
+    const requiredSwitch = document.getElementById('rs-approval-required-switch');
+    const label = document.getElementById('rs-approval-effective-text');
+    const effective = getEffectiveRemoteApprovalRequired();
+    const overrideEnabled = currentRemoteApprovalOverride !== null;
+    if (requiredSwitch) {
+      requiredSwitch.checked = !!effective;
+    }
+    if (label) {
+      const globalText = globalRemoteApprovalRequired ? 'zorunlu' : 'zorunlu degil';
+      label.textContent = `Support onay: ${effective ? 'zorunlu' : 'zorunlu degil'} (global: ${globalText}${overrideEnabled ? ', client override' : ''})`;
+    }
+  }
+
+  function getRemoteApprovalPayload() {
+    const requiredSwitch = document.getElementById('rs-approval-required-switch');
+    if (!requiredSwitch) return null;
+    const requested = !!requiredSwitch.checked;
+    // Tek switch kurali:
+    // - Switch global ile ayniysa override temizlenir (inherit -> null)
+    // - Farkliysa client override yazilir (true/false)
+    if (requested === !!globalRemoteApprovalRequired) return null;
+    return requested;
   }
 
   async function saveNote() {
@@ -603,12 +644,16 @@
       currentServiceOverride = data.service_monitoring_enabled === null || data.service_monitoring_enabled === undefined
         ? null
         : !!data.service_monitoring_enabled;
+      currentRemoteApprovalOverride = data.remote_support_approval_required === null || data.remote_support_approval_required === undefined
+        ? null
+        : !!data.remote_support_approval_required;
       const { noteInput, noteSaveBtn } = getNoteElements();
       if (noteInput) noteInput.value = data.notes || '';
       if (noteInput) noteInput.addEventListener('input', syncNoteSaveButton);
       if (noteSaveBtn) noteSaveBtn.addEventListener('click', saveNote);
       syncNoteSaveButton();
       renderServiceMonitoringState();
+      renderRemoteApprovalState();
     } catch (err) {
       AppCenterApi.toast(err.message);
     }
@@ -717,16 +762,19 @@
     if (next && hasNext) next.addEventListener('click', (e) => { e.preventDefault(); onNext(); });
   }
 
-  async function loadServiceMonitoringGlobal() {
+  async function loadGlobalPolicies() {
     try {
       const data = await AppCenterApi.req('/settings');
       const map = {};
       (data.items || []).forEach((x) => { map[x.key] = x.value; });
       globalServiceMonitoringEnabled = isTruthy(map.service_monitoring_enabled || 'false');
+      globalRemoteApprovalRequired = isTruthy(map.remote_support_approval_required || 'true');
     } catch (err) {
       globalServiceMonitoringEnabled = false;
+      globalRemoteApprovalRequired = true;
     }
     renderServiceMonitoringState();
+    renderRemoteApprovalState();
   }
 
   function renderServices(items) {
@@ -856,6 +904,32 @@
     } catch (err) {
       AppCenterApi.toast(err.message);
     }
+  }
+
+  async function saveRemoteApprovalOverride(showToast = false) {
+    if (remoteApprovalSaveInFlight) return;
+    const enabled = getRemoteApprovalPayload();
+    try {
+      remoteApprovalSaveInFlight = true;
+      const updated = await AppCenterApi.req(`/agents/${agentId}/remote-support-approval`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      });
+      currentRemoteApprovalOverride = updated.remote_support_approval_required === null || updated.remote_support_approval_required === undefined
+        ? null
+        : !!updated.remote_support_approval_required;
+      renderRemoteApprovalState();
+      if (showToast) AppCenterApi.toast('Remote support onay ayari guncellendi');
+    } catch (err) {
+      AppCenterApi.toast(err.message);
+    } finally {
+      remoteApprovalSaveInFlight = false;
+    }
+  }
+
+  async function onRemoteApprovalRequiredChanged() {
+    await saveRemoteApprovalOverride(true);
   }
 
   async function loadChangesPage(page) {
@@ -989,7 +1063,7 @@
   (async function () {
     await AppCenterApi.initUi();
     loadAgentDetail();
-    loadServiceMonitoringGlobal();
+    loadGlobalPolicies();
     loadInventory();
     loadChangesPage(1);
     loadSystemPage(1);
@@ -997,5 +1071,6 @@
     loadServiceHistory();
   })();
   document.getElementById('svc-monitoring-save')?.addEventListener('click', saveServiceMonitoringOverride);
+  document.getElementById('rs-approval-required-switch')?.addEventListener('change', onRemoteApprovalRequiredChanged);
 </script>
 {% endblock %}

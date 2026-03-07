@@ -35,6 +35,7 @@ from app.models import (
 from app.schemas import (
     AgentListResponse,
     AgentNotesUpdateRequest,
+    AgentRemoteSupportApprovalUpdateRequest,
     AgentServiceMonitoringUpdateRequest,
     AgentResponse,
     AgentUpdateUploadResponse,
@@ -276,6 +277,31 @@ def agents_update_service_monitoring(
         db,
         user_id=user.id,
         action="agent.service_monitoring.update",
+        resource_type="agent",
+        resource_id=agent_uuid,
+        details={"enabled": payload.enabled},
+    )
+    return AgentResponse.model_validate(agent)
+
+
+@router.put("/agents/{agent_uuid}/remote-support-approval", response_model=AgentResponse)
+def agents_update_remote_support_approval(
+    agent_uuid: str,
+    payload: AgentRemoteSupportApprovalUpdateRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("agents.manage")),
+) -> AgentResponse:
+    agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
+    if not agent:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
+    agent.remote_support_approval_required = payload.enabled
+    db.add(agent)
+    db.commit()
+    db.refresh(agent)
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action="agent.remote_support_approval.update",
         resource_type="agent",
         resource_id=agent_uuid,
         details={"enabled": payload.enabled},
@@ -1427,7 +1453,15 @@ def settings_update(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("settings.manage")),
 ) -> SettingsListResponse:
+    def _is_truthy(value: str | None, default: bool = False) -> bool:
+        if value is None:
+            return default
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
     now = datetime.now(timezone.utc)
+    remote_approval_changed = False
+    remote_approval_old = True
+    remote_approval_new = True
     for key, value in payload.values.items():
         if key == "ui_timezone":
             try:
@@ -1493,19 +1527,37 @@ def settings_update(
                     detail=f"dynamic_group_sync_interval_sec must be >= {MIN_DYNAMIC_GROUP_SYNC_INTERVAL_SEC}",
                 )
         item = db.query(Setting).filter(Setting.key == key).first()
+        if key == "remote_support_approval_required":
+            old_value = item.value if item else None
+            remote_approval_old = _is_truthy(old_value, default=True)
+            remote_approval_new = _is_truthy(value, default=True)
+            remote_approval_changed = remote_approval_old != remote_approval_new
         if not item:
             item = Setting(key=key, value=value, description="Updated via API", updated_at=now)
         else:
             item.value = value
             item.updated_at = now
         db.add(item)
+    cleared_agent_overrides = 0
+    if remote_approval_changed:
+        cleared_agent_overrides = (
+            db.query(Agent)
+            .filter(Agent.remote_support_approval_required.is_not(None))
+            .update({Agent.remote_support_approval_required: None}, synchronize_session=False)
+        )
     db.commit()
     audit.record_audit(
         db,
         user_id=user.id,
         action="settings.update",
         resource_type="settings",
-        details={"keys": sorted(list(payload.values.keys()))},
+        details={
+            "keys": sorted(list(payload.values.keys())),
+            "remote_support_approval_changed": remote_approval_changed,
+            "remote_support_approval_old": remote_approval_old,
+            "remote_support_approval_new": remote_approval_new,
+            "remote_support_approval_cleared_agent_overrides": int(cleared_agent_overrides or 0),
+        },
     )
     return settings_list(db)
 

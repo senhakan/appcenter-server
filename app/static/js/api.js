@@ -173,9 +173,9 @@
   function toast(message, type) {
     const tone = (type || _guessToastType(message) || "info").toString().trim().toLowerCase();
     const fw = document.getElementById("fw-global-toast");
-    const fwTypeMap = { info: "inprogress", success: "success", warning: "warning", error: "error" };
+    const fwTypeMap = { info: "info", success: "success", warning: "warning", error: "error" };
     const fwPayload = {
-      type: fwTypeMap[tone] || "inprogress",
+      type: fwTypeMap[tone] || "info",
       content: (message || "").toString(),
       timeout: 2600,
       pauseOnHover: true,

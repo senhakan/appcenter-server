@@ -115,6 +115,8 @@ class Agent(Base):
     remote_support_helper_running: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     remote_support_helper_pid: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     remote_support_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Null -> inherit global setting. True/False -> per-agent override.
+    remote_support_approval_required: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     # Service snapshot (JSON text) + hash for low-traffic sync.
     services_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     services_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True)

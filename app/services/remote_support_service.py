@@ -10,7 +10,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import Agent, AgentGroup, Group, RemoteSupportSession, User
+from app.models import Agent, AgentGroup, Group, RemoteSupportSession, Setting, User
 from app.services import agent_signal
 
 settings = get_settings()
@@ -102,6 +102,21 @@ def _ensure_no_active_session(db: Session, agent_uuid: str) -> None:
     )
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Agent already has an active remote support session")
+
+
+def _global_approval_required(db: Session) -> bool:
+    row = db.query(Setting).filter(Setting.key == "remote_support_approval_required").first()
+    raw = str(getattr(row, "value", "true") or "true").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
+def is_approval_required_for_agent(db: Session, agent_uuid: str) -> bool:
+    agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
+    if not agent:
+        return _global_approval_required(db)
+    if agent.remote_support_approval_required is None:
+        return _global_approval_required(db)
+    return bool(agent.remote_support_approval_required)
 
 
 def create_session(db: Session, agent_uuid: str, admin_user_id: int, reason: str, max_duration_min: int) -> RemoteSupportSession:
@@ -207,6 +222,33 @@ def get_pending_for_agent(db: Session, agent_uuid: str) -> Optional[RemoteSuppor
             RemoteSupportSession.agent_uuid == agent_uuid,
             RemoteSupportSession.status == "pending_approval",
             RemoteSupportSession.approval_timeout_at > now,
+        )
+        .order_by(RemoteSupportSession.id.asc())
+        .first()
+    )
+
+
+def get_actionable_for_agent(db: Session, agent_uuid: str) -> Optional[RemoteSupportSession]:
+    ensure_enabled()
+    now = _utcnow()
+    pending = (
+        db.query(RemoteSupportSession)
+        .filter(
+            RemoteSupportSession.agent_uuid == agent_uuid,
+            RemoteSupportSession.status == "pending_approval",
+            RemoteSupportSession.approval_timeout_at > now,
+        )
+        .order_by(RemoteSupportSession.id.asc())
+        .first()
+    )
+    if pending:
+        return pending
+    return (
+        db.query(RemoteSupportSession)
+        .filter(
+            RemoteSupportSession.agent_uuid == agent_uuid,
+            RemoteSupportSession.status == "approved",
+            RemoteSupportSession.connected_at.is_(None),
         )
         .order_by(RemoteSupportSession.id.asc())
         .first()
