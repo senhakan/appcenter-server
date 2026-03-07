@@ -120,6 +120,23 @@
       </tbody>
     </table>
   </div>
+
+  <div class="card">
+    <div class="card-header d-flex align-items-center justify-content-between">
+      <h3 class="card-title">Timeline Lab (V2)</h3>
+      <div class="d-flex align-items-center gap-2">
+        <select id="timeline-view-mode" class="form-select form-select-sm w-auto">
+          <option value="host_status">A: Host + Status (Onerilen)</option>
+          <option value="minute_summary">B: Dakika Ozeti</option>
+          <option value="raw_stream">C: Ham Olay Akisi</option>
+        </select>
+        <span class="badge bg-secondary-lt text-secondary" id="timeline-group-total">0</span>
+      </div>
+    </div>
+    <div class="card-body" id="timeline-grouped">
+      <div class="text-secondary">Yukleniyor...</div>
+    </div>
+  </div>
 </div>
 
 <div class="dash-v2-note">
@@ -129,6 +146,8 @@
 {% block scripts %}
 <script>
   AppCenterApi.protectPage();
+  let _timelineItems = [];
+  let _timelineGroups = [];
 
   function esc(s) {
     return (s || '')
@@ -146,6 +165,87 @@
     const m = Math.floor((s % 3600) / 60);
     if (h > 0) return `${h}s ${m}dk`;
     return `${m}dk`;
+  }
+  function severityBadge(sev) {
+    const key = (sev || '').toLowerCase();
+    if (key === 'ok') return { klass: 'bg-green-lt text-green', label: 'ok' };
+    if (key === 'warn') return { klass: 'bg-yellow-lt text-yellow', label: 'warn' };
+    if (key === 'danger') return { klass: 'bg-red-lt text-red', label: 'danger' };
+    return { klass: 'bg-blue-lt text-blue', label: key || 'info' };
+  }
+  function timelineIconByType(eventType, severity) {
+    const t = (eventType || '').toLowerCase();
+    const s = (severity || '').toLowerCase();
+    const tone = s === 'danger'
+      ? 'text-red'
+      : s === 'warn'
+        ? 'text-yellow'
+        : s === 'ok'
+          ? 'text-green'
+          : 'text-blue';
+    if (t.includes('deploy') || t.includes('release')) return { icon: 'ti ti-rocket', tone };
+    if (t.includes('inventory') || t.includes('software')) return { icon: 'ti ti-list-details', tone };
+    if (t.includes('remote') || t.includes('session')) return { icon: 'ti ti-headset', tone };
+    if (t.includes('license')) return { icon: 'ti ti-license', tone };
+    if (t.includes('task') || t.includes('job')) return { icon: 'ti ti-checkup-list', tone };
+    if (t.includes('security') || t.includes('alert')) return { icon: 'ti ti-shield-exclamation', tone };
+    if (t.includes('agent') || t.includes('status') || t.includes('heartbeat')) return { icon: 'ti ti-devices', tone };
+    return { icon: 'ti ti-activity', tone };
+  }
+  function timelineMinuteMeta(detectedAt) {
+    const dt = AppCenterApi.parseDate(detectedAt);
+    if (!dt) return { key: 'unknown', ts: 0, label: '-' };
+    const minuteTs = Math.floor(dt.getTime() / 60000) * 60000;
+    const minuteIso = new Date(minuteTs).toISOString();
+    return {
+      key: String(minuteTs),
+      ts: minuteTs,
+      label: `${AppCenterApi.relTime(minuteIso)} · ${AppCenterApi.formatDate(minuteIso)}`,
+    };
+  }
+  function summarizeTimelineGroup(eventType, hosts, total) {
+    const t = (eventType || '').toLowerCase();
+    const list = (hosts || []).filter(Boolean);
+    const freq = new Map();
+    list.forEach((h) => {
+      freq.set(h, (freq.get(h) || 0) + 1);
+    });
+    const top = Array.from(freq.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 2)
+      .map(([name, cnt]) => (cnt > 1 ? `${name} x${cnt}` : name))
+      .join(', ');
+    const compact = `${top}${freq.size > 2 ? '...' : ''} (${total})`;
+    if (t === 'status') return `${compact} status change`;
+    if (t === 'identity') return `${compact} identity change`;
+    if (t === 'task') return `${compact} task event`;
+    if (t === 'system_profile') return `${compact} system profile update`;
+    return `${compact} ${t || 'event'}`;
+  }
+  function clientsTooltip(hosts) {
+    const list = (hosts || []).filter(Boolean);
+    const freq = new Map();
+    list.forEach((h) => {
+      freq.set(h, (freq.get(h) || 0) + 1);
+    });
+    return Array.from(freq.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([name, cnt]) => (cnt > 1 ? `${name} (x${cnt})` : name))
+      .join(', ');
+  }
+  function statusLabelFromSeverity(sev) {
+    const s = (sev || '').toLowerCase();
+    if (s === 'ok') return 'Up';
+    if (s === 'danger') return 'Down';
+    return 'Unknown';
+  }
+  function eventTypeLabel(t) {
+    const e = (t || '').toLowerCase();
+    if (e === 'status') return 'Status';
+    if (e === 'task') return 'Task';
+    if (e === 'identity') return 'Identity';
+    if (e === 'system_profile') return 'System';
+    return e || '-';
   }
 
   async function loadTopSoftware() {
@@ -343,6 +443,224 @@
       if (el) el.innerHTML = `<div class="list-group-item text-danger">${esc(err.message || 'Yuklenemedi')}</div>`;
     }
   }
+  function buildTimelineGroups(items) {
+    const buckets = new Map();
+    (items || []).forEach((i) => {
+      const minute = timelineMinuteMeta(i.detected_at);
+      if (!buckets.has(minute.key)) {
+        buckets.set(minute.key, { label: minute.label, ts: minute.ts, items: [] });
+      }
+      buckets.get(minute.key).items.push(i);
+    });
+    return Array.from(buckets.values())
+      .sort((a, b) => b.ts - a.ts)
+      .map((g) => {
+        g.items.sort((a, b) => {
+          const ta = (AppCenterApi.parseDate(a.detected_at) || new Date(0)).getTime();
+          const tb = (AppCenterApi.parseDate(b.detected_at) || new Date(0)).getTime();
+          return tb - ta;
+        });
+        return g;
+      });
+  }
+
+  function renderTimelineHostStatus(groups) {
+    return groups.map((g) => {
+        const eventGroups = new Map();
+        g.items.forEach((i) => {
+          const et = (i.event_type || 'event').toLowerCase();
+          const sev = (i.severity || 'info').toLowerCase();
+          const k = et === 'status' ? et : `${et}|${sev}`;
+          if (!eventGroups.has(k)) {
+            eventGroups.set(k, { eventType: et, severity: sev, rows: [] });
+          }
+          eventGroups.get(k).rows.push(i);
+        });
+        const summarized = Array.from(eventGroups.values()).sort((a, b) => b.rows.length - a.rows.length);
+        return `
+        <div class="card mb-2">
+          <div class="card-header py-2 d-flex align-items-center justify-content-between">
+            <span class="fw-semibold">${esc(g.label)}</span>
+            <span class="badge bg-primary-lt text-primary">${g.items.length}</span>
+          </div>
+          <div class="list-group list-group-flush">
+            ${summarized.map((sg) => {
+              let sevForBadge = (sg.severity || 'info').toLowerCase();
+              if ((sg.eventType || '') === 'status') {
+                const all = sg.rows.map((x) => (x.severity || '').toLowerCase());
+                if (all.includes('danger')) sevForBadge = 'danger';
+                else if (all.includes('warn')) sevForBadge = 'warn';
+                else if (all.includes('ok')) sevForBadge = 'ok';
+              }
+              const b = severityBadge(sevForBadge);
+              const iconMeta = timelineIconByType(sg.eventType, sevForBadge);
+              const hosts = sg.rows.map((x) => x.hostname || x.agent_uuid || '-');
+              const tip = clientsTooltip(hosts);
+              const sample = sg.rows[0] || {};
+              let summaryHtml = esc(summarizeTimelineGroup(sg.eventType, hosts, sg.rows.length));
+              if ((sg.eventType || '') === 'status') {
+                const byHost = new Map();
+                sg.rows.forEach((r) => {
+                  const h = (r.hostname || r.agent_uuid || '-').toString();
+                  if (!byHost.has(h)) byHost.set(h, []);
+                  byHost.get(h).push(r);
+                });
+                const parts = [];
+                Array.from(byHost.entries())
+                  .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
+                  .slice(0, 3)
+                  .forEach(([host, rows]) => {
+                    const stateTimes = new Map();
+                    rows
+                      .sort((a, b) => (AppCenterApi.parseDate(a.detected_at) || new Date(0)).getTime() - (AppCenterApi.parseDate(b.detected_at) || new Date(0)).getTime())
+                      .forEach((r) => {
+                        const label = statusLabelFromSeverity(r.severity);
+                        if (!stateTimes.has(label)) stateTimes.set(label, []);
+                        stateTimes.get(label).push(AppCenterApi.formatDate(r.detected_at));
+                      });
+                    const statesHtml = Array.from(stateTimes.entries())
+                      .map(([label, times]) => `<span class="badge bg-secondary-lt text-secondary" title="${esc(times.join(' | '))}">${esc(label)}</span>`)
+                      .join(' ');
+                    parts.push(`${esc(host)} status change ${statesHtml}`);
+                  });
+                if (byHost.size > 3) parts.push(`<span class="text-secondary">+${byHost.size - 3} host daha</span>`);
+                summaryHtml = parts.join(' · ');
+              }
+              return `
+                <div class="list-group-item">
+                  <div class="d-flex align-items-start gap-2">
+                    <i class="${iconMeta.icon} ${iconMeta.tone} mt-1"></i>
+                    <div class="flex-grow-1">
+                      <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <a class="text-reset text-decoration-none fw-medium" href="/agents/${esc(sample.agent_uuid || '')}">${esc(sample.hostname || '-')}</a>
+                        <span class="badge ${b.klass}">${esc(b.label)}</span>
+                        <span class="text-secondary small">${esc(sg.eventType || '-')}</span>
+                        <span class="badge bg-secondary-lt text-secondary">${sg.rows.length}</span>
+                      </div>
+                      <div class="text-secondary small mt-1" title="${esc(tip)}">${summaryHtml}</div>
+                    </div>
+                    <div class="text-secondary small text-nowrap" title="${esc(AppCenterApi.formatDate(sample.detected_at))}">${esc(AppCenterApi.relTime(sample.detected_at))}</div>
+                  </div>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>
+      `;
+      }).join('');
+  }
+
+  function renderTimelineMinuteSummary(groups) {
+    return groups.map((g) => {
+      const byType = new Map();
+      g.items.forEach((i) => {
+        const t = (i.event_type || 'event').toLowerCase();
+        if (!byType.has(t)) {
+          byType.set(t, { type: t, total: 0, up: 0, down: 0, hosts: new Set() });
+        }
+        const row = byType.get(t);
+        row.total += 1;
+        row.hosts.add(i.hostname || i.agent_uuid || '-');
+        const sev = (i.severity || '').toLowerCase();
+        if (t === 'status' && sev === 'ok') row.up += 1;
+        if (t === 'status' && sev === 'danger') row.down += 1;
+      });
+      const rows = Array.from(byType.values()).sort((a, b) => b.total - a.total);
+      return `
+        <div class="card mb-2">
+          <div class="card-header py-2 d-flex align-items-center justify-content-between">
+            <span class="fw-semibold">${esc(g.label)}</span>
+            <span class="badge bg-primary-lt text-primary">${g.items.length}</span>
+          </div>
+          <div class="table-responsive">
+            <table class="table card-table table-vcenter">
+              <thead><tr><th>Tip</th><th>Host Ozeti</th><th>Durum</th><th>Olay</th></tr></thead>
+              <tbody>
+                ${rows.map((r) => {
+                  const hostList = Array.from(r.hosts);
+                  const hostPreview = `${hostList.slice(0, 2).join(', ')}${hostList.length > 2 ? '...' : ''} (${hostList.length})`;
+                  const hostTip = hostList.join(', ');
+                  let state = '<span class="text-secondary">-</span>';
+                  if (r.type === 'status') {
+                    state = `<span class="badge bg-green-lt text-green" title="Up sayisi">Up ${r.up}</span> <span class="badge bg-red-lt text-red" title="Down sayisi">Down ${r.down}</span>`;
+                  }
+                  return `<tr>
+                    <td><span class="badge bg-secondary-lt text-secondary">${esc(eventTypeLabel(r.type))}</span></td>
+                    <td title="${esc(hostTip)}">${esc(hostPreview)}</td>
+                    <td>${state}</td>
+                    <td><span class="badge bg-primary-lt text-primary">${r.total}</span></td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderTimelineRaw(groups) {
+    return groups.map((g) => `
+      <div class="card mb-2">
+        <div class="card-header py-2 d-flex align-items-center justify-content-between">
+          <span class="fw-semibold">${esc(g.label)}</span>
+          <span class="badge bg-primary-lt text-primary">${g.items.length}</span>
+        </div>
+        <div class="list-group list-group-flush">
+          ${g.items.map((i) => {
+            const b = severityBadge(i.severity);
+            const iconMeta = timelineIconByType(i.event_type, i.severity);
+            return `<div class="list-group-item">
+              <div class="d-flex align-items-start gap-2">
+                <i class="${iconMeta.icon} ${iconMeta.tone} mt-1"></i>
+                <div class="flex-grow-1">
+                  <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <a class="text-reset text-decoration-none fw-medium" href="/agents/${esc(i.agent_uuid || '')}">${esc(i.hostname || '-')}</a>
+                    <span class="badge ${b.klass}">${esc(b.label)}</span>
+                    <span class="text-secondary small">${esc(eventTypeLabel(i.event_type))}</span>
+                  </div>
+                  <div class="text-secondary small mt-1">${esc(i.summary || '-')}</div>
+                </div>
+                <div class="text-secondary small text-nowrap" title="${esc(AppCenterApi.formatDate(i.detected_at))}">${esc(AppCenterApi.relTime(i.detected_at))}</div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function renderTimelineByMode() {
+    const el = document.getElementById('timeline-grouped');
+    if (!el) return;
+    if (!_timelineItems.length) {
+      el.innerHTML = '<div class="text-secondary">Kayit yok</div>';
+      return;
+    }
+    const mode = (document.getElementById('timeline-view-mode')?.value || 'host_status').toLowerCase();
+    if (mode === 'minute_summary') {
+      el.innerHTML = renderTimelineMinuteSummary(_timelineGroups);
+      return;
+    }
+    if (mode === 'raw_stream') {
+      el.innerHTML = renderTimelineRaw(_timelineGroups);
+      return;
+    }
+    el.innerHTML = renderTimelineHostStatus(_timelineGroups);
+  }
+
+  async function loadTimelineGrouped() {
+    const el = document.getElementById('timeline-grouped');
+    const totalBadge = document.getElementById('timeline-group-total');
+    try {
+      const data = await AppCenterApi.req('/dashboard/timeline');
+      _timelineItems = data.items || [];
+      _timelineGroups = buildTimelineGroups(_timelineItems);
+      if (totalBadge) totalBadge.textContent = String(_timelineItems.length);
+      renderTimelineByMode();
+    } catch (err) {
+      if (el) el.innerHTML = `<div class="text-danger">${esc(err.message || 'Yuklenemedi')}</div>`;
+    }
+  }
 
   async function loadDashboardV2() {
     await Promise.all([
@@ -351,11 +669,14 @@
       loadTrends(),
       loadComplianceBreakdown(),
       loadRemoteMetrics(),
+      loadTimelineGrouped(),
     ]);
   }
 
   (async function () {
     await AppCenterApi.initUi();
+    const modeEl = document.getElementById('timeline-view-mode');
+    if (modeEl) modeEl.addEventListener('change', renderTimelineByMode);
     await loadDashboardV2();
     setInterval(loadDashboardV2, 15000);
   })();
