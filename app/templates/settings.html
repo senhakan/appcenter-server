@@ -154,6 +154,28 @@
         </form>
       </div>
     </div>
+    <div class="card mt-3">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Broadcast Self-Update</h3>
+      </div>
+      <div class="card-body">
+        <div class="form-hint mb-3">Sadece online ve WS baglantili ajanlara gonderilir.</div>
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label">Mode</label>
+            <select class="form-select" id="broadcast-self-update-mode">
+              <option value="normal" selected>normal (sadece yeni surum varsa)</option>
+              <option value="force">force (ayni surum/hash olsa bile yeniden indir)</option>
+            </select>
+          </div>
+          <div class="col-12 d-grid">
+            <button class="btn btn-warning" id="broadcast-self-update-btn" type="button">
+              <i class="ti ti-refresh me-1"></i>Online Ajanlara Self-Update Gonder
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}
@@ -288,6 +310,35 @@
   }
   updatePlatform.addEventListener('change', syncUpdateFileAccept);
   syncUpdateFileAccept();
+
+  async function sendBroadcastSelfUpdate() {
+    const mode = (document.getElementById('broadcast-self-update-mode').value || 'normal').toLowerCase();
+    const isForce = mode === 'force';
+    const ok = await AppCenterApi.confirm({
+      title: `Broadcast Self-Update Onayi (${mode})`,
+      message: isForce
+        ? 'Force mode secildi: ayni surum/hash olsa bile paket yeniden indirilip binary degisimi denenir. Devam edilsin mi?'
+        : 'Normal mode: sadece yeni surum algilanirsa self-update uygulanir. Devam edilsin mi?',
+      confirmText: isForce ? 'Force Self-Update Gonder' : 'Normal Self-Update Gonder',
+      cancelText: 'Vazgec',
+      tone: isForce ? 'danger' : 'warning',
+    });
+    if (!ok) return;
+    const result = await AppCenterApi.req('/settings/agents/broadcast', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'self_update', mode }),
+    });
+    AppCenterApi.toast(`${result.message} (hedef: ${result.targeted}, atlanan: ${result.skipped})`);
+  }
+
+  document.getElementById('broadcast-self-update-btn').addEventListener('click', async () => {
+    try {
+      await sendBroadcastSelfUpdate();
+    } catch (err) {
+      AppCenterApi.toast(err.message || 'Broadcast self-update gonderilemedi');
+    }
+  });
 
   loadSettings();
 </script>

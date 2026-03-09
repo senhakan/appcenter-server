@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.database import SessionLocal
 from app.models import AuditLog
+from app.services.ws_manager import ws_manager
 
 
 def _register_agent(client: TestClient, uuid: str = 'agent-test-1') -> dict[str, str]:
@@ -58,6 +59,53 @@ def test_dashboard_stats_and_settings(client: TestClient, auth_headers: dict[str
     items = {x['key']: x['value'] for x in settings_after.json()['items']}
     assert items['heartbeat_interval_sec'] == '45'
     assert items['bandwidth_limit_kbps'] == '2048'
+
+
+def test_settings_broadcast_self_update_supports_mode(client: TestClient, auth_headers: dict[str, str]) -> None:
+    agent_uuid = 'agent-broadcast-safe-1'
+    agent_headers = _register_agent(client, uuid=agent_uuid)
+    hb = client.post(
+        '/api/v1/agent/heartbeat',
+        headers=agent_headers,
+        json={'hostname': 'PC-BROADCAST', 'apps_changed': False, 'installed_apps': []},
+    )
+    assert hb.status_code == 200
+
+    sent: list[tuple[str, dict]] = []
+    old_agents = dict(ws_manager._agents)  # pylint: disable=protected-access
+    old_schedule = ws_manager.schedule_send_to_agent
+    try:
+        ws_manager._agents.clear()  # pylint: disable=protected-access
+        ws_manager._agents[agent_uuid] = object()  # pylint: disable=protected-access
+
+        def _capture(uuid: str, message: dict) -> None:
+            sent.append((uuid, message))
+
+        ws_manager.schedule_send_to_agent = _capture  # type: ignore[assignment]
+
+        resp = client.post(
+            '/api/v1/settings/agents/broadcast',
+            headers=auth_headers,
+            json={'action': 'self_update', 'mode': 'force'},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data['targeted'] == 1
+        assert "mode=force" in data['message']
+        assert sent and sent[0][0] == agent_uuid
+        assert sent[0][1]['type'] == 'server.broadcast.self_update'
+        assert sent[0][1]['payload']['mode'] == 'force'
+
+        restart_resp = client.post(
+            '/api/v1/settings/agents/broadcast',
+            headers=auth_headers,
+            json={'action': 'restart'},
+        )
+        assert restart_resp.status_code == 422
+    finally:
+        ws_manager._agents.clear()  # pylint: disable=protected-access
+        ws_manager._agents.update(old_agents)  # pylint: disable=protected-access
+        ws_manager.schedule_send_to_agent = old_schedule
 
 
 def test_agent_store_and_update_flow(client: TestClient, auth_headers: dict[str, str]) -> None:

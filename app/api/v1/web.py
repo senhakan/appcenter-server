@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
@@ -68,6 +69,8 @@ from app.schemas import (
     MessageResponse,
     SettingItem,
     SettingsListResponse,
+    SettingsAgentBroadcastRequest,
+    SettingsAgentBroadcastResponse,
     SettingsUpdateRequest,
 )
 from app.services.application_service import (
@@ -82,7 +85,9 @@ from app.services.application_service import (
     update_application_icon,
 )
 from app.services import audit_service as audit
+from app.services import agent_signal
 from app.services import dynamic_group_service
+from app.services import broadcast_service
 from app.services.deployment_service import (
     create_deployment,
     delete_deployment,
@@ -90,6 +95,7 @@ from app.services.deployment_service import (
     list_deployments,
     update_deployment,
 )
+from app.services.ws_manager import make_message, ws_manager
 from app.utils.file_handler import move_temp_to_final, save_upload_to_temp
 
 router = APIRouter(tags=["web"])
@@ -1559,7 +1565,79 @@ def settings_update(
             "remote_support_approval_cleared_agent_overrides": int(cleared_agent_overrides or 0),
         },
     )
+    if ws_manager.agent_count > 0:
+        changed = dict(payload.values)
+        msg = make_message("server.config.patch", {"changes": changed})
+        for uuid in ws_manager.agent_uuids:
+            ws_manager.schedule_send_to_agent(uuid, msg)
     return settings_list(db)
+
+
+@router.get("/ws/stats")
+def ws_stats(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("settings.manage")),
+):
+    ws_agents = ws_manager.agent_uuids
+    ws_agent_set = set(ws_agents)
+
+    all_online = db.query(Agent.uuid).filter(Agent.status == "online").all()
+    all_online_uuids = [a.uuid for a in all_online]
+    http_agents = [uuid for uuid in all_online_uuids if uuid not in ws_agent_set]
+
+    flags = {}
+    for key in ["ws_agent_enabled", "ui_ws_enabled"]:
+        row = db.query(Setting).filter(Setting.key == key).first()
+        flags[key] = row.value.lower() in ("true", "1", "yes") if row and row.value else False
+
+    return {
+        "ws_agent_connections": ws_manager.agent_count,
+        "ws_ui_connections": ws_manager.ui_count,
+        "signal_listeners": agent_signal.active_listener_count(),
+        "agents_ws_mode": ws_agents,
+        "agents_ws_count": len(ws_agents),
+        "agents_http_mode": http_agents,
+        "agents_http_count": len(http_agents),
+        "total_online": len(all_online_uuids),
+        **flags,
+    }
+
+
+@router.post("/settings/agents/broadcast", response_model=SettingsAgentBroadcastResponse)
+def settings_agents_broadcast(
+    payload: SettingsAgentBroadcastRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("settings.manage")),
+) -> SettingsAgentBroadcastResponse:
+    action = payload.action
+    mode = (payload.mode or "normal").strip().lower()
+    result = broadcast_service.dispatch_agent_broadcast(db, action, mode=mode)
+    audit.record_audit(
+        db,
+        user_id=user.id,
+        action=f"settings.agent_broadcast.{action}",
+        resource_type="settings",
+        details={
+            "action": action,
+            "mode": mode,
+            "targeted": result.targeted,
+            "skipped": result.skipped,
+            "targeted_agents": result.targeted_agents,
+            "skipped_agents": result.skipped_agents,
+        },
+    )
+    msg = (
+        f"Broadcast '{action}' (mode={mode}) dispatched to {result.targeted} online WS agent(s); "
+        f"{result.skipped} agent(s) skipped"
+    )
+    return SettingsAgentBroadcastResponse(
+        message=msg,
+        action=action,
+        targeted=result.targeted,
+        skipped=result.skipped,
+        targeted_agents=result.targeted_agents,
+        skipped_agents=result.skipped_agents,
+    )
 
 
 @router.post("/agent-update/upload", response_model=AgentUpdateUploadResponse)
@@ -1616,6 +1694,28 @@ async def upload_agent_update(
         resource_id=filename,
         details={"version": version},
     )
+    # WS ajanlar HTTP heartbeat yapmadigi icin update metadata'sini reconnect beklemeden it.
+    if ws_manager.agent_count > 0:
+        ws_ids = ws_manager.agent_uuids
+        if ws_ids:
+            patch = {
+                "agent_latest_version": version,
+                "agent_download_url": download_url,
+                "agent_hash": f"sha256:{digest_hex}",
+            }
+            connected = (
+                db.query(Agent.uuid, Agent.platform)
+                .filter(Agent.uuid.in_(ws_ids))
+                .all()
+            )
+            for agent_uuid, agent_platform in connected:
+                p = (agent_platform or "windows").strip().lower()
+                if p != platform:
+                    continue
+                ws_manager.schedule_send_to_agent(
+                    agent_uuid,
+                    make_message("server.config.patch", {"changes": patch}),
+                )
 
     return AgentUpdateUploadResponse(
         status="success",

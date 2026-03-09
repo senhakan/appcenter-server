@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -180,6 +180,7 @@ class HeartbeatConfig(BaseModel):
     inventory_scan_interval_min: int = 10
     store_tray_enabled: bool = False
     remote_support_enabled: bool = False
+    websocket_enabled: bool = False
     runtime_update_interval_min: int = 60
     runtime_update_jitter_sec: int = 300
 
@@ -692,6 +693,21 @@ class SettingsListResponse(BaseModel):
 
 class SettingsUpdateRequest(BaseModel):
     values: dict[str, str]
+
+
+class SettingsAgentBroadcastRequest(BaseModel):
+    action: Literal["self_update"]
+    mode: Literal["normal", "force"] = "normal"
+
+
+class SettingsAgentBroadcastResponse(BaseModel):
+    status: str = "success"
+    message: str
+    action: str
+    targeted: int
+    skipped: int
+    targeted_agents: list[str] = Field(default_factory=list)
+    skipped_agents: list[str] = Field(default_factory=list)
 
 
 class AgentServiceMonitoringUpdateRequest(BaseModel):
