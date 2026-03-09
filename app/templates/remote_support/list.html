@@ -894,8 +894,32 @@
       currentPage += 1;
       renderPage();
     });
+    const RS_POLL_FAST_MS = 2000;
+    const RS_POLL_SLOW_MS = 15000;
+    let rsPollTimer = null;
+
+    function currentRSPollMs() {
+      return (window.appCenterWS && window.appCenterWS.connected)
+        ? RS_POLL_SLOW_MS
+        : RS_POLL_FAST_MS;
+    }
+
+    function resetRSPolling() {
+      if (rsPollTimer) clearInterval(rsPollTimer);
+      rsPollTimer = setInterval(() => loadAgents({ soft: true }), currentRSPollMs());
+    }
+
+    window.addEventListener('ws-connected', resetRSPolling);
+    window.addEventListener('ws-disconnected', resetRSPolling);
+    window.addEventListener('ws-event', function(e) {
+      const msg = e.detail || {};
+      if (msg.type === 'server.agent.status' || msg.type === 'server.task.update') {
+        loadAgents({ soft: true });
+      }
+    });
+
     loadAgents();
-    setInterval(() => loadAgents({ soft: true }), 2000);
+    resetRSPolling();
   })();
 </script>
 {% endblock %}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -12,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.models import Agent, AgentGroup, Group, RemoteSupportSession, Setting, User
 from app.services import agent_signal
+from app.services.ws_manager import make_message, ws_manager
 
 settings = get_settings()
 
@@ -157,6 +159,23 @@ def create_session(db: Session, agent_uuid: str, admin_user_id: int, reason: str
     db.commit()
     db.refresh(session)
     agent_signal.notify_agent(agent_uuid)
+    if ws_manager.is_agent_connected(agent_uuid):
+        ws_manager.schedule_send_to_agent(
+            agent_uuid,
+            make_message(
+                "server.rs.request",
+                {
+                    "session_id": session.id,
+                    "admin_user_id": admin_user_id,
+                    "reason": clean_reason,
+                    "requested_at": session.requested_at.isoformat() if session.requested_at else None,
+                    "approval_timeout_at": session.approval_timeout_at.isoformat() if session.approval_timeout_at else None,
+                    "vnc_password": session.vnc_password,
+                    "max_duration_min": session.max_duration_min,
+                },
+                ack=True,
+            ),
+        )
     return session
 
 
@@ -361,6 +380,19 @@ def end_session(db: Session, session_id: int, ended_by: str) -> RemoteSupportSes
     db.refresh(session)
     _stop_recording_best_effort(db, session.id, reason=f"session_end:{ended_by}")
     agent_signal.notify_agent(session.agent_uuid)
+    if ws_manager.is_agent_connected(session.agent_uuid):
+        ws_manager.schedule_send_to_agent(
+            session.agent_uuid,
+            make_message(
+                "server.rs.end",
+                {
+                    "session_id": session.id,
+                    "ended_by": session.ended_by,
+                    "ended_at": session.ended_at.isoformat() if session.ended_at else None,
+                },
+                ack=True,
+            ),
+        )
     return session
 
 
@@ -405,6 +437,19 @@ def cancel_pending_session(db: Session, session_id: int, admin_user_id: int | No
     db.refresh(session)
     _stop_recording_best_effort(db, session.id, reason="pending_cancel")
     agent_signal.notify_agent(session.agent_uuid)
+    if ws_manager.is_agent_connected(session.agent_uuid):
+        ws_manager.schedule_send_to_agent(
+            session.agent_uuid,
+            make_message(
+                "server.rs.end",
+                {
+                    "session_id": session.id,
+                    "ended_by": session.ended_by,
+                    "ended_at": session.ended_at.isoformat() if session.ended_at else None,
+                },
+                ack=True,
+            ),
+        )
     return session
 
 

@@ -28,14 +28,18 @@ server/
 │   │   └── v1/
 │   │       ├── __init__.py
 │   │       ├── agent.py        # Agent endpoints (register, heartbeat, download, task status, store)
+│   │       ├── agent_ws.py     # Agent WebSocket endpoint (auth, hello, ping/pong, status)
+│   │       ├── ui_ws.py        # UI WebSocket endpoint (JWT auth, feature flag)
 │   │       ├── web.py          # Web UI endpoints (agents, apps, deployments CRUD)
 │   │       └── auth.py         # Login/logout endpoints
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── agent_service.py
+│   │   ├── agent_signal.py     # Signal registry: WS-first push + long-poll fallback
 │   │   ├── application_service.py
 │   │   ├── deployment_service.py
-│   │   └── heartbeat_service.py
+│   │   ├── heartbeat_service.py
+│   │   └── ws_manager.py       # WSManager singleton, AgentConnection, UIConnection
 │   ├── utils/
 │   │   ├── __init__.py
 │   │   ├── file_handler.py     # Güvenli upload, sanitize filename
@@ -176,6 +180,13 @@ server/
 ### Faz 5: Polish
 1. [x] Store API endpoint
 2. [x] Settings endpoint (okuma/yazma)
+
+### WebSocket Migration (WS_MIGRATION_PLAN_v2.md)
+- Faz 0 tamamlandı: nginx WS locations, DB feature flags, agent config struct
+- Faz 1 tamamlandı: ws_manager.py, agent_ws.py, ui_ws.py, agent_signal.py WS-first, agent wsconn paketi, heartbeat wsActive, canary test
+- Faz 2 tamamlandı: server push (command/RS/config), heartbeat→UI broadcast, ws-client.js, agent dispatcher, E2E test geçti
+- Faz 3 tamamlandı: stats endpoint (/api/v1/ws/stats), dashboard WS göstergesi, rollback testi, canary stabil
+- Genel rollout aktif (2026-03-08): heartbeat config websocket_enabled=true gönderiyor, 7/10 agent WS'de
 3. [x] Dashboard istatistikleri
 4. [x] Agent update upload
 5. [x] Error handling iyileştirmesi

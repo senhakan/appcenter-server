@@ -58,6 +58,25 @@
     <script type="module" src="/static/vendor/crayons/dist/crayons/crayons.esm.js?v={{ ASSET_VERSION }}"></script>
     <script nomodule src="/static/vendor/crayons/dist/crayons/crayons.js?v={{ ASSET_VERSION }}"></script>
     <script src="/static/js/api.js?v={{ ASSET_VERSION }}"></script>
+    <script src="/static/js/ws-client.js?v={{ ASSET_VERSION }}"></script>
+    <script>
+      window.appCenterWS = new AppCenterWS({
+        onEvent: function(msg) {
+          window.dispatchEvent(new CustomEvent("ws-event", { detail: msg }));
+        },
+        onConnect: function() {
+          console.log("WS connected, reducing polling...");
+          window.dispatchEvent(new Event("ws-connected"));
+        },
+        onDisconnect: function() {
+          console.log("WS disconnected, polling resumed");
+          window.dispatchEvent(new Event("ws-disconnected"));
+        }
+      });
+      if (window.location.pathname !== "/login") {
+        window.appCenterWS.start();
+      }
+    </script>
     {% block scripts %}{% endblock %}
   </body>
 </html>

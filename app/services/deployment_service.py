@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Agent, AgentApplication, AgentGroup, Application, Deployment
 from app.schemas import DeploymentCreateRequest, DeploymentUpdateRequest
+from app.services import agent_signal
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,38 @@ def _resolve_target_agents(db: Session, target_type: str, target_id: Optional[st
         agent = db.query(Agent).filter(Agent.uuid == target_id).first()
         return [agent] if agent else []
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid target_type")
+
+
+def _get_deployment_target_agents(db: Session, deployment: Deployment) -> list[str]:
+    target_type = (deployment.target_type or "").strip().lower()
+    target_id = (deployment.target_id or "").strip()
+
+    if target_type == "all":
+        rows = db.query(Agent.uuid).filter(Agent.status == "online").all()
+        return [str(row[0]) for row in rows if row and row[0]]
+
+    if target_type == "group":
+        if not target_id:
+            return []
+        try:
+            group_id = int(target_id)
+        except ValueError:
+            return []
+        rows = (
+            db.query(Agent.uuid)
+            .join(AgentGroup, AgentGroup.agent_uuid == Agent.uuid)
+            .filter(AgentGroup.group_id == group_id, Agent.status == "online")
+            .all()
+        )
+        return [str(row[0]) for row in rows if row and row[0]]
+
+    if target_type == "agent":
+        if not target_id:
+            return []
+        row = db.query(Agent.uuid).filter(Agent.uuid == target_id, Agent.status == "online").first()
+        return [str(row[0])] if row and row[0] else []
+
+    return []
 
 
 def _ensure_application_exists(db: Session, app_id: int) -> None:
@@ -105,6 +138,8 @@ def create_deployment(db: Session, payload: DeploymentCreateRequest, created_by:
     _seed_agent_applications(db, deployment)
     db.commit()
     db.refresh(deployment)
+    for agent_uuid in _get_deployment_target_agents(db, deployment):
+        agent_signal.notify_agent(agent_uuid)
     return deployment
 
 
@@ -178,6 +213,7 @@ def queue_store_install_for_agent(db: Session, agent_uuid: str, app_id: int) -> 
             )
         )
         db.commit()
+        agent_signal.notify_agent(agent_uuid)
         return "queued", "Install request queued"
 
     if agent_app.status in {"pending", "downloading", "installing"}:
@@ -193,7 +229,9 @@ def queue_store_install_for_agent(db: Session, agent_uuid: str, app_id: int) -> 
             agent_app.error_message = None
             db.add(agent_app)
             db.commit()
+            agent_signal.notify_agent(agent_uuid)
             return "queued", "Install request re-queued"
+        agent_signal.notify_agent(agent_uuid)
         return "already_queued", "Install request already queued"
 
     if agent_app.status == "installed" and agent_app.installed_version == app.version:
@@ -203,4 +241,5 @@ def queue_store_install_for_agent(db: Session, agent_uuid: str, app_id: int) -> 
     agent_app.error_message = None
     db.add(agent_app)
     db.commit()
+    agent_signal.notify_agent(agent_uuid)
     return "queued", "Install request queued"

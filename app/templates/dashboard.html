@@ -161,6 +161,19 @@
           </div>
         </div>
       </div>
+      <div>
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center">
+              <div class="subheader">WebSocket</div>
+            </div>
+            <div class="h1 mb-0" id="ws-status">-</div>
+            <div class="d-flex mb-2">
+              <div class="text-muted" id="ws-detail">Yukleniyor...</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="dash-mini-grid">
@@ -263,6 +276,9 @@
 {% block scripts %}
 <script>
   AppCenterApi.protectPage();
+  const DASHBOARD_POLL_FAST_MS = 10000;
+  const DASHBOARD_POLL_SLOW_MS = 60000;
+  let dashboardPollTimer = null;
   let totalAgents = 0;
   let latestTimelineTs = 0;
 
@@ -449,6 +465,20 @@
       // inventory stats optional
     }
 
+    try {
+      const token = AppCenterApi.getToken() || '';
+      const res = await fetch('/api/v1/ws/stats', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMetric('ws-status', `${data.ws_agent_connections || 0} WS / ${data.agents_http_count || 0} HTTP`);
+        setMetric('ws-detail', `UI: ${data.ws_ui_connections || 0} bagli | Signal: ${data.signal_listeners || 0}`);
+      }
+    } catch (_) {
+      // ws stats optional
+    }
+
     await loadTimeline();
     await loadTopClients();
   }
@@ -458,10 +488,30 @@
     await loadDashboard();
   }
 
+  function currentDashboardPollMs() {
+    return (window.appCenterWS && window.appCenterWS.connected)
+      ? DASHBOARD_POLL_SLOW_MS
+      : DASHBOARD_POLL_FAST_MS;
+  }
+
+  function resetDashboardPolling() {
+    if (dashboardPollTimer) clearInterval(dashboardPollTimer);
+    dashboardPollTimer = setInterval(loadDashboard, currentDashboardPollMs());
+  }
+
+  window.addEventListener('ws-connected', resetDashboardPolling);
+  window.addEventListener('ws-disconnected', resetDashboardPolling);
+  window.addEventListener('ws-event', function(e) {
+    const msg = e.detail || {};
+    if (msg.type === 'server.agent.status' || msg.type === 'server.task.update') {
+      loadDashboard();
+    }
+  });
+
   (async function () {
     await AppCenterApi.initUi();
     await loadDashboard();
-    setInterval(loadDashboard, 10000);
+    resetDashboardPolling();
   })();
 </script>
 {% endblock %}

@@ -18,11 +18,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.api.v1.agent import router as agent_router
+from app.api.v1.agent_ws import router as agent_ws_router
 from app.api.v1.audit import router as audit_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.inventory import router as inventory_router
 from app.api.v1.remote_support import router as remote_support_router
 from app.api.v1.roles import router as roles_router
+from app.api.v1.ui_ws import router as ui_ws_router
 from app.api.v1.users import router as users_router
 from app.api.v1.web import router as web_router
 from app.config import get_settings
@@ -31,6 +33,7 @@ from app.models import Setting
 from app.tasks.scheduler import start_scheduler, stop_scheduler
 from app.utils.file_handler import ensure_upload_dir
 from app.services import agent_signal, novnc_service
+from app.services.ws_manager import ws_manager
 from sqlalchemy.orm import Session
 
 settings = get_settings()
@@ -302,8 +305,10 @@ async def lifespan(_: FastAPI):
     init_db()
     seed_initial_data()
     start_scheduler()
+    ws_manager.set_loop(asyncio.get_running_loop())
     yield
     agent_signal.clear_all()
+    await ws_manager.close_all()
     stop_scheduler()
 
 
@@ -326,6 +331,8 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(agent_router, prefix=settings.api_v1_prefix)
+app.include_router(agent_ws_router, prefix=settings.api_v1_prefix + "/agent")
+app.include_router(ui_ws_router, prefix=settings.api_v1_prefix + "/ui")
 app.include_router(web_router, prefix=settings.api_v1_prefix)
 app.include_router(inventory_router, prefix=settings.api_v1_prefix)
 app.include_router(remote_support_router, prefix=settings.api_v1_prefix)

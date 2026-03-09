@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import hashlib
 from datetime import datetime, timezone
@@ -22,6 +23,7 @@ from app.models import (
     TaskHistory,
 )
 from app.schemas import CommandItem, HeartbeatConfig, HeartbeatRequest, ServiceItem
+from app.services.ws_manager import make_message, ws_manager
 
 
 def _get_setting(db: Session, key: str, default: str) -> str:
@@ -348,7 +350,22 @@ def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> t
                 continue
             seen.add(ip)
             full_ip_list.append(ip)
-    effective_ip = payload.ip_address or (full_ip_list[0] if full_ip_list else None)
+    payload_ip = (payload.ip_address or "").strip() or None
+    persisted_ip = (agent.ip_address or "").strip() or None
+    persisted_full_ip_first: str | None = None
+    if not payload_ip and not full_ip_list and agent.full_ip:
+        try:
+            existing_full = json.loads(agent.full_ip)
+            if isinstance(existing_full, list):
+                for raw in existing_full:
+                    ip = (str(raw) if raw is not None else "").strip()
+                    if ip:
+                        persisted_full_ip_first = ip
+                        break
+        except Exception:
+            persisted_full_ip_first = None
+    # Preserve/derive IP if heartbeat omits ip_address/full_ip fields.
+    effective_ip = payload_ip or (full_ip_list[0] if full_ip_list else None) or persisted_ip or persisted_full_ip_first
 
     # Track identity changes (UUID remains stable).
     old_hostname = agent.hostname
@@ -478,6 +495,9 @@ def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> t
     config.inventory_sync_required = inventory_sync_required
     config.store_tray_enabled = _is_store_tray_enabled_for_agent(db, agent.uuid)
     config.remote_support_enabled = _is_remote_support_enabled_for_agent(db, agent.uuid)
+    # WS agent-level enable: DB'de ws_agent_enabled=true ise tüm agentlara enable et
+    ws_agent_flag = _get_setting(db, "ws_agent_enabled", "false")
+    config.websocket_enabled = ws_agent_flag.strip().lower() in ("true", "1", "yes")
     global_service_enabled = str(_get_setting(db, "service_monitoring_enabled", "false")).strip().lower() in {
         "1",
         "true",
@@ -535,4 +555,18 @@ def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> t
     config.services_sync_required = services_sync_required
 
     db.commit()
+    if ws_manager.ui_count > 0:
+        ws_manager.schedule_broadcast_to_ui(
+            make_message(
+                "server.agent.status",
+                {
+                    "uuid": agent.uuid,
+                    "hostname": agent.hostname,
+                    "status": agent.status,
+                    "ip_address": agent.ip_address,
+                    "last_seen": agent.last_seen.isoformat() if agent.last_seen else None,
+                    "comm_mode": "http",
+                },
+            )
+        )
     return now, config, commands, inventory_sync_required

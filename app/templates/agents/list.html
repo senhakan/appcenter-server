@@ -164,7 +164,16 @@
     white-space: nowrap;
   }
   .agents-table .col-actions {
-    min-width: 180px;
+    min-width: 96px;
+  }
+  .agent-conn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin-right: 6px;
+    vertical-align: text-bottom;
   }
   .agents-table tbody tr:hover {
     background: var(--tblr-bg-surface-secondary, #f6f8fb);
@@ -225,9 +234,24 @@
       <div class="form-label">Online</div>
       <div class="section-gap">
         <label class="form-check form-switch form-switch-3">
-          <input id="agent-online-switch" class="form-check-input" type="checkbox" />
+          <input id="agent-online-switch" class="form-check-input" type="checkbox" checked />
           <span class="form-check-label form-check-label-on">On</span>
           <span class="form-check-label form-check-label-off">Off</span>
+        </label>
+      </div>
+      <div class="form-label">Platform</div>
+      <div class="section-gap" id="agent-platform-radios">
+        <label class="form-check">
+          <input type="radio" class="form-check-input" name="agent-platform" value="all" checked />
+          <span class="form-check-label">Tum Platformlar</span>
+        </label>
+        <label class="form-check">
+          <input type="radio" class="form-check-input" name="agent-platform" value="windows" />
+          <span class="form-check-label">Windows</span>
+        </label>
+        <label class="form-check">
+          <input type="radio" class="form-check-input" name="agent-platform" value="linux" />
+          <span class="form-check-label">Linux</span>
         </label>
       </div>
       <div class="form-label">Siralama</div>
@@ -301,8 +325,12 @@
   AppCenterApi.protectPage();
   const AGENT_PAGE_SIZE = 20;
   const RS_WINDOW_PRESENCE_TTL_MS = 15000;
+  const AGENTS_POLL_FAST_MS = 2000;
+  const AGENTS_POLL_SLOW_MS = 60000;
+  let agentsPollTimer = null;
   let allAgents = [];
   let allGroups = [];
+  let wsAgents = new Set();
   let filteredAgents = [];
   let currentPage = 1;
   let remoteSupportGroupId = 0;
@@ -376,6 +404,11 @@
   function selectedSortMode() {
     const selected = document.querySelector('input[name="agent-sort"]:checked');
     return (selected && selected.value ? selected.value : 'hostname_asc').toLowerCase();
+  }
+
+  function selectedPlatform() {
+    const selected = document.querySelector('input[name="agent-platform"]:checked');
+    return (selected && selected.value ? selected.value : 'all').toLowerCase();
   }
 
   function selectedVersions() {
@@ -468,6 +501,7 @@
   function applyFilter() {
     const q = (document.getElementById('agent-search').value || '').toLowerCase().trim();
     const onlineOnly = !!document.getElementById('agent-online-switch').checked;
+    const platform = selectedPlatform();
     const selectedGroup = (document.getElementById('agent-group-filter').value || 'all').toLowerCase();
     const sortMode = selectedSortMode();
     const versionSet = new Set(selectedVersions().map((v) => v.toLowerCase()));
@@ -478,11 +512,13 @@
       const matchesQ = !q || hostname.includes(q) || ip.includes(q) || loginUsers.includes(q);
       const st = (agent.status || '').toLowerCase();
       const matchesOnline = !onlineOnly || st === 'online';
+      const agentPlatform = (agent.platform || '').toString().toLowerCase();
+      const matchesPlatform = platform === 'all' || agentPlatform === platform;
       const groups = getAgentGroupIds(agent).map((x) => String(x));
       const matchesGroup = selectedGroup === 'all' || groups.includes(selectedGroup);
       const version = (agent.version || '').toString().toLowerCase();
       const matchesVersion = versionSet.size === 0 || versionSet.has(version);
-      return matchesQ && matchesOnline && matchesGroup && matchesVersion;
+      return matchesQ && matchesOnline && matchesPlatform && matchesGroup && matchesVersion;
     });
     const dir = sortMode.endsWith('_desc') ? -1 : 1;
     filteredAgents.sort((a, b) => {
@@ -539,7 +575,6 @@
     const pageInfo = document.getElementById('agent-page-info');
     const prevBtn = document.getElementById('agent-prev');
     const nextBtn = document.getElementById('agent-next');
-    const canRemote = AppCenterApi.canPermission('remote_support.session.manage');
 
     const total = filteredAgents.length;
     const totalPages = Math.max(1, Math.ceil(total / AGENT_PAGE_SIZE));
@@ -564,7 +599,7 @@
       const helperHtml = agent.remote_support_helper_running
         ? '<span class="badge bg-green-lt text-green">ok</span>'
         : '<span class="badge bg-secondary-lt text-secondary">-</span>';
-      const connectState = connectButtonState(agent);
+      const statusHtml = statusWithConnIcon(agent, seenRel);
       tr.innerHTML = `
         <td class="js-col-host">
           <span class="agent-host-wrap">
@@ -574,23 +609,13 @@
         </td>
         <td class="js-col-login">${esc(getLoginUsers(agent))}</td>
         <td class="js-col-ip" title="${esc(ipTooltipText(agent))}" style="cursor: help;">${esc(agent.ip_address || '-')}</td>
-        <td class="js-col-status"><span class="badge ${agent.status === 'online' ? 'bg-green-lt text-green' : 'bg-red-lt text-red'}" title="${esc(seenRel)}" style="cursor: help;">${esc(agent.status || '-')}</span></td>
+        <td class="js-col-status">${statusHtml}</td>
         <td class="js-col-remote" title="${esc(rsUpdated)}" style="cursor: help;"><span class="badge bg-blue-lt text-blue">${esc(rsState)}</span></td>
         <td class="js-col-helper">${helperHtml}</td>
         <td class="js-col-version">${esc(agent.version || '-')}</td>
         <td>
           <div class="btn-list flex-nowrap">
             <a class="btn btn-outline-secondary btn-sm" href="/agents/${encodeURIComponent(agent.uuid)}"><i class="ti ti-eye me-1"></i>Detay</a>
-            ${canRemote ? `<button
-              class="${connectState.enabled ? 'btn btn-primary btn-sm' : 'btn btn-outline-secondary btn-sm'} js-connect-remote"
-              type="button"
-              data-agent-uuid="${esc(agent.uuid || '')}"
-              data-agent-hostname="${esc(agent.hostname || '')}"
-              data-agent-status="${esc(agent.status || '')}"
-              data-connect-enabled="${connectState.enabled ? '1' : '0'}"
-              ${connectState.title ? `title="${esc(connectState.title)}"` : ''}
-              ${connectState.enabled ? '' : 'disabled'}
-            ><i class="ti ti-plug-connected me-1"></i>Baglan</button>` : ''}
           </div>
         </td>
       `;
@@ -637,10 +662,11 @@
       const helperHtml = agent.remote_support_helper_running
         ? '<span class="badge bg-green-lt text-green">ok</span>'
         : '<span class="badge bg-secondary-lt text-secondary">-</span>';
+      const statusHtml = statusWithConnIcon(agent, seenRel);
 
       const statusCol = row.querySelector('.js-col-status');
       if (statusCol) {
-        statusCol.innerHTML = `<span class="badge ${agent.status === 'online' ? 'bg-green-lt text-green' : 'bg-red-lt text-red'}" title="${esc(seenRel)}" style="cursor: help;">${esc(agent.status || '-')}</span>`;
+        statusCol.innerHTML = statusHtml;
       }
       const remoteCol = row.querySelector('.js-col-remote');
       if (remoteCol) {
@@ -658,17 +684,16 @@
       }
       const verCol = row.querySelector('.js-col-version');
       if (verCol) verCol.textContent = agent.version || '-';
-      const btn = row.querySelector('.js-connect-remote');
-      if (btn) {
-        const connectState = connectButtonState(agent);
-        btn.className = `${connectState.enabled ? 'btn btn-primary btn-sm' : 'btn btn-outline-secondary btn-sm'} js-connect-remote`;
-        btn.setAttribute('data-agent-status', agent.status || '');
-        btn.setAttribute('data-connect-enabled', connectState.enabled ? '1' : '0');
-        if (connectState.title) btn.setAttribute('title', connectState.title);
-        else btn.removeAttribute('title');
-        btn.disabled = !connectState.enabled;
-      }
     });
+  }
+
+  function statusWithConnIcon(agent, seenRel) {
+    const isWS = wsAgents.has(String(agent.uuid || ''));
+    const icon = isWS ? 'ti ti-plug-connected' : 'ti ti-world-www';
+    const method = isWS ? 'WS' : 'HTTP';
+    const status = esc(agent.status || '-');
+    const color = agent.status === 'online' ? 'bg-green-lt text-green' : 'bg-red-lt text-red';
+    return `<span class=\"badge ${color}\" title=\"${esc(seenRel)}\" style=\"cursor: help;\"><span class=\"agent-conn-icon\" title=\"${method}\"><i class=\"${icon}\"></i></span>${status}</span>`;
   }
 
   async function requestRemoteSupport(agentUUID, agentHostname, agentStatus, reasonText) {
@@ -743,6 +768,20 @@
         AppCenterApi.req('/agents'),
         AppCenterApi.req('/groups'),
       ]);
+      try {
+        const token = AppCenterApi.getToken() || '';
+        const wsRes = await fetch('/api/v1/ws/stats', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (wsRes.ok) {
+          const wsData = await wsRes.json();
+          wsAgents = new Set((wsData.agents_ws_mode || []).map((x) => String(x || '')));
+        } else {
+          wsAgents = new Set();
+        }
+      } catch (_) {
+        wsAgents = new Set();
+      }
       allAgents = agentData.items || [];
       allGroups = groupData.items || [];
       renderGroupFilter(allGroups);
@@ -767,6 +806,26 @@
       AppCenterApi.toast(err.message);
     }
   }
+
+  function currentAgentsPollMs() {
+    return (window.appCenterWS && window.appCenterWS.connected)
+      ? AGENTS_POLL_SLOW_MS
+      : AGENTS_POLL_FAST_MS;
+  }
+
+  function resetAgentsPolling() {
+    if (agentsPollTimer) clearInterval(agentsPollTimer);
+    agentsPollTimer = setInterval(() => loadAgents({ soft: true }), currentAgentsPollMs());
+  }
+
+  window.addEventListener('ws-connected', resetAgentsPolling);
+  window.addEventListener('ws-disconnected', resetAgentsPolling);
+  window.addEventListener('ws-event', function(e) {
+    const msg = e.detail || {};
+    if (msg.type === 'server.agent.status') {
+      loadAgents({ soft: true });
+    }
+  });
 
   (async function () {
     await AppCenterApi.initUi();
@@ -842,10 +901,15 @@
     document.querySelectorAll('input[name="agent-sort"]').forEach((el) => {
       el.addEventListener('change', rerenderFromFilter);
     });
+    document.querySelectorAll('input[name="agent-platform"]').forEach((el) => {
+      el.addEventListener('change', rerenderFromFilter);
+    });
     document.getElementById('agent-reset-filters').addEventListener('click', () => {
       document.getElementById('agent-search').value = '';
-      document.getElementById('agent-online-switch').checked = false;
+      document.getElementById('agent-online-switch').checked = true;
       document.getElementById('agent-group-filter').value = 'all';
+      const allPlatform = document.querySelector('input[name="agent-platform"][value="all"]');
+      if (allPlatform) allPlatform.checked = true;
       const asc = document.querySelector('input[name="agent-sort"][value="hostname_asc"]');
       if (asc) asc.checked = true;
       document.querySelectorAll('.js-agent-version-filter').forEach((el) => {
@@ -863,7 +927,7 @@
       renderPage();
     });
     loadAgents();
-    setInterval(() => loadAgents({ soft: true }), 2000);
+    resetAgentsPolling();
   })();
 </script>
 {% endblock %}

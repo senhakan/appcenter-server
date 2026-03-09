@@ -112,9 +112,34 @@ def _agent_config(db: Session) -> AgentConfig:
 
 def _authenticate_agent(db: Session, agent_uuid: str, agent_secret: str) -> Agent:
     agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
-    if not agent or not agent.secret_key or agent.secret_key != agent_secret:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid agent credentials")
-    return agent
+    if agent and agent.secret_key and agent.secret_key == agent_secret:
+        return agent
+
+    recovery_enabled = _get_setting(db, "agent_auth_recovery_enabled", "false").strip().lower() in ("1", "true", "yes", "on")
+    if recovery_enabled:
+        now = datetime.now(timezone.utc)
+        if not agent:
+            agent = Agent(
+                uuid=agent_uuid,
+                hostname=agent_uuid,
+                status="online",
+                last_seen=now,
+                updated_at=now,
+                secret_key=agent_secret,
+            )
+            db.add(agent)
+        else:
+            agent.secret_key = agent_secret
+            agent.updated_at = now
+            db.add(agent)
+        db.commit()
+        db.refresh(agent)
+        # Recovery sonrasi ozellikle signal isteginde gelen ajanlar icin
+        # hemen tam heartbeat/snapshot cekilmesini tetikle.
+        agent_signal.notify_agent(agent_uuid)
+        return agent
+
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid agent credentials")
 
 
 def _normalize_platform(value: str | None) -> str:
@@ -130,6 +155,64 @@ def _as_utc(value: datetime | None) -> datetime | None:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
+
+
+def _mark_agent_online_from_signal(agent_uuid: str) -> None:
+    db = SessionLocal()
+    try:
+        agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
+        if not agent:
+            return
+        now = datetime.now(timezone.utc)
+        old_status = agent.status
+        agent.status = "online"
+        agent.last_seen = now
+        agent.updated_at = now
+        db.add(agent)
+        if old_status != agent.status:
+            db.add(
+                AgentStatusHistory(
+                    agent_uuid=agent.uuid,
+                    detected_at=now,
+                    old_status=old_status,
+                    new_status=agent.status,
+                    reason="signal_connect",
+                )
+            )
+        db.commit()
+    finally:
+        db.close()
+
+
+def _mark_agent_offline_if_signal_stale(agent_uuid: str, disconnected_at: datetime) -> None:
+    db = SessionLocal()
+    try:
+        agent = db.query(Agent).filter(Agent.uuid == agent_uuid).first()
+        if not agent:
+            return
+        now = datetime.now(timezone.utc)
+        disconnected_utc = _as_utc(disconnected_at)
+        last_seen_utc = _as_utc(agent.last_seen)
+        # If we already observed a fresher update, skip stale disconnect transition.
+        if last_seen_utc and disconnected_utc and last_seen_utc > disconnected_utc:
+            return
+        old_status = agent.status
+        agent.status = "offline"
+        agent.updated_at = now
+        db.add(agent)
+        if old_status != agent.status:
+            db.add(
+                AgentStatusHistory(
+                    agent_uuid=agent.uuid,
+                    detected_at=now,
+                    old_status=old_status,
+                    new_status=agent.status,
+                    reason="signal_disconnect",
+                )
+            )
+        db.commit()
+    finally:
+        db.close()
 
 
 @router.post("/register", response_model=AgentRegisterResponse)

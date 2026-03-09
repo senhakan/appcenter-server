@@ -63,6 +63,14 @@ DEFAULT_SETTINGS = {
     "session_recording_enabled": ("false", "Remote support session recording auto-start"),
     "session_recording_fps": ("10", "Remote support session recording target FPS"),
     "session_recording_watermark_enabled": ("false", "Remote support session recording watermark"),
+    "ws_agent_enabled": ("false", "Agent WebSocket endpoint aktif/pasif"),
+    "ws_ping_interval_sec": ("30", "WS server ping araligi (sn)"),
+    "ws_ping_timeout_sec": ("15", "WS pong bekleme suresi (sn)"),
+    "ws_auth_timeout_sec": ("10", "WS agent auth bekleme suresi (sn)"),
+    "ws_status_interval_sec": ("300", "Agent status gonderim araligi (sn)"),
+    "ui_ws_enabled": ("false", "UI WebSocket aktif/pasif"),
+    "ui_ws_fallback_poll_sec": ("10", "UI WS yokken polling suresi (sn)"),
+    "agent_auth_recovery_enabled": ("false", "Agent auth uyumsuzlugunda UUID/secret ile gecici otomatik toparlama"),
 }
 
 DEFAULT_ROLE_PROFILES = [
