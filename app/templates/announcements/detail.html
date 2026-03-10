@@ -1,0 +1,258 @@
+{% extends 'base.html' %}
+{% block title %}Duyuru Detayi{% endblock %}
+{% block page_title %}Duyuru Detayi{% endblock %}
+{% block page_actions %}
+<div class="btn-list">
+  <a class="btn btn-outline-primary btn-sm" href="/announcements"><i class="ti ti-list me-1"></i>Liste</a>
+  <a class="btn btn-outline-secondary btn-sm d-none" id="ann-edit-btn" href="#" data-required-permissions="announcements.manage"><i class="ti ti-edit me-1"></i>Duzenle</a>
+  <button class="btn btn-outline-danger btn-sm d-none" id="ann-cancel-btn" type="button" data-required-permissions="announcements.manage"><i class="ti ti-x me-1"></i>Iptal</button>
+</div>
+{% endblock %}
+{% block content %}
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-12 col-lg-8">
+        <h3 class="card-title mb-1" id="ann-title">-</h3>
+        <div class="text-secondary" id="ann-message">-</div>
+      </div>
+      <div class="col-12 col-lg-4">
+        <div class="small text-secondary mb-1">Oncelik</div>
+        <div id="ann-priority">-</div>
+        <div class="small text-secondary mb-1 mt-2">Hedef</div>
+        <div id="ann-target">-</div>
+        <div class="small text-secondary mb-1 mt-2">Durum</div>
+        <div id="ann-status">-</div>
+      </div>
+      <div class="col-12">
+        <div class="small text-secondary">Olusturma: <span id="ann-created-at">-</span></div>
+        <div class="small text-secondary">Planlanan: <span id="ann-scheduled-at">-</span></div>
+        <div class="small text-secondary">Yayin: <span id="ann-published-at">-</span></div>
+        <div class="small text-secondary">Sona Erme: <span id="ann-expires-at">-</span></div>
+        <div class="small text-secondary">Iptal: <span id="ann-cancelled-at">-</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg">
+    <div class="card"><div class="card-body"><div class="text-secondary small">Hedef</div><div class="h2 m-0" id="sum-targets">0</div></div></div>
+  </div>
+  <div class="col-6 col-lg">
+    <div class="card"><div class="card-body"><div class="text-secondary small">Iletildi</div><div class="h2 m-0" id="sum-delivered">0</div></div></div>
+  </div>
+  <div class="col-6 col-lg">
+    <div class="card"><div class="card-body"><div class="text-secondary small">Okundu</div><div class="h2 m-0" id="sum-ack">0</div></div></div>
+  </div>
+  <div class="col-6 col-lg">
+    <div class="card"><div class="card-body"><div class="text-secondary small">Bekliyor</div><div class="h2 m-0" id="sum-pending">0</div></div></div>
+  </div>
+  <div class="col-6 col-lg">
+    <div class="card"><div class="card-body"><div class="text-secondary small">Basarisiz</div><div class="h2 m-0" id="sum-failed">0</div></div></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter">
+      <thead>
+        <tr>
+          <th>Agent Hostname</th>
+          <th>IP</th>
+          <th>Platform</th>
+          <th>Durum</th>
+          <th>Iletildi</th>
+          <th>Okundu</th>
+          <th>Hata</th>
+        </tr>
+      </thead>
+      <tbody id="delivery-rows">
+        <tr><td colspan="7" class="text-secondary">Yukleniyor...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+
+  const announcementId = Number('{{ announcement_id }}');
+  let current = null;
+  let allDeliveries = [];
+  let agentMap = {};
+  let refreshTimer = null;
+
+  function esc(v) {
+    return (v ?? '')
+      .toString()
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  function priorityBadge(priority) {
+    const p = (priority || '').toLowerCase();
+    if (p === 'critical') return '<span class="badge bg-red-lt text-red">critical</span>';
+    if (p === 'important') return '<span class="badge bg-yellow-lt text-yellow">important</span>';
+    return '<span class="badge bg-blue-lt text-blue">normal</span>';
+  }
+
+  function statusBadge(status) {
+    const s = (status || '').toLowerCase();
+    const map = {
+      scheduled: 'bg-azure-lt text-azure',
+      publishing: 'bg-yellow-lt text-yellow',
+      published: 'bg-blue-lt text-blue',
+      completed: 'bg-green-lt text-green',
+      cancelled: 'bg-red-lt text-red',
+      pending: 'bg-secondary-lt text-secondary',
+      delivered: 'bg-blue-lt text-blue',
+      acknowledged: 'bg-green-lt text-green',
+      failed: 'bg-red-lt text-red',
+      expired: 'bg-yellow-lt text-yellow',
+    };
+    return `<span class="badge ${map[s] || 'bg-secondary-lt text-secondary'}">${esc(s || '-')}</span>`;
+  }
+
+  function renderSummary(item) {
+    const total = Number(item.total_targets || 0);
+    const delivered = Number(item.delivered_count || 0);
+    const ack = Number(item.acknowledged_count || 0);
+    const failed = Number(item.failed_count || 0);
+    const pending = Number(item.pending_count || Math.max(0, total - delivered - ack - failed));
+    document.getElementById('sum-targets').textContent = String(total);
+    document.getElementById('sum-delivered').textContent = String(delivered);
+    document.getElementById('sum-ack').textContent = String(ack);
+    document.getElementById('sum-pending').textContent = String(pending);
+    document.getElementById('sum-failed').textContent = String(failed);
+  }
+
+  function renderTop(item) {
+    document.getElementById('ann-title').textContent = item.title || '-';
+    document.getElementById('ann-message').textContent = item.message || '-';
+    document.getElementById('ann-priority').innerHTML = priorityBadge(item.priority);
+    document.getElementById('ann-target').textContent = item.target_name || item.target_id || item.target_type || '-';
+    document.getElementById('ann-status').innerHTML = statusBadge(item.status);
+    document.getElementById('ann-created-at').textContent = AppCenterApi.formatDate(item.created_at);
+    document.getElementById('ann-scheduled-at').textContent = AppCenterApi.formatDate(item.scheduled_at);
+    document.getElementById('ann-published-at').textContent = AppCenterApi.formatDate(item.published_at);
+    document.getElementById('ann-expires-at').textContent = AppCenterApi.formatDate(item.expires_at);
+    document.getElementById('ann-cancelled-at').textContent = AppCenterApi.formatDate(item.cancelled_at);
+
+    const isScheduled = (item.status || '').toLowerCase() === 'scheduled';
+    const canCancel = !['completed', 'cancelled'].includes((item.status || '').toLowerCase());
+    const editBtn = document.getElementById('ann-edit-btn');
+    const cancelBtn = document.getElementById('ann-cancel-btn');
+    editBtn.classList.toggle('d-none', !isScheduled);
+    cancelBtn.classList.toggle('d-none', !canCancel);
+    editBtn.href = `/announcements/create?announcement_id=${Number(item.id || 0)}`;
+    cancelBtn.disabled = !canCancel;
+  }
+
+  function renderDeliveries() {
+    const tbody = document.getElementById('delivery-rows');
+    if (!allDeliveries.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-secondary">Kayit yok</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = allDeliveries.map((row) => {
+      const agent = agentMap[row.agent_uuid] || {};
+      const ip = agent.ip_address || agent.full_ip || '-';
+      const platform = agent.platform || '-';
+      return `
+        <tr>
+          <td>${esc(row.agent_hostname || row.agent_uuid || '-')}</td>
+          <td>${esc(ip)}</td>
+          <td>${esc(platform)}</td>
+          <td>${statusBadge(row.status)}</td>
+          <td>${esc(AppCenterApi.formatDate(row.delivered_at))}</td>
+          <td>${esc(AppCenterApi.formatDate(row.acknowledged_at))}</td>
+          <td>${esc(row.failure_reason || '-')}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  async function loadAnnouncement() {
+    current = await AppCenterApi.req(`/announcements/${announcementId}`);
+    renderTop(current);
+    renderSummary(current);
+  }
+
+  async function loadDeliveries() {
+    const data = await AppCenterApi.req(`/announcements/${announcementId}/deliveries?limit=500&offset=0`);
+    allDeliveries = data.items || [];
+    renderDeliveries();
+  }
+
+  async function loadAgents() {
+    const data = await AppCenterApi.req('/agents');
+    agentMap = {};
+    (data.items || []).forEach((agent) => {
+      if (!agent || !agent.uuid) return;
+      agentMap[agent.uuid] = agent;
+    });
+  }
+
+  function scheduleRefresh() {
+    if (refreshTimer) return;
+    refreshTimer = setTimeout(async () => {
+      refreshTimer = null;
+      try {
+        await Promise.all([loadAnnouncement(), loadDeliveries()]);
+      } catch (err) {
+        AppCenterApi.toast(err.message || 'Duyuru guncellenemedi');
+      }
+    }, 250);
+  }
+
+  document.getElementById('ann-cancel-btn').addEventListener('click', async () => {
+    const ok = await AppCenterApi.confirm({
+      title: 'Duyuru Iptali',
+      message: `#${announcementId} duyurusu iptal edilsin mi?`,
+      confirmText: 'Iptal Et',
+      cancelText: 'Vazgec',
+      tone: 'danger',
+    });
+    if (!ok) return;
+    try {
+      await AppCenterApi.req(`/announcements/${announcementId}/cancel`, { method: 'POST' });
+      AppCenterApi.toast('Duyuru iptal edildi');
+      await Promise.all([loadAnnouncement(), loadDeliveries()]);
+    } catch (err) {
+      AppCenterApi.toast(err.message || 'Iptal islemi basarisiz');
+    }
+  });
+
+  window.addEventListener('ws-event', function(evt) {
+    const msg = evt.detail || {};
+    if (msg.type !== 'ui.announcement.delivery_update') return;
+    const payload = msg.payload || {};
+    if (Number(payload.announcement_id || 0) !== announcementId) return;
+
+    if (current) {
+      current.total_targets = Number(payload.total_targets ?? current.total_targets ?? 0);
+      current.delivered_count = Number(payload.delivered_count ?? current.delivered_count ?? 0);
+      current.acknowledged_count = Number(payload.acknowledged_count ?? current.acknowledged_count ?? 0);
+      current.failed_count = Number(payload.failed_count ?? current.failed_count ?? 0);
+      current.pending_count = Number(payload.pending_count ?? current.pending_count ?? 0);
+      renderSummary(current);
+    }
+    scheduleRefresh();
+  });
+
+  (async () => {
+    try {
+      await Promise.all([loadAgents(), loadAnnouncement()]);
+      await loadDeliveries();
+    } catch (err) {
+      AppCenterApi.toast(err.message || 'Duyuru detaylari yuklenemedi');
+    }
+  })();
+</script>
+{% endblock %}

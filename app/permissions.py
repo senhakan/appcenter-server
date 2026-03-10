@@ -28,6 +28,7 @@ PERMISSION_CATALOG: list[dict[str, Any]] = [
             ("ui.menu.roles", "Roller menusu"),
             ("ui.menu.audit", "Audit Log menusu"),
             ("ui.menu.infra_recordings", "Session Recordings menusu"),
+            ("ui.menu.announcements", "Duyurular menusu"),
         ],
     },
     {
@@ -47,6 +48,7 @@ PERMISSION_CATALOG: list[dict[str, Any]] = [
             ("ui.page.roles", "Roller sayfasi"),
             ("ui.page.audit", "Audit sayfasi"),
             ("ui.page.infra_recordings", "Session Recordings sayfasi"),
+            ("ui.page.announcements", "Duyurular sayfasi"),
         ],
     },
     {
@@ -74,6 +76,8 @@ PERMISSION_CATALOG: list[dict[str, Any]] = [
             ("users.manage", "Kullanicilari yonetme"),
             ("roles.manage", "Rol profillerini yonetme"),
             ("audit.view", "Audit log goruntuleme"),
+            ("announcements.view", "Duyurulari goruntuleme"),
+            ("announcements.manage", "Duyurulari yonetme"),
         ],
     },
 ]
@@ -101,6 +105,7 @@ VIEWER_DEFAULT_PERMISSIONS: set[str] = {
     "ui.menu.inventory",
     "ui.menu.licenses",
     "ui.menu.agent_deploy",
+    "ui.menu.announcements",
     "ui.page.dashboard",
     "ui.page.agents",
     "ui.page.remote_support",
@@ -110,6 +115,7 @@ VIEWER_DEFAULT_PERMISSIONS: set[str] = {
     "ui.page.inventory",
     "ui.page.licenses",
     "ui.page.agent_deploy",
+    "ui.page.announcements",
     "dashboard.view",
     "agents.view",
     "groups.view",
@@ -120,6 +126,7 @@ VIEWER_DEFAULT_PERMISSIONS: set[str] = {
     "remote_support.view",
     "remote_support.session.view",
     "remote_support.recordings.view",
+    "announcements.view",
 }
 
 OPERATOR_DEFAULT_PERMISSIONS: set[str] = set(VIEWER_DEFAULT_PERMISSIONS) | {
@@ -131,6 +138,7 @@ OPERATOR_DEFAULT_PERMISSIONS: set[str] = set(VIEWER_DEFAULT_PERMISSIONS) | {
     "licenses.manage",
     "remote_support.session.manage",
     "remote_support.recordings.manage",
+    "announcements.manage",
 }
 
 ADMIN_DEFAULT_PERMISSIONS: set[str] = {"*"}

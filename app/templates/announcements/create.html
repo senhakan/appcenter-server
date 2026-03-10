@@ -1,0 +1,362 @@
+{% extends 'base.html' %}
+{% block title %}Duyuru Olustur{% endblock %}
+{% block page_title %}Duyuru Olustur{% endblock %}
+{% block page_actions %}
+<a class="btn btn-outline-primary btn-sm" href="/announcements"><i class="ti ti-list me-1"></i>Liste</a>
+{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-10 col-xl-9">
+    <div class="card">
+      <div class="card-body">
+        <div id="ann-form-errors" class="alert alert-danger d-none" role="alert"></div>
+        <form id="ann-form" class="row g-3" novalidate>
+          <div class="col-12">
+            <label class="form-label" for="ann-title">Baslik</label>
+            <input id="ann-title" class="form-control" type="text" maxlength="200" required />
+          </div>
+
+          <div class="col-12">
+            <label class="form-label" for="ann-message">Mesaj</label>
+            <textarea id="ann-message" class="form-control" rows="4" maxlength="5000" required></textarea>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label d-block">Oncelik</label>
+            <label class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="priority" value="normal" checked />
+              <span class="form-check-label">Normal</span>
+            </label>
+            <label class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="priority" value="important" />
+              <span class="form-check-label">Onemli</span>
+            </label>
+            <label class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="priority" value="critical" />
+              <span class="form-check-label">Kritik</span>
+            </label>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label d-block">Hedef Tipi</label>
+            <label class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="target_type" value="All" checked />
+              <span class="form-check-label">Tumune</span>
+            </label>
+            <label class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="target_type" value="Group" />
+              <span class="form-check-label">Grup</span>
+            </label>
+            <label class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="target_type" value="Agent" />
+              <span class="form-check-label">Agent</span>
+            </label>
+          </div>
+
+          <div class="col-12 col-md-6 d-none" id="target-group-wrap">
+            <label class="form-label" for="target-group-id">Grup</label>
+            <select id="target-group-id" class="form-select"></select>
+          </div>
+
+          <div class="col-12 d-none" id="target-agent-wrap">
+            <label class="form-label" for="target-agent-search">Agent Ara</label>
+            <input id="target-agent-search" class="form-control mb-2" placeholder="Hostname / UUID ile ara" />
+            <select id="target-agent-id" class="form-select" size="8"></select>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label d-block">Iletim Zamani</label>
+            <label class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="schedule_mode" value="now" checked />
+              <span class="form-check-label">Hemen</span>
+            </label>
+            <label class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="schedule_mode" value="scheduled" />
+              <span class="form-check-label">Tarih-Saat Belirt</span>
+            </label>
+          </div>
+
+          <div class="col-12 col-md-6 d-none" id="scheduled-at-wrap">
+            <label class="form-label" for="scheduled-at">Iletim Tarih-Saati</label>
+            <input id="scheduled-at" class="form-control" type="datetime-local" />
+          </div>
+
+          <div class="col-12">
+            <label class="form-label d-block">Iletim Sekli</label>
+            <label class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="delivery_mode" value="online_only" checked />
+              <span class="form-check-label">Sadece Online</span>
+            </label>
+            <label class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="delivery_mode" value="include_offline" />
+              <span class="form-check-label">Offline Dahil</span>
+            </label>
+          </div>
+
+          <div class="col-12">
+            <label class="form-check">
+              <input id="expires-enabled" class="form-check-input" type="checkbox" />
+              <span class="form-check-label">Sona Erme</span>
+            </label>
+          </div>
+
+          <div class="col-12 col-md-6 d-none" id="expires-at-wrap">
+            <label class="form-label" for="expires-at">Sona Erme Tarih-Saati</label>
+            <input id="expires-at" class="form-control" type="datetime-local" />
+          </div>
+
+          <div class="col-12 d-flex justify-content-end">
+            <button id="ann-submit" class="btn btn-primary" type="submit">
+              <i class="ti ti-send me-1"></i><span id="ann-submit-text">Yayinla</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+
+  const editAnnouncementId = Number(new URLSearchParams(window.location.search).get('announcement_id') || 0);
+  let allAgents = [];
+
+  function esc(v) {
+    return (v ?? '')
+      .toString()
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  function parseRadio(name) {
+    const el = document.querySelector(`input[name="${name}"]:checked`);
+    return el ? el.value : '';
+  }
+
+  function toLocalInputValue(value) {
+    const date = AppCenterApi.parseDate(value);
+    if (!date) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  function toUtcIso(localValue) {
+    if (!localValue) return null;
+    const date = new Date(localValue);
+    if (isNaN(date.getTime())) return null;
+    return date.toISOString();
+  }
+
+  function syncTargetType() {
+    const targetType = parseRadio('target_type');
+    document.getElementById('target-group-wrap').classList.toggle('d-none', targetType !== 'Group');
+    document.getElementById('target-agent-wrap').classList.toggle('d-none', targetType !== 'Agent');
+  }
+
+  function syncScheduleMode() {
+    const isScheduled = parseRadio('schedule_mode') === 'scheduled';
+    document.getElementById('scheduled-at-wrap').classList.toggle('d-none', !isScheduled);
+    document.getElementById('ann-submit-text').textContent = isScheduled ? 'Planla' : 'Yayinla';
+  }
+
+  function syncExpireMode() {
+    const enabled = document.getElementById('expires-enabled').checked;
+    document.getElementById('expires-at-wrap').classList.toggle('d-none', !enabled);
+  }
+
+  function renderErrors(errors) {
+    const box = document.getElementById('ann-form-errors');
+    const list = Array.isArray(errors) ? errors : [errors];
+    const html = list
+      .filter(Boolean)
+      .map((x) => `<div>${(x || '').toString().replaceAll('<', '&lt;').replaceAll('>', '&gt;')}</div>`)
+      .join('');
+    if (!html) {
+      box.classList.add('d-none');
+      box.innerHTML = '';
+      return;
+    }
+    box.innerHTML = html;
+    box.classList.remove('d-none');
+  }
+
+  function renderAgentOptions(query) {
+    const select = document.getElementById('target-agent-id');
+    const q = (query || '').toLowerCase().trim();
+    const rows = q
+      ? allAgents.filter((agent) => {
+        const hostname = (agent.hostname || '').toLowerCase();
+        const uuid = (agent.uuid || '').toLowerCase();
+        return hostname.includes(q) || uuid.includes(q);
+      })
+      : allAgents;
+    select.innerHTML = rows.map((agent) => `<option value="${esc(agent.uuid)}">${esc((agent.hostname || '-') + ' (' + agent.uuid + ')')}</option>`).join('');
+  }
+
+  async function loadTargets() {
+    const [groupsData, agentsData] = await Promise.all([
+      AppCenterApi.req('/groups'),
+      AppCenterApi.req('/agents'),
+    ]);
+
+    const groupSelect = document.getElementById('target-group-id');
+    groupSelect.innerHTML = '<option value="">Grup secin</option>' + (groupsData.items || []).map((group) => (
+      `<option value="${Number(group.id || 0)}">${esc((group.name || '-') + ' (#' + Number(group.id || 0) + ')')}</option>`
+    )).join('');
+
+    allAgents = (agentsData.items || []).slice();
+    renderAgentOptions('');
+  }
+
+  async function loadEditData() {
+    if (!editAnnouncementId) return;
+    const data = await AppCenterApi.req(`/announcements/${editAnnouncementId}`);
+
+    document.getElementById('ann-title').value = data.title || '';
+    document.getElementById('ann-message').value = data.message || '';
+
+    const priorityRadio = document.querySelector(`input[name="priority"][value="${data.priority}"]`);
+    if (priorityRadio) priorityRadio.checked = true;
+
+    const targetTypeRadio = document.querySelector(`input[name="target_type"][value="${data.target_type}"]`);
+    if (targetTypeRadio) targetTypeRadio.checked = true;
+
+    syncTargetType();
+
+    if (data.target_type === 'Group') {
+      document.getElementById('target-group-id').value = (data.target_id || '').toString();
+    } else if (data.target_type === 'Agent') {
+      document.getElementById('target-agent-id').value = (data.target_id || '').toString();
+      if (!document.getElementById('target-agent-id').value) {
+        document.getElementById('target-agent-search').value = (data.target_name || data.target_id || '').toString();
+      }
+    }
+
+    const isScheduled = !!data.scheduled_at;
+    const scheduleRadio = document.querySelector(`input[name="schedule_mode"][value="${isScheduled ? 'scheduled' : 'now'}"]`);
+    if (scheduleRadio) scheduleRadio.checked = true;
+    syncScheduleMode();
+    if (isScheduled) {
+      document.getElementById('scheduled-at').value = toLocalInputValue(data.scheduled_at);
+    }
+
+    const deliveryRadio = document.querySelector(`input[name="delivery_mode"][value="${data.delivery_mode}"]`);
+    if (deliveryRadio) deliveryRadio.checked = true;
+
+    if (data.expires_at) {
+      document.getElementById('expires-enabled').checked = true;
+      syncExpireMode();
+      document.getElementById('expires-at').value = toLocalInputValue(data.expires_at);
+    }
+
+    document.getElementById('ann-submit-text').textContent = isScheduled ? 'Planla' : 'Yayinla';
+  }
+
+  function buildPayload() {
+    const errors = [];
+    const title = (document.getElementById('ann-title').value || '').trim();
+    const message = (document.getElementById('ann-message').value || '').trim();
+    const priority = parseRadio('priority');
+    const targetType = parseRadio('target_type');
+    const scheduleMode = parseRadio('schedule_mode');
+    const deliveryMode = parseRadio('delivery_mode');
+
+    if (!title) errors.push('Baslik zorunludur.');
+    if (!message) errors.push('Mesaj zorunludur.');
+
+    let targetId = null;
+    if (targetType === 'Group') {
+      targetId = (document.getElementById('target-group-id').value || '').trim() || null;
+      if (!targetId) errors.push('Grup secimi zorunludur.');
+    } else if (targetType === 'Agent') {
+      targetId = (document.getElementById('target-agent-id').value || '').trim() || null;
+      if (!targetId) errors.push('Agent secimi zorunludur.');
+    }
+
+    let scheduledAt = null;
+    if (scheduleMode === 'scheduled') {
+      scheduledAt = toUtcIso(document.getElementById('scheduled-at').value || '');
+      if (!scheduledAt) errors.push('Gecerli bir iletim tarih-saati giriniz.');
+    }
+
+    let expiresAt = null;
+    if (document.getElementById('expires-enabled').checked) {
+      expiresAt = toUtcIso(document.getElementById('expires-at').value || '');
+      if (!expiresAt) errors.push('Gecerli bir sona erme tarih-saati giriniz.');
+    }
+
+    return {
+      errors,
+      payload: {
+        title,
+        message,
+        priority,
+        target_type: targetType,
+        target_id: targetId,
+        delivery_mode: deliveryMode,
+        scheduled_at: scheduledAt,
+        expires_at: expiresAt,
+      },
+    };
+  }
+
+  document.querySelectorAll('input[name="target_type"]').forEach((el) => el.addEventListener('change', syncTargetType));
+  document.querySelectorAll('input[name="schedule_mode"]').forEach((el) => el.addEventListener('change', syncScheduleMode));
+  document.getElementById('expires-enabled').addEventListener('change', syncExpireMode);
+  document.getElementById('target-agent-search').addEventListener('input', (e) => {
+    renderAgentOptions(e.target.value || '');
+  });
+
+  document.getElementById('ann-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    renderErrors([]);
+
+    const built = buildPayload();
+    if (built.errors.length) {
+      renderErrors(built.errors);
+      return;
+    }
+
+    const submitBtn = document.getElementById('ann-submit');
+    submitBtn.disabled = true;
+    try {
+      if (editAnnouncementId) {
+        await AppCenterApi.req(`/announcements/${editAnnouncementId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(built.payload),
+        });
+      } else {
+        await AppCenterApi.req('/announcements', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(built.payload),
+        });
+      }
+      AppCenterApi.toast('Duyuru kaydedildi');
+      setTimeout(() => { location.href = '/announcements'; }, 500);
+    } catch (err) {
+      renderErrors(err.message || 'Kayit islemi basarisiz');
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
+  (async () => {
+    try {
+      await loadTargets();
+      syncTargetType();
+      syncScheduleMode();
+      syncExpireMode();
+      await loadEditData();
+    } catch (err) {
+      renderErrors(err.message || 'Form verileri yuklenemedi');
+    }
+  })();
+</script>
+{% endblock %}

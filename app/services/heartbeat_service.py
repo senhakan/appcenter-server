@@ -13,6 +13,8 @@ from app.models import (
     AgentApplication,
     AgentGroup,
     AgentIdentityHistory,
+    Announcement,
+    AnnouncementDelivery,
     AgentServiceHistory,
     AgentStatusHistory,
     AgentSystemProfileHistory,
@@ -22,7 +24,8 @@ from app.models import (
     RemoteSupportSession,
     TaskHistory,
 )
-from app.schemas import CommandItem, HeartbeatConfig, HeartbeatRequest, ServiceItem
+from app.schemas import CommandItem, HeartbeatConfig, HeartbeatRequest, PendingAnnouncementItem, ServiceItem
+from app.services.announcement_service import deliver_pending_to_agent
 from app.services.ws_manager import make_message, ws_manager
 
 
@@ -339,7 +342,45 @@ def _diff_system_profile_pairs(old: dict | None, new: dict) -> list[dict]:
     return out
 
 
-def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> tuple[datetime, HeartbeatConfig, list[CommandItem], bool]:
+def _mark_pending_announcements_delivered(
+    db: Session,
+    agent_uuid: str,
+    pending_announcements: list[PendingAnnouncementItem],
+    delivered_at: datetime,
+) -> None:
+    announcement_ids: list[int] = []
+    seen: set[int] = set()
+    for item in pending_announcements:
+        if item.announcement_id in seen:
+            continue
+        seen.add(item.announcement_id)
+        announcement_ids.append(item.announcement_id)
+    if not announcement_ids:
+        return
+
+    rows = (
+        db.query(AnnouncementDelivery, Announcement)
+        .join(Announcement, Announcement.id == AnnouncementDelivery.announcement_id)
+        .filter(
+            AnnouncementDelivery.agent_uuid == agent_uuid,
+            AnnouncementDelivery.announcement_id.in_(announcement_ids),
+            AnnouncementDelivery.status == "pending",
+        )
+        .all()
+    )
+    for delivery, announcement in rows:
+        delivery.status = "delivered"
+        delivery.delivered_at = delivered_at
+        announcement.delivered_count += 1
+        db.add(delivery)
+        db.add(announcement)
+
+
+def process_heartbeat(
+    db: Session,
+    agent: Agent,
+    payload: HeartbeatRequest,
+) -> tuple[datetime, HeartbeatConfig, list[CommandItem], bool, list[PendingAnnouncementItem]]:
     now = datetime.now(timezone.utc)
     full_ip_list: list[str] = []
     if payload.full_ip is not None:
@@ -554,6 +595,17 @@ def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> t
         services_sync_required = False
     config.services_sync_required = services_sync_required
 
+    pending_announcements: list[PendingAnnouncementItem] = []
+    pending_payloads = deliver_pending_to_agent(db, agent.uuid)
+    if pending_payloads:
+        for item in pending_payloads:
+            try:
+                pending_announcements.append(PendingAnnouncementItem.model_validate(item))
+            except Exception:
+                continue
+        if pending_announcements:
+            _mark_pending_announcements_delivered(db, agent.uuid, pending_announcements, now)
+
     db.commit()
     if ws_manager.ui_count > 0:
         ws_manager.schedule_broadcast_to_ui(
@@ -569,4 +621,4 @@ def process_heartbeat(db: Session, agent: Agent, payload: HeartbeatRequest) -> t
                 },
             )
         )
-    return now, config, commands, inventory_sync_required
+    return now, config, commands, inventory_sync_required, pending_announcements

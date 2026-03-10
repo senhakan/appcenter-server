@@ -10,6 +10,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.config import get_settings
 from app.database import SessionLocal
 from app.models import Agent, AgentStatusHistory, SamReportSchedule, Setting, SoftwareChangeHistory, TaskHistory
+from app.services.announcement_service import check_expired_deliveries, check_scheduled_announcements
 from app.services import dynamic_group_service
 from app.services import inventory_service
 from app.services import remote_support_service
@@ -161,6 +162,22 @@ def run_due_sam_report_schedules() -> None:
         db.close()
 
 
+def check_scheduled_announcements_job() -> None:
+    db = SessionLocal()
+    try:
+        check_scheduled_announcements(db)
+    finally:
+        db.close()
+
+
+def check_expired_deliveries_job() -> None:
+    db = SessionLocal()
+    try:
+        check_expired_deliveries(db)
+    finally:
+        db.close()
+
+
 def start_scheduler() -> None:
     global scheduler
     if scheduler is None:
@@ -176,6 +193,20 @@ def start_scheduler() -> None:
     scheduler.add_job(check_remote_support_timeouts, "interval", seconds=30, id="rs_timeouts", replace_existing=True)
     scheduler.add_job(sync_dynamic_groups_job, "interval", seconds=15, id="dynamic_group_sync", replace_existing=True)
     scheduler.add_job(run_due_sam_report_schedules, "interval", seconds=30, id="sam_report_schedules", replace_existing=True)
+    scheduler.add_job(
+        check_scheduled_announcements_job,
+        "interval",
+        seconds=30,
+        id="check_scheduled_announcements",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        check_expired_deliveries_job,
+        "interval",
+        seconds=60,
+        id="check_expired_deliveries",
+        replace_existing=True,
+    )
     try:
         scheduler.start()
     except RuntimeError:
@@ -188,6 +219,20 @@ def start_scheduler() -> None:
         scheduler.add_job(check_remote_support_timeouts, "interval", seconds=30, id="rs_timeouts", replace_existing=True)
         scheduler.add_job(sync_dynamic_groups_job, "interval", seconds=15, id="dynamic_group_sync", replace_existing=True)
         scheduler.add_job(run_due_sam_report_schedules, "interval", seconds=30, id="sam_report_schedules", replace_existing=True)
+        scheduler.add_job(
+            check_scheduled_announcements_job,
+            "interval",
+            seconds=30,
+            id="check_scheduled_announcements",
+            replace_existing=True,
+        )
+        scheduler.add_job(
+            check_expired_deliveries_job,
+            "interval",
+            seconds=60,
+            id="check_expired_deliveries",
+            replace_existing=True,
+        )
         scheduler.start()
 
 

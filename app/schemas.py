@@ -198,6 +198,13 @@ class RemoteSupportEnd(BaseModel):
     session_id: int
 
 
+class PendingAnnouncementItem(BaseModel):
+    announcement_id: int
+    title: str
+    message: str
+    priority: str
+
+
 class HeartbeatResponse(BaseModel):
     status: str = "ok"
     server_time: datetime
@@ -205,6 +212,7 @@ class HeartbeatResponse(BaseModel):
     commands: list[CommandItem] = Field(default_factory=list)
     remote_support_request: Optional[RemoteSupportRequest] = None
     remote_support_end: Optional[RemoteSupportEnd] = None
+    pending_announcements: list[PendingAnnouncementItem] = Field(default_factory=list)
 
 
 class RemoteSessionCreateRequest(BaseModel):
@@ -1233,3 +1241,82 @@ class SamPerformanceResponse(BaseModel):
     max_duration_ms: float
     within_target: bool
     checks: list[SamPerformanceCheck]
+
+
+# --- Announcement schemas ---
+
+
+class AnnouncementCreateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    message: str = Field(min_length=1, max_length=5000)
+    priority: Literal["normal", "important", "critical"] = "normal"
+    target_type: Literal["All", "Group", "Agent"]
+    target_id: Optional[str] = None
+    delivery_mode: Literal["online_only", "include_offline"] = "online_only"
+    scheduled_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+
+
+class AnnouncementUpdateRequest(BaseModel):
+    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    message: Optional[str] = Field(default=None, min_length=1, max_length=5000)
+    priority: Optional[Literal["normal", "important", "critical"]] = None
+    target_type: Optional[Literal["All", "Group", "Agent"]] = None
+    target_id: Optional[str] = None
+    delivery_mode: Optional[Literal["online_only", "include_offline"]] = None
+    scheduled_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+
+
+class AnnouncementResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    message: str
+    priority: str
+    target_type: str
+    target_id: Optional[str] = None
+    target_name: Optional[str] = None
+    delivery_mode: str
+    status: str
+    scheduled_at: Optional[datetime] = None
+    published_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    cancelled_at: Optional[datetime] = None
+    created_by: Optional[int] = None
+    created_by_username: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    total_targets: int
+    delivered_count: int
+    acknowledged_count: int
+    failed_count: int
+    pending_count: int = 0
+
+
+class AnnouncementListResponse(BaseModel):
+    items: list[AnnouncementResponse]
+    total: int
+
+
+class AnnouncementDeliveryItemResponse(BaseModel):
+    id: int
+    agent_uuid: str
+    agent_hostname: Optional[str] = None
+    agent_status: Optional[str] = None
+    status: str
+    delivered_at: Optional[datetime] = None
+    acknowledged_at: Optional[datetime] = None
+    failed_at: Optional[datetime] = None
+    failure_reason: Optional[str] = None
+    retry_count: int
+
+
+class AnnouncementDeliveryListResponse(BaseModel):
+    items: list[AnnouncementDeliveryItemResponse]
+    total: int
+
+
+class AnnouncementAckRequest(BaseModel):
+    announcement_id: int

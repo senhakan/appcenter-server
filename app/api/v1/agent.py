@@ -13,9 +13,11 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database import SessionLocal, get_db
 from app.services import agent_signal
+from app.services import announcement_service
 from app.models import Agent, AgentApplication, AgentSoftwareInventory, AgentStatusHistory, Application, Setting, TaskHistory
 from app.services.heartbeat_service import process_heartbeat
 from app.schemas import (
+    AnnouncementAckRequest,
     AgentConfig,
     AgentInventoryRequest,
     AgentInventoryResponse,
@@ -271,7 +273,7 @@ def heartbeat(
     agent = _authenticate_agent(db, x_agent_uuid, x_agent_secret)
     if payload.platform is not None:
         agent.platform = _normalize_platform(payload.platform)
-    now, config, commands, _inv_sync = process_heartbeat(db, agent, payload)
+    now, config, commands, _inv_sync, pending_announcements = process_heartbeat(db, agent, payload)
 
     remote_req: RemoteSupportRequest | None = None
     remote_end: RemoteSupportEnd | None = None
@@ -299,7 +301,20 @@ def heartbeat(
         commands=commands,
         remote_support_request=remote_req,
         remote_support_end=remote_end,
+        pending_announcements=pending_announcements,
     )
+
+
+@router.post("/announcement/ack")
+def acknowledge_announcement(
+    payload: AnnouncementAckRequest,
+    x_agent_uuid: str = Header(..., alias="X-Agent-UUID"),
+    x_agent_secret: str = Header(..., alias="X-Agent-Secret"),
+    db: Session = Depends(get_db),
+):
+    _authenticate_agent(db, x_agent_uuid, x_agent_secret)
+    announcement_service.process_agent_ack(db, x_agent_uuid, payload.announcement_id)
+    return {"status": "ok"}
 
 
 @router.get("/signal")

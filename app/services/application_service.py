@@ -16,11 +16,11 @@ WINDOWS_PLATFORM = "windows"
 LINUX_PLATFORM = "linux"
 ALLOWED_FILE_TYPES_BY_PLATFORM = {
     WINDOWS_PLATFORM: {"msi", "exe", "ps1"},
-    LINUX_PLATFORM: {"deb", "tar.gz", "sh"},
+    LINUX_PLATFORM: {"deb", "tar.gz", "sh", "bin"},
 }
 ALLOWED_EXTENSIONS_BY_PLATFORM = {
     WINDOWS_PLATFORM: {".msi", ".exe", ".ps1"},
-    LINUX_PLATFORM: {".deb", ".tar.gz", ".sh"},
+    LINUX_PLATFORM: {".deb", ".tar.gz", ".sh", ".bin"},
 }
 
 

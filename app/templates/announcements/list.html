@@ -1,0 +1,278 @@
+{% extends 'base.html' %}
+{% block title %}Duyurular{% endblock %}
+{% block page_title %}Duyurular{% endblock %}
+{% block page_actions %}
+<div class="btn-list">
+  <a class="btn btn-primary btn-sm" href="/announcements/create" data-required-permissions="announcements.manage">
+    <i class="ti ti-plus me-1"></i>Yeni Duyuru
+  </a>
+  <button class="btn btn-outline-primary btn-sm" id="ann-refresh-btn" type="button">
+    <i class="ti ti-refresh me-1"></i>Yenile
+  </button>
+</div>
+{% endblock %}
+{% block content %}
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="row g-2">
+      <div class="col-12 col-md-4">
+        <label class="form-label mb-1" for="ann-filter-status">Durum</label>
+        <select id="ann-filter-status" class="form-select">
+          <option value="">Tum Durumlar</option>
+          <option value="scheduled">scheduled</option>
+          <option value="publishing">publishing</option>
+          <option value="published">published</option>
+          <option value="completed">completed</option>
+          <option value="cancelled">cancelled</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-4">
+        <label class="form-label mb-1" for="ann-filter-priority">Oncelik</label>
+        <select id="ann-filter-priority" class="form-select">
+          <option value="">Tum Oncelikler</option>
+          <option value="normal">normal</option>
+          <option value="important">important</option>
+          <option value="critical">critical</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Baslik</th>
+          <th>Oncelik</th>
+          <th>Hedef</th>
+          <th>Durum</th>
+          <th style="min-width: 260px;">Ilerleme</th>
+          <th>Olusturan</th>
+          <th>Tarih</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="ann-rows">
+        <tr><td colspan="9" class="text-secondary">Yukleniyor...</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer d-flex align-items-center justify-content-between">
+    <div class="text-secondary" id="ann-page-info">-</div>
+    <div class="btn-list">
+      <button id="ann-prev" class="btn btn-outline-secondary btn-sm" type="button"><i class="ti ti-chevron-left me-1"></i>Onceki</button>
+      <button id="ann-next" class="btn btn-outline-secondary btn-sm" type="button"><i class="ti ti-chevron-right me-1"></i>Sonraki</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+
+  const LIMIT = 20;
+  let offset = 0;
+  let total = 0;
+  let items = [];
+
+  function esc(v) {
+    return (v ?? '')
+      .toString()
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  function priorityBadge(priority) {
+    const p = (priority || '').toLowerCase();
+    if (p === 'critical') return '<span class="badge bg-red-lt text-red">critical</span>';
+    if (p === 'important') return '<span class="badge bg-yellow-lt text-yellow">important</span>';
+    return '<span class="badge bg-blue-lt text-blue">normal</span>';
+  }
+
+  function statusBadge(status) {
+    const s = (status || '').toLowerCase();
+    const map = {
+      scheduled: 'bg-azure-lt text-azure',
+      publishing: 'bg-yellow-lt text-yellow',
+      published: 'bg-blue-lt text-blue',
+      completed: 'bg-green-lt text-green',
+      cancelled: 'bg-red-lt text-red',
+    };
+    return `<span class="badge ${map[s] || 'bg-secondary-lt text-secondary'}">${esc(s || '-')}</span>`;
+  }
+
+  function progressHtml(item) {
+    const totalTargets = Number(item.total_targets || 0);
+    const delivered = Number(item.delivered_count || 0);
+    const acknowledged = Number(item.acknowledged_count || 0);
+    const pending = Number(item.pending_count || 0);
+    const completed = Math.max(0, totalTargets - pending);
+    const percent = totalTargets > 0 ? Math.min(100, Math.round((completed / totalTargets) * 100)) : 0;
+    return `
+      <div class="progress progress-sm">
+        <div class="progress-bar" style="width:${percent}%" role="progressbar" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100"></div>
+      </div>
+      <div class="small text-secondary mt-1">${delivered}/${totalTargets} iletildi, ${acknowledged} okundu</div>
+    `;
+  }
+
+  function targetText(item) {
+    const t = item.target_name || item.target_id || item.target_type || '-';
+    return esc(t);
+  }
+
+  function actionHtml(item) {
+    const id = Number(item.id || 0);
+    const canCancel = !['completed', 'cancelled'].includes((item.status || '').toLowerCase());
+    const canEdit = (item.status || '').toLowerCase() === 'scheduled';
+    const canManage = AppCenterApi.canPermission('announcements.manage');
+    return `
+      <div class="btn-list flex-nowrap">
+        <a class="btn btn-outline-primary btn-sm" href="/announcements/${id}">Detay</a>
+        ${canManage && canEdit ? `<a class="btn btn-outline-secondary btn-sm" href="/announcements/create?announcement_id=${id}">Duzenle</a>` : ''}
+        ${canManage ? `<button class="btn btn-outline-danger btn-sm js-ann-cancel" data-id="${id}" ${canCancel ? '' : 'disabled'}>Iptal</button>` : ''}
+      </div>
+    `;
+  }
+
+  function renderRows() {
+    const tbody = document.getElementById('ann-rows');
+    if (!items.length) {
+      tbody.innerHTML = '<tr><td colspan="9" class="text-secondary">Kayit yok</td></tr>';
+      return;
+    }
+    tbody.innerHTML = items.map((item) => `
+      <tr data-announcement-id="${Number(item.id || 0)}">
+        <td>${Number(item.id || 0)}</td>
+        <td>${esc(item.title || '-')}</td>
+        <td>${priorityBadge(item.priority)}</td>
+        <td>${targetText(item)}</td>
+        <td>${statusBadge(item.status)}</td>
+        <td class="js-col-progress">${progressHtml(item)}</td>
+        <td>${esc(item.created_by_username || '-')}</td>
+        <td>${esc(AppCenterApi.formatDate(item.created_at))}</td>
+        <td>${actionHtml(item)}</td>
+      </tr>
+    `).join('');
+  }
+
+  function renderPageInfo() {
+    const start = total === 0 ? 0 : offset + 1;
+    const end = Math.min(offset + LIMIT, total);
+    document.getElementById('ann-page-info').textContent = `${start}-${end} / ${total}`;
+    document.getElementById('ann-prev').disabled = offset <= 0;
+    document.getElementById('ann-next').disabled = (offset + LIMIT) >= total;
+  }
+
+  function currentFilters() {
+    return {
+      status: (document.getElementById('ann-filter-status').value || '').trim(),
+      priority: (document.getElementById('ann-filter-priority').value || '').trim(),
+    };
+  }
+
+  async function loadAnnouncements() {
+    const filters = currentFilters();
+    const params = new URLSearchParams();
+    params.set('limit', String(LIMIT));
+    params.set('offset', String(offset));
+    if (filters.status) params.set('status', filters.status);
+    if (filters.priority) params.set('priority', filters.priority);
+
+    const data = await AppCenterApi.req(`/announcements?${params.toString()}`);
+    items = data.items || [];
+    total = Number(data.total || 0);
+    renderRows();
+    renderPageInfo();
+  }
+
+  async function cancelAnnouncement(id) {
+    const ok = await AppCenterApi.confirm({
+      title: 'Duyuru Iptali',
+      message: `#${id} duyurusu iptal edilsin mi?`,
+      confirmText: 'Iptal Et',
+      cancelText: 'Vazgec',
+      tone: 'danger',
+    });
+    if (!ok) return;
+    await AppCenterApi.req(`/announcements/${id}/cancel`, { method: 'POST' });
+    AppCenterApi.toast('Duyuru iptal edildi');
+    await loadAnnouncements();
+  }
+
+  function applyWsUpdate(payload) {
+    const announcementId = Number((payload && payload.announcement_id) || 0);
+    if (!announcementId) return;
+    const index = items.findIndex((x) => Number(x.id || 0) === announcementId);
+    if (index < 0) return;
+
+    const old = items[index] || {};
+    const next = {
+      ...old,
+      total_targets: Number(payload.total_targets ?? old.total_targets ?? 0),
+      delivered_count: Number(payload.delivered_count ?? old.delivered_count ?? 0),
+      acknowledged_count: Number(payload.acknowledged_count ?? old.acknowledged_count ?? 0),
+      failed_count: Number(payload.failed_count ?? old.failed_count ?? 0),
+      pending_count: Number(payload.pending_count ?? old.pending_count ?? 0),
+    };
+    items[index] = next;
+
+    const row = document.querySelector(`tr[data-announcement-id="${announcementId}"]`);
+    if (row) {
+      const progressCol = row.querySelector('.js-col-progress');
+      if (progressCol) progressCol.innerHTML = progressHtml(next);
+    }
+  }
+
+  document.getElementById('ann-filter-status').addEventListener('change', async () => {
+    offset = 0;
+    await loadAnnouncements();
+  });
+  document.getElementById('ann-filter-priority').addEventListener('change', async () => {
+    offset = 0;
+    await loadAnnouncements();
+  });
+  document.getElementById('ann-refresh-btn').addEventListener('click', loadAnnouncements);
+  document.getElementById('ann-prev').addEventListener('click', async () => {
+    offset = Math.max(0, offset - LIMIT);
+    await loadAnnouncements();
+  });
+  document.getElementById('ann-next').addEventListener('click', async () => {
+    if ((offset + LIMIT) >= total) return;
+    offset += LIMIT;
+    await loadAnnouncements();
+  });
+
+  document.getElementById('ann-rows').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.js-ann-cancel');
+    if (!btn) return;
+    const id = Number(btn.getAttribute('data-id') || 0);
+    if (!id) return;
+    try {
+      await cancelAnnouncement(id);
+    } catch (err) {
+      AppCenterApi.toast(err.message || 'Iptal islemi basarisiz');
+    }
+  });
+
+  window.addEventListener('ws-event', function(evt) {
+    const msg = evt.detail || {};
+    if (msg.type !== 'ui.announcement.delivery_update') return;
+    applyWsUpdate(msg.payload || {});
+  });
+
+  (async () => {
+    try {
+      await loadAnnouncements();
+    } catch (err) {
+      AppCenterApi.toast(err.message || 'Duyurular yuklenemedi');
+    }
+  })();
+</script>
+{% endblock %}

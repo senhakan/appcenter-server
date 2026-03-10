@@ -11,8 +11,17 @@ from fastapi import APIRouter, WebSocket
 from starlette.websockets import WebSocketDisconnect
 
 from app.database import get_db
-from app.models import Agent, AgentApplication, AgentIdentityHistory, AgentStatusHistory, Setting
+from app.models import (
+    Agent,
+    AgentApplication,
+    AgentIdentityHistory,
+    AgentStatusHistory,
+    Announcement,
+    AnnouncementDelivery,
+    Setting,
+)
 from app.schemas import ServiceItem
+from app.services import announcement_service
 from app.services import remote_support_service as rs
 from app.services import inventory_service
 from app.services.heartbeat_service import (
@@ -62,6 +71,44 @@ def _to_int(value: str | None, default: int) -> int:
         return int(str(value).strip())
     except Exception:
         return default
+
+
+def _mark_pending_announcements_delivered(
+    db,
+    agent_uuid: str,
+    pending_announcements: list[dict[str, Any]],
+    delivered_at: datetime,
+) -> None:
+    announcement_ids: list[int] = []
+    seen: set[int] = set()
+    for item in pending_announcements:
+        try:
+            ann_id = int(item.get("announcement_id"))
+        except Exception:
+            continue
+        if ann_id in seen:
+            continue
+        seen.add(ann_id)
+        announcement_ids.append(ann_id)
+    if not announcement_ids:
+        return
+
+    rows = (
+        db.query(AnnouncementDelivery, Announcement)
+        .join(Announcement, Announcement.id == AnnouncementDelivery.announcement_id)
+        .filter(
+            AnnouncementDelivery.agent_uuid == agent_uuid,
+            AnnouncementDelivery.announcement_id.in_(announcement_ids),
+            AnnouncementDelivery.status == "pending",
+        )
+        .all()
+    )
+    for delivery, announcement in rows:
+        delivery.status = "delivered"
+        delivery.delivered_at = delivered_at
+        announcement.delivered_count += 1
+        db.add(delivery)
+        db.add(announcement)
 
 
 async def _send_auth_error_and_close(websocket: WebSocket, code: int, message: str) -> None:
@@ -303,6 +350,9 @@ async def agent_ws_endpoint(websocket: WebSocket):
             pending_commands = [c.model_dump() for c in _pending_commands(db, agent, now)]
             pending_rs_request = None
             pending_rs_end = None
+            pending_announcements = announcement_service.deliver_pending_to_agent(db, agent.uuid)
+            if pending_announcements:
+                _mark_pending_announcements_delivered(db, agent.uuid, pending_announcements, now)
             try:
                 req = rs.get_pending_for_agent(db, agent.uuid)
                 if req:
@@ -336,6 +386,7 @@ async def agent_ws_endpoint(websocket: WebSocket):
                     "pending_commands": pending_commands,
                     "pending_rs_request": pending_rs_request,
                     "pending_rs_end": pending_rs_end,
+                    "pending_announcements": pending_announcements,
                 },
             )
         )
@@ -392,6 +443,25 @@ async def agent_ws_endpoint(websocket: WebSocket):
 
             if msg_type == "agent.ack":
                 logger.info("ws agent ack uuid=%s ack_id=%s status=%s", agent_uuid, payload.get("ack_id"), payload.get("status"))
+                continue
+
+            if msg_type == "agent.announcement.ack":
+                announcement_id_raw = payload.get("announcement_id")
+                try:
+                    announcement_id = int(announcement_id_raw)
+                except Exception:
+                    logger.warning(
+                        "ws agent announcement ack invalid uuid=%s announcement_id=%s",
+                        agent_uuid,
+                        announcement_id_raw,
+                    )
+                    continue
+                ack_db = next(get_db())
+                try:
+                    announcement_service.process_agent_ack(ack_db, agent_uuid, announcement_id)
+                    logger.info("ws agent announcement ack uuid=%s announcement_id=%s", agent_uuid, announcement_id)
+                finally:
+                    ack_db.close()
                 continue
 
             if msg_type == "agent.task.progress":

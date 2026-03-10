@@ -19,6 +19,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.api.v1.agent import router as agent_router
 from app.api.v1.agent_ws import router as agent_ws_router
+from app.api.v1 import announcements as announcements_router
 from app.api.v1.audit import router as audit_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.inventory import router as inventory_router
@@ -72,6 +73,15 @@ NAV_SCHEMA: list[dict[str, Any]] = [
         "roles": ["admin", "operator", "viewer"],
         "feature_flag": None,
         "permission": "ui.menu.remote_support",
+    },
+    {
+        "key": "announcements",
+        "title": "Duyurular",
+        "path": "/announcements",
+        "active_pages": ["announcements"],
+        "roles": ["admin", "operator", "viewer"],
+        "feature_flag": None,
+        "permission": "ui.menu.announcements",
     },
     {
         "key": "groups",
@@ -230,6 +240,7 @@ PAGE_PERMISSION_BY_ACTIVE: dict[str, str] = {
     "dashboard": "ui.page.dashboard",
     "agents": "ui.page.agents",
     "remote_support": "ui.page.remote_support",
+    "announcements": "ui.page.announcements",
     "groups": "ui.page.groups",
     "applications": "ui.page.applications",
     "deployments": "ui.page.deployments",
@@ -339,6 +350,7 @@ app.include_router(remote_support_router, prefix=settings.api_v1_prefix)
 app.include_router(users_router, prefix=settings.api_v1_prefix)
 app.include_router(roles_router, prefix=settings.api_v1_prefix)
 app.include_router(audit_router, prefix=settings.api_v1_prefix)
+app.include_router(announcements_router.router)
 
 
 @app.exception_handler(HTTPException)
@@ -552,6 +564,27 @@ def agents_page(request: Request):
 @app.get("/remote-support")
 def remote_support_list_page(request: Request):
     return templates.TemplateResponse("remote_support/list.html", _page_ctx(request, "remote_support"))
+
+
+@app.get("/announcements")
+def announcements_list_page(request: Request):
+    return templates.TemplateResponse("announcements/list.html", _page_ctx(request, "announcements"))
+
+
+@app.get("/announcements/create")
+def announcements_create_page(request: Request):
+    return templates.TemplateResponse(
+        "announcements/create.html",
+        _page_ctx(request, "announcements", page_permissions="announcements.manage"),
+    )
+
+
+@app.get("/announcements/{announcement_id}")
+def announcements_detail_page(request: Request, announcement_id: int):
+    return templates.TemplateResponse(
+        "announcements/detail.html",
+        _page_ctx(request, "announcements", announcement_id=announcement_id),
+    )
 
 
 @app.get("/groups")

@@ -741,3 +741,89 @@ Index("idx_sam_finding_type", SamComplianceFinding.finding_type)
 Index("idx_sam_finding_last_seen", SamComplianceFinding.last_seen_at)
 Index("idx_sam_schedule_active", SamReportSchedule.is_active)
 Index("idx_sam_schedule_next_run", SamReportSchedule.next_run_at)
+
+
+class Announcement(Base):
+    __tablename__ = "announcements"
+    __table_args__ = (
+        CheckConstraint(
+            "priority IN ('normal', 'important', 'critical')",
+            name="ck_announcement_priority",
+        ),
+        CheckConstraint(
+            "target_type IN ('All', 'Group', 'Agent')",
+            name="ck_announcement_target_type",
+        ),
+        CheckConstraint(
+            "delivery_mode IN ('online_only', 'include_offline')",
+            name="ck_announcement_delivery_mode",
+        ),
+        CheckConstraint(
+            "status IN ('scheduled', 'publishing', 'published', 'completed', 'cancelled')",
+            name="ck_announcement_status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    priority: Mapped[str] = mapped_column(String(20), default="normal", nullable=False)
+    target_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    target_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    delivery_mode: Mapped[str] = mapped_column(String(20), default="online_only", nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="scheduled", nullable=False)
+    scheduled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancelled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+    total_targets: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    delivered_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    acknowledged_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    failed_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    deliveries: Mapped[list["AnnouncementDelivery"]] = relationship(
+        back_populates="announcement", cascade="all, delete-orphan"
+    )
+
+
+class AnnouncementDelivery(Base):
+    __tablename__ = "announcement_deliveries"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'delivered', 'acknowledged', 'failed', 'expired', 'cancelled')",
+            name="ck_ann_delivery_status",
+        ),
+        UniqueConstraint("announcement_id", "agent_uuid", name="uq_ann_delivery_agent"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    announcement_id: Mapped[int] = mapped_column(
+        ForeignKey("announcements.id", ondelete="CASCADE"), nullable=False
+    )
+    agent_uuid: Mapped[str] = mapped_column(
+        ForeignKey("agents.uuid", ondelete="CASCADE"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
+    delivered_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    acknowledged_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    failed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    failure_reason: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    next_retry_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    announcement: Mapped[Announcement] = relationship(back_populates="deliveries")
+
+
+Index("idx_announcement_status", Announcement.status)
+Index("idx_announcement_scheduled", Announcement.scheduled_at)
+Index("idx_announcement_created", Announcement.created_at)
+Index("idx_announcement_created_by", Announcement.created_by)
+Index("idx_ann_delivery_announcement", AnnouncementDelivery.announcement_id)
+Index("idx_ann_delivery_agent", AnnouncementDelivery.agent_uuid)
+Index("idx_ann_delivery_status", AnnouncementDelivery.status)
