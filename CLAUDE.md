@@ -27,8 +27,9 @@ server/
 │   │   ├── __init__.py
 │   │   └── v1/
 │   │       ├── __init__.py
-│   │       ├── agent.py        # Agent endpoints (register, heartbeat, download, task status, store)
-│   │       ├── agent_ws.py     # Agent WebSocket endpoint (auth, hello, ping/pong, status)
+│   │       ├── agent.py        # Agent endpoints (register, heartbeat, download, task status, store, announcement ack)
+│   │       ├── agent_ws.py     # Agent WebSocket endpoint (auth, hello, ping/pong, status, announcement)
+│   │       ├── announcements.py # Announcement CRUD + delivery endpoints
 │   │       ├── ui_ws.py        # UI WebSocket endpoint (JWT auth, feature flag)
 │   │       ├── web.py          # Web UI endpoints (agents, apps, deployments CRUD)
 │   │       └── auth.py         # Login/logout endpoints
@@ -36,6 +37,7 @@ server/
 │   │   ├── __init__.py
 │   │   ├── agent_service.py
 │   │   ├── agent_signal.py     # Signal registry: WS-first push + long-poll fallback
+│   │   ├── announcement_service.py  # Announcement lifecycle, delivery, scheduling
 │   │   ├── application_service.py
 │   │   ├── deployment_service.py
 │   │   ├── heartbeat_service.py
@@ -47,13 +49,14 @@ server/
 │   │   └── logger.py
 │   ├── tasks/
 │   │   ├── __init__.py
-│   │   └── scheduler.py        # APScheduler: offline check (2dk) + log cleanup (günlük)
+│   │   └── scheduler.py        # APScheduler: offline check (2dk) + log cleanup (günlük) + announcement jobs
 │   ├── templates/              # Jinja2
 │   │   ├── base.html
 │   │   ├── components/
 │   │   ├── auth/
 │   │   ├── dashboard.html
 │   │   ├── agents/
+│   │   ├── announcements/      # list.html, create.html, detail.html
 │   │   ├── applications/
 │   │   ├── deployments/
 │   │   └── settings.html
@@ -187,6 +190,25 @@ server/
 - Faz 2 tamamlandı: server push (command/RS/config), heartbeat→UI broadcast, ws-client.js, agent dispatcher, E2E test geçti
 - Faz 3 tamamlandı: stats endpoint (/api/v1/ws/stats), dashboard WS göstergesi, rollback testi, canary stabil
 - Genel rollout aktif (2026-03-08): heartbeat config websocket_enabled=true gönderiyor, 7/10 agent WS'de
+
+### Duyuru Modülü (Announcement Module) - 2026-03-10
+- **Durum:** TAMAMLANDI
+- **Plan:** `/root/appcenter/ANNOUNCEMENT_MODULE_PLAN.md`
+- DB: `announcements` + `announcement_deliveries` tabloları, 7 index
+- API: `POST/GET /api/v1/announcements`, `GET /{id}`, `PUT /{id}`, `POST /{id}/cancel`, `GET /{id}/deliveries`
+- Agent ACK: `POST /api/v1/agent/announcement/ack` (HTTP), `agent.announcement.ack` (WS)
+- WS push: `server.announcement.push` → agent, `ui.announcement.delivery_update` → UI
+- Hedefleme: All, Group, Agent | Mod: online_only, include_offline
+- Öncelik: normal, important, critical
+- Zamanlama: Hemen veya scheduled (APScheduler 30s kontrol)
+- TTL/Expiry: Otomatik expired delivery temizleme (60s kontrol)
+- Heartbeat fallback: `pending_announcements` alanı ile offline agent'lara iletim
+- UI: `/announcements`, `/announcements/create`, `/announcements/{id}` sayfaları
+- RBAC: `announcements.view`, `announcements.manage` izinleri
+- Windows agent (v0.1.47): WTSSendMessage API ile aktif kullanıcı session'ına MessageBox
+- Linux agent (v0.1.55-live): loginctl session discovery + zenity/notify-send
+- E2E test: Windows + Linux üzerinde doğrulandı
+
 3. [x] Dashboard istatistikleri
 4. [x] Agent update upload
 5. [x] Error handling iyileştirmesi
