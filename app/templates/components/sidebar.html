@@ -25,6 +25,7 @@
                   {% if item.key == 'management' %}<i class="ti ti-settings"></i>
                   {% elif item.key == 'infrastructure' %}<i class="ti ti-building"></i>
                   {% elif item.key == 'inventory' %}<i class="ti ti-list-details"></i>
+                  {% elif item.key == 'asset_management' %}<i class="ti ti-box-seam"></i>
                   {% else %}<i class="ti ti-folder"></i>{% endif %}
                 </span>
                 <span class="nav-link-title">{{ item.title }}</span>
@@ -53,6 +54,7 @@
                   {% elif item.key == 'applications' %}<i class="ti ti-apps"></i>
                   {% elif item.key == 'deployments' %}<i class="ti ti-rocket"></i>
                   {% elif item.key == 'inventory' %}<i class="ti ti-list-details"></i>
+                  {% elif item.key == 'asset_management' %}<i class="ti ti-box-seam"></i>
                   {% elif item.key == 'licenses' %}<i class="ti ti-license"></i>
                   {% else %}<i class="ti ti-circle"></i>{% endif %}
                 </span>

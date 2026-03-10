@@ -19,6 +19,59 @@
 - Zorunlu akış: Server tarafinda yapilan her degisiklik ayni oturumda canli ortama uygulanir (`/opt/appcenter/server`), servis restart edilir ve en az health/smoke kontrolu yapilir.
 - Operasyonel kisayol: Kullanici `+1` yazdiginda bu repoda o ana kadarki degisiklikler icin `dokuman guncelle + commit + push + canli deploy + health/smoke` akisi uygulanir.
 
+## Asset Registry Lab Izolasyon Kurali
+
+- `server/docs/ASSET_REGISTRY_LAB/` altindaki dokuman seti ve ileride bu mod icin acilacak kod yolları varsayilan olarak diger server islerinin kapsaminda **degildir**.
+- Bu alan sadece kullanici acikca `asset management`, `asset registry`, `cmdb`, `asset registry lab` veya ayni anlama gelen bir is istediginde isleme alinir.
+- Bu is disindaki normal server gorevlerinde su yollar varsayilan olarak kapsam disi kabul edilir:
+  - `server/docs/ASSET_REGISTRY_LAB/`
+  - `server/app/api/v1/asset_registry.py`
+  - `server/app/services/asset_registry_service.py`
+  - `server/app/services/organization_service.py`
+  - `server/app/services/location_service.py`
+  - `server/app/services/person_registry_service.py`
+  - `server/app/services/asset_matching_service.py`
+  - `server/app/services/asset_reporting_service.py`
+  - `server/app/templates/asset_registry/`
+- Kural:
+  - baska bir is yapilirken bu klasor ve kod yollarinda degisiklik yapilmaz
+  - bu alanin test, refactor, tasarim veya kodlama isleri sadece ilgili asset management isi acildiginda ele alinir
+
+## Konfig Modeli
+
+- Bootstrap config dosyasi:
+  - repo: `server/config/server.ini`
+  - canli: `/opt/appcenter/server/config/server.ini`
+- Bu dosyada sadece process baslangicinda gerekli altyapi ayarlari tutulur:
+  - `database_url`
+  - `secret_key`
+  - `upload_dir`
+  - `server_host` / `server_port`
+  - `log_file`
+  - `novnc_token_file`
+- Runtime davranis ayarlari artik DB `settings` tablosunda tutulur ve `/settings` ekranindan yonetilir:
+  - `remote_support_enabled`
+  - `remote_support_approval_timeout_sec`
+  - `remote_support_default_max_duration_min`
+  - `remote_support_max_duration_min`
+  - `remote_support_novnc_mode`
+  - `remote_support_ws_mode`
+- Kural:
+  - davranis/config degisimi icin `.env` kullanilmaz
+  - remote support runtime ayarlari servis restart gerektirmez
+
+## CSS Kurali
+
+- `app/static/css/app.css` legacy stil katmanidir.
+- Bu dosyada `card`, `btn`, `input`, `select`, `textarea`, `label`, `table` gibi genel selector'ler
+  sadece `body:not(.app-shell)` altinda tanimlanir.
+- Tabler kullanan tum yeni sayfalar `app-shell` altinda calisir; bu sayfalara global legacy selector
+  sizmamasi gerekir.
+- Yeni UI gelistirirken:
+  - Tabler class'larini kullan
+  - gerekiyorsa sayfa-ozel scope (`.some-page ...`) ekle
+  - `app.css` icine scope'suz genel form/button/table kurali ekleme
+
 ## Faz 1 Tamamlananlar
 
 - Cekirdek altyapi: `app/database.py`, `app/models.py`, `app/config.py`, `app/main.py`, `app/auth.py`

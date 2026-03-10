@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% block title %}Asset Registry Assetler{% endblock %}
+{% block page_title %}Assetler{% endblock %}
+{% block content %}
+{% include "asset_registry/_subnav.html" %}
+<style>
+  .ar-toolbar-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  .ar-card-stack {
+    display: grid;
+    gap: 1rem;
+  }
+  .ar-list-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  @media (max-width: 991.98px) {
+    .ar-toolbar-grid,
+    .ar-list-kpis {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (max-width: 575.98px) {
+    .ar-toolbar-grid,
+    .ar-list-kpis {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+<div class="row g-3">
+  <div class="col-xl-4">
+    <div class="ar-card-stack">
+      <div class="card">
+        <div class="card-header"><h3 class="card-title">Yeni Asset</h3></div>
+        <div class="card-body">
+          <form id="asset-form" class="d-flex flex-column gap-2">
+            <input id="asset-tag" class="form-control" placeholder="Asset Tag" required />
+            <input id="asset-serial" class="form-control" placeholder="Seri No" />
+            <select id="asset-device-type" class="form-select" required></select>
+            <select id="asset-usage-type" class="form-select" required></select>
+            <select id="asset-ownership-type" class="form-select" required></select>
+            <select id="asset-lifecycle-status" class="form-select" required></select>
+            <select id="asset-org-node" class="form-select" required></select>
+            <select id="asset-location-node" class="form-select" required></select>
+            <select id="asset-primary-person" class="form-select"><option value="">Primary user yok</option></select>
+            <select id="asset-owner-person" class="form-select"><option value="">Owner yok</option></select>
+            <input id="asset-support-team" class="form-control" placeholder="Support Team" />
+            <input id="asset-manufacturer" class="form-control" placeholder="Uretici" />
+            <input id="asset-model" class="form-control" placeholder="Model" />
+            <button class="btn btn-primary" type="submit">Kaydet</button>
+          </form>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3 class="card-title">Liste Ozeti</h3></div>
+        <div class="card-body">
+          <div class="ar-list-kpis">
+            <div class="card bg-body-secondary border-0"><div class="card-body p-3"><div class="subheader">Toplam</div><div id="assets-kpi-total" class="h2 m-0">0</div></div></div>
+            <div class="card bg-body-secondary border-0"><div class="card-body p-3"><div class="subheader">Bagli Agent</div><div id="assets-kpi-linked" class="h2 m-0">0</div></div></div>
+            <div class="card bg-body-secondary border-0"><div class="card-body p-3"><div class="subheader">Issue'lu</div><div id="assets-kpi-issues" class="h2 m-0">0</div></div></div>
+            <div class="card bg-body-secondary border-0"><div class="card-body p-3"><div class="subheader">Aktif Filtre</div><div id="assets-kpi-filtered" class="h2 m-0">0</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-8">
+    <div class="card">
+      <div class="card-header border-0 pb-0">
+        <div class="w-100">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+            <div>
+              <h3 class="card-title mb-1">Asset Listesi</h3>
+              <div class="text-secondary small">Organizasyon, lokasyon, kisi ve durum bazli filtreleyerek asset havuzunu daralt.</div>
+            </div>
+            <button id="assets-filter-reset" class="btn btn-outline-secondary btn-sm" type="button">Filtreleri Temizle</button>
+          </div>
+          <div class="ar-toolbar-grid">
+            <input id="assets-filter-q" class="form-control" placeholder="Asset tag, seri, model ara" />
+            <select id="assets-filter-org" class="form-select"><option value="">Tum organizasyonlar</option></select>
+            <select id="assets-filter-location" class="form-select"><option value="">Tum lokasyonlar</option></select>
+            <select id="assets-filter-person" class="form-select"><option value="">Tum kisiler</option></select>
+            <select id="assets-filter-link" class="form-select">
+              <option value="">Baglanti durumu</option>
+              <option value="linked">Agent bagli</option>
+              <option value="unlinked">Agent bagli degil</option>
+              <option value="issues">Issue var</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th>Asset</th><th>Organizasyon</th><th>Lokasyon</th><th>Kullanim</th><th>Agent</th><th>DQ</th></tr></thead><tbody id="assets-table"></tbody></table></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let assetDependencies = { dicts: null, orgs: [], locs: [], people: [] };
+let allAssets = [];
+
+function escHtml(value) {
+  return (value || "").toString()
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function setOptions(id, items, valueKey, labelKey, empty) {
+  const el = document.getElementById(id);
+  el.innerHTML = (empty ? `<option value="">${empty}</option>` : "") + (items || []).map(x => `<option value="${x[valueKey]}">${escHtml(x[labelKey])}</option>`).join("");
+}
+
+function drawAssetKpis(items) {
+  const total = allAssets.length;
+  const linked = items.filter((item) => !!item.linked_agent_uuid).length;
+  const issues = items.filter((item) => Number(item.issue_count || 0) > 0).length;
+  document.getElementById("assets-kpi-total").textContent = String(total);
+  document.getElementById("assets-kpi-linked").textContent = String(linked);
+  document.getElementById("assets-kpi-issues").textContent = String(issues);
+  document.getElementById("assets-kpi-filtered").textContent = String(items.length);
+}
+
+function renderAssetTable(items) {
+  drawAssetKpis(items);
+  document.getElementById("assets-table").innerHTML = (items || []).map((x) => `
+    <tr>
+      <td>
+        <a href="/asset-registry/assets/${x.id}">${escHtml(x.asset_tag)}</a>
+        <div class="text-secondary small">${escHtml(x.device_type)} / ${escHtml(x.lifecycle_status)}</div>
+      </td>
+      <td>${escHtml(x.org_path || "-")}</td>
+      <td>${escHtml(x.location_path || "-")}</td>
+      <td>${escHtml(x.primary_person_name || x.owner_person_name || "-")}</td>
+      <td>${escHtml(x.linked_agent_hostname || x.linked_agent_uuid || "-")}</td>
+      <td><span class="badge ${x.issue_count ? 'bg-yellow-lt text-yellow' : 'bg-green-lt text-green'}">${x.issue_count}</span></td>
+    </tr>
+  `).join("") || `<tr><td colspan="6" class="text-secondary">Kayit yok</td></tr>`;
+}
+
+function filteredAssets() {
+  const q = (document.getElementById("assets-filter-q").value || "").trim().toLowerCase();
+  const orgId = document.getElementById("assets-filter-org").value;
+  const locationId = document.getElementById("assets-filter-location").value;
+  const personId = document.getElementById("assets-filter-person").value;
+  const linkMode = document.getElementById("assets-filter-link").value;
+  return allAssets.filter((item) => {
+    if (q) {
+      const hay = [item.asset_tag, item.serial_number, item.model, item.inventory_number, item.linked_agent_hostname].filter(Boolean).join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (orgId && String(item.org_node_id) !== String(orgId)) return false;
+    if (locationId && String(item.location_node_id) !== String(locationId)) return false;
+    if (personId && String(item.primary_person_id || item.owner_person_id || "") !== String(personId)) return false;
+    if (linkMode === "linked" && !item.linked_agent_uuid) return false;
+    if (linkMode === "unlinked" && item.linked_agent_uuid) return false;
+    if (linkMode === "issues" && Number(item.issue_count || 0) <= 0) return false;
+    return true;
+  });
+}
+
+function applyAssetFilters() {
+  renderAssetTable(filteredAssets());
+}
+
+async function loadAssetDependencies() {
+  const dicts = await AppCenterApi.req("/asset-registry/dictionaries");
+  const orgs = await AppCenterApi.req("/asset-registry/organization");
+  const locs = await AppCenterApi.req("/asset-registry/locations");
+  const people = await AppCenterApi.req("/asset-registry/people");
+  assetDependencies = { dicts, orgs: orgs.items || [], locs: locs.items || [], people: people.items || [] };
+  setOptions("asset-device-type", dicts.device_types.map(x => ({v:x,l:x})), "v", "l");
+  setOptions("asset-usage-type", dicts.usage_types.map(x => ({v:x,l:x})), "v", "l");
+  setOptions("asset-ownership-type", dicts.ownership_types.map(x => ({v:x,l:x})), "v", "l");
+  setOptions("asset-lifecycle-status", dicts.lifecycle_statuses.map(x => ({v:x,l:x})), "v", "l");
+  setOptions("asset-org-node", assetDependencies.orgs, "id", "path");
+  setOptions("asset-location-node", assetDependencies.locs, "id", "path");
+  setOptions("asset-primary-person", assetDependencies.people, "id", "full_name", "Primary user yok");
+  setOptions("asset-owner-person", assetDependencies.people, "id", "full_name", "Owner yok");
+  setOptions("assets-filter-org", assetDependencies.orgs, "id", "path", "Tum organizasyonlar");
+  setOptions("assets-filter-location", assetDependencies.locs, "id", "path", "Tum lokasyonlar");
+  setOptions("assets-filter-person", assetDependencies.people, "id", "full_name", "Tum kisiler");
+}
+
+async function loadAssetList() {
+  const list = await AppCenterApi.req("/asset-registry/assets");
+  allAssets = list.items || [];
+  applyAssetFilters();
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  await AppCenterApi.protectPage();
+  await loadAssetDependencies();
+  await loadAssetList();
+  ["assets-filter-q", "assets-filter-org", "assets-filter-location", "assets-filter-person", "assets-filter-link"].forEach((id) => {
+    document.getElementById(id).addEventListener("input", applyAssetFilters);
+    document.getElementById(id).addEventListener("change", applyAssetFilters);
+  });
+  document.getElementById("assets-filter-reset").addEventListener("click", () => {
+    ["assets-filter-q", "assets-filter-org", "assets-filter-location", "assets-filter-person", "assets-filter-link"].forEach((id) => {
+      document.getElementById(id).value = "";
+    });
+    applyAssetFilters();
+  });
+  document.getElementById("asset-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await AppCenterApi.req("/asset-registry/assets", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({
+      asset_tag: document.getElementById("asset-tag").value,
+      serial_number: document.getElementById("asset-serial").value || null,
+      device_type: document.getElementById("asset-device-type").value,
+      usage_type: document.getElementById("asset-usage-type").value,
+      ownership_type: document.getElementById("asset-ownership-type").value,
+      lifecycle_status: document.getElementById("asset-lifecycle-status").value,
+      org_node_id: Number(document.getElementById("asset-org-node").value),
+      location_node_id: Number(document.getElementById("asset-location-node").value),
+      primary_person_id: document.getElementById("asset-primary-person").value ? Number(document.getElementById("asset-primary-person").value) : null,
+      owner_person_id: document.getElementById("asset-owner-person").value ? Number(document.getElementById("asset-owner-person").value) : null,
+      support_team: document.getElementById("asset-support-team").value || null,
+      manufacturer: document.getElementById("asset-manufacturer").value || null,
+      model: document.getElementById("asset-model").value || null,
+      is_active: true
+    })});
+    AppCenterApi.toast("Asset olusturuldu", "success");
+    e.target.reset();
+    await loadAssetDependencies();
+    await loadAssetList();
+  });
+});
+</script>
+{% endblock %}

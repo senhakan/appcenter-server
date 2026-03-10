@@ -57,6 +57,17 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1rem;
   }
+  .agent-asset-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  .agent-asset-context-card .datagrid-item {
+    min-width: 0;
+  }
+  .agent-asset-context-card .datagrid-content {
+    word-break: break-word;
+  }
   .agent-overview-groups .full {
     grid-column: 1 / -1;
   }
@@ -74,7 +85,8 @@
   }
   @media (max-width: 767.98px) {
     .agent-overview-metrics,
-    .agent-overview-groups {
+    .agent-overview-groups,
+    .agent-asset-kpis {
       grid-template-columns: 1fr;
     }
     .agent-overview-kv {
@@ -488,6 +500,47 @@
     return requested;
   }
 
+  async function loadAgentAssetSummary() {
+    const container = document.getElementById('agent-asset-context');
+    if (!container) return;
+    try {
+      const summary = await AppCenterApi.req(`/asset-registry/agents/${agentId}/summary`);
+      const issueTone = Number(summary.issue_count || 0) > 0 ? 'bg-yellow-lt text-yellow' : 'bg-green-lt text-green';
+      const confidenceText = summary.confidence_score != null ? ` (${escHtml(String(summary.confidence_score))})` : '';
+      container.innerHTML = `
+        <div class="card agent-asset-context-card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title mb-1">Asset Registry Baglami</h3>
+              <div class="text-secondary small">Bu ajan icin aktif primary asset eslestirmesi okunur olarak gosterilir.</div>
+            </div>
+            <a class="btn btn-sm btn-outline-primary" href="/asset-registry/assets/${summary.asset_id}"><i class="ti ti-external-link me-1"></i>Asset Detay</a>
+          </div>
+          <div class="card-body">
+            <div class="agent-asset-kpis mb-3">
+              <div class="card bg-body-secondary border-0"><div class="card-body p-3"><div class="subheader">Asset Tag</div><div class="h3 m-0">${escHtml(summary.asset_tag || '-')}</div></div></div>
+              <div class="card bg-body-secondary border-0"><div class="card-body p-3"><div class="subheader">Yasam Dongusu</div><div class="h3 m-0">${escHtml(summary.lifecycle_status || '-')}</div></div></div>
+              <div class="card bg-body-secondary border-0"><div class="card-body p-3"><div class="subheader">Data Quality</div><div class="h3 m-0">${escHtml(String(summary.data_quality_score ?? '-'))}</div></div></div>
+              <div class="card bg-body-secondary border-0"><div class="card-body p-3"><div class="subheader">Issue</div><div class="h3 m-0"><span class="badge ${issueTone}">${escHtml(String(summary.issue_count || 0))}</span></div></div></div>
+            </div>
+            <div class="datagrid">
+              <div class="datagrid-item"><div class="datagrid-title">Cihaz Tipi</div><div class="datagrid-content">${escHtml(summary.device_type || '-')}</div></div>
+              <div class="datagrid-item"><div class="datagrid-title">Organizasyon</div><div class="datagrid-content">${escHtml(summary.org_path || '-')}</div></div>
+              <div class="datagrid-item"><div class="datagrid-title">Lokasyon</div><div class="datagrid-content">${escHtml(summary.location_path || '-')}</div></div>
+              <div class="datagrid-item"><div class="datagrid-title">Primary User</div><div class="datagrid-content">${escHtml(summary.primary_person_name || '-')}</div></div>
+              <div class="datagrid-item"><div class="datagrid-title">Owner</div><div class="datagrid-content">${escHtml(summary.owner_person_name || '-')}</div></div>
+              <div class="datagrid-item"><div class="datagrid-title">Support Team</div><div class="datagrid-content">${escHtml(summary.support_team || '-')}</div></div>
+              <div class="datagrid-item"><div class="datagrid-title">Eslestirme</div><div class="datagrid-content">${escHtml(summary.match_source || '-')}${confidenceText}</div></div>
+              <div class="datagrid-item"><div class="datagrid-title">Son Dogrulama</div><div class="datagrid-content">${escHtml(summary.last_verified_at ? AppCenterApi.formatDate(summary.last_verified_at) : '-')}</div></div>
+            </div>
+          </div>
+        </div>
+      `;
+    } catch (_) {
+      container.innerHTML = '';
+    }
+  }
+
   async function saveNote() {
     const { noteInput, noteSaveBtn } = getNoteElements();
     if (!noteInput || !noteSaveBtn || noteSaveBtn.disabled) return;
@@ -581,6 +634,7 @@
           <div class="card"><div class="card-body"><div class="subheader">Son kontrol</div><div class="h3 m-0">${escHtml(lastSeenFull)}</div></div></div>
           <div class="card"><div class="card-body"><div class="subheader">Yuklu uygulama sayisi</div><div class="h3 m-0" id="agent-kpi-apps">-</div></div></div>
         </div>
+        <div id="agent-asset-context" class="mb-3"></div>
         <div class="agent-overview-groups">
           <div>
             <div class="card">
@@ -654,6 +708,7 @@
       syncNoteSaveButton();
       renderServiceMonitoringState();
       renderRemoteApprovalState();
+      await loadAgentAssetSummary();
     } catch (err) {
       AppCenterApi.toast(err.message);
     }

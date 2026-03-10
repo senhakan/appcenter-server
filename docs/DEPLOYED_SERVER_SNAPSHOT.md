@@ -35,7 +35,7 @@ Service dosyasi:
 - Hedef:
   - `/opt/appcenter/server`
 - rsync ile senkron:
-  - `.env` mutlaka exclude edilir
+  - `config/server.ini` hedefe kopyalanir
 
 Ornek:
 
@@ -44,7 +44,6 @@ rsync -av --delete \
   --exclude '.git' \
   --exclude 'venv' \
   --exclude 'venv39' \
-  --exclude '.env' \
   /root/appcenter/server/ /opt/appcenter/server/
 sudo systemctl restart appcenter
 ```
@@ -57,10 +56,10 @@ Not:
 
 ## 5. Sık Hata ve Cozum
 
-1. Service acilmiyor, `Failed to load environment files`
-- Neden: `.env` silinmis
-- Cozum: `/opt/appcenter/server/.env` geri olustur, izinleri duzelt, restart
+1. Service acilmiyor, bootstrap config okunamiyor
+- Neden: `config/server.ini` eksik veya bozuk
+- Cozum: `/opt/appcenter/server/config/server.ini` geri yukle, syntax kontrol et, restart
 
 2. App startup'ta config parse hatasi
-- Neden: `CORS_ORIGINS=*` gibi hatali format
-- Cozum: `CORS_ORIGINS=["*"]` kullan
+- Neden: `cors_origins=*` gibi hatali format
+- Cozum: `cors_origins=["*"]` kullan

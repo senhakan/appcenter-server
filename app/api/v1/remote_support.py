@@ -19,6 +19,7 @@ from app.schemas import (
 )
 from app.services import novnc_service as novnc
 from app.services import remote_support_service as rs
+from app.services import runtime_config_service as runtime_config
 from app.services import session_recording_service as recording
 from app.services import audit_service as audit
 from app.api.v1.agent import _authenticate_agent
@@ -234,7 +235,7 @@ def list_remote_sessions(
     db: Session = Depends(get_db),
 ):
     _ = user
-    rs.ensure_enabled()
+    rs.ensure_enabled(db)
     sessions = rs.list_sessions(db, status_filter=status, agent_uuid=agent_uuid, limit=limit)
     return {
         "status": "ok",
@@ -265,7 +266,7 @@ def get_remote_session(
     db: Session = Depends(get_db),
 ):
     _ = user
-    rs.ensure_enabled()
+    rs.ensure_enabled(db)
     s = rs.get_session(db, session_id)
     return {
         "status": "ok",
@@ -331,7 +332,7 @@ def get_remote_session_novnc_ticket(
     db: Session = Depends(get_db),
 ):
     _ = user
-    rs.ensure_enabled()
+    rs.ensure_enabled(db)
     s = rs.get_session(db, session_id)
     allowed_states = {"approved", "connecting", "active"}
     if (s.status or "").lower() not in allowed_states:
@@ -379,11 +380,14 @@ def approve_remote_session(
     _authenticate_agent(db, x_agent_uuid, x_agent_secret)
     session = rs.approve_from_agent(db, session_id, x_agent_uuid, body.approved, body.monitor_count)
     if body.approved and session.status == "approved":
+        runtime = runtime_config.get_remote_support_runtime(db)
         return {
             "status": "ok",
             "vnc_password": session.vnc_password,
             "guacd_host": rs.settings.guac_reverse_vnc_host,
             "guacd_reverse_port": rs.settings.guac_reverse_vnc_port,
+            "novnc_mode": runtime.novnc_mode,
+            "ws_mode": runtime.ws_mode,
         }
     return {"status": "ok", "message": "Session rejected"}
 

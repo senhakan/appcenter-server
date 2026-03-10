@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% block title %}Asset Detay{% endblock %}
+{% block page_title %}Asset Detay{% endblock %}
+{% block content %}
+{% include "asset_registry/_subnav.html" %}
+<style>
+  .ar-asset-hero {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr 1fr;
+    gap: 0.75rem;
+  }
+  .ar-asset-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  .ar-asset-edit-form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  .ar-asset-edit-form .full {
+    grid-column: 1 / -1;
+  }
+  @media (max-width: 991.98px) {
+    .ar-asset-hero,
+    .ar-asset-detail-grid,
+    .ar-asset-edit-form {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+<div class="ar-asset-hero mb-3" id="asset-hero"></div>
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Operasyon Ozet</h3></div>
+      <div class="card-body" id="asset-detail-body"></div>
+    </div>
+    <div class="card mt-3">
+      <div class="card-header"><h3 class="card-title">Degisiklik Gecmisi</h3></div>
+      <div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th>Zaman</th><th>Tip</th><th>Alan</th><th>Eski</th><th>Yeni</th></tr></thead><tbody id="asset-history-body"></tbody></table></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header"><h3 class="card-title">Asset Duzenle</h3></div>
+      <div class="card-body">
+        <form id="asset-edit-form" class="ar-asset-edit-form">
+          <input id="edit-asset-tag" class="form-control full" placeholder="Asset Tag" required />
+          <select id="edit-usage-type" class="form-select"></select>
+          <select id="edit-lifecycle-status" class="form-select"></select>
+          <select id="edit-org-node" class="form-select"></select>
+          <select id="edit-location-node" class="form-select"></select>
+          <select id="edit-cost-center" class="form-select"><option value="">Cost center yok</option></select>
+          <select id="edit-primary-person" class="form-select"><option value="">Primary user yok</option></select>
+          <select id="edit-owner-person" class="form-select"><option value="">Owner yok</option></select>
+          <input id="edit-support-team" class="form-control full" placeholder="Support Team" />
+          <div class="full d-flex gap-2 justify-content-end">
+            <button id="asset-deactivate-btn" class="btn btn-outline-danger" type="button">Asseti Pasife Al</button>
+            <button class="btn btn-primary" type="submit">Guncelle</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Agent Bagla</h3></div>
+      <div class="card-body">
+        <form id="asset-link-form" class="d-flex flex-column gap-2">
+          <input id="asset-link-agent" class="form-control" placeholder="Agent UUID" required />
+          <div class="d-flex gap-2">
+            <button class="btn btn-primary flex-fill" type="submit">Bagla</button>
+            <button id="asset-unlink-btn" class="btn btn-outline-secondary d-none" type="button">Baglantiyi Kes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div class="card mt-3">
+      <div class="card-header"><h3 class="card-title">Acik Issue'lar</h3></div>
+      <ul class="list-group list-group-flush" id="asset-issues-list"></ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/asset-registry.js?v={{ ASSET_VERSION }}"></script>
+<script>
+const assetId = {{ asset_id }};
+let assetDependencies = null;
+
+async function loadDeps() {
+  const dicts = await AppCenterApi.req("/asset-registry/dictionaries");
+  const orgs = await AppCenterApi.req("/asset-registry/organization");
+  const locs = await AppCenterApi.req("/asset-registry/locations");
+  const people = await AppCenterApi.req("/asset-registry/people");
+  const costCenters = await AppCenterApi.req("/asset-registry/cost-centers?include_inactive=true");
+  assetDependencies = {dicts, orgs, locs, people, costCenters};
+  AssetRegistryUI.setOptions("edit-usage-type", dicts.usage_types.map(x => ({v:x,l:x})), "v", "l");
+  AssetRegistryUI.setOptions("edit-lifecycle-status", dicts.lifecycle_statuses.map(x => ({v:x,l:x})), "v", "l");
+  AssetRegistryUI.setOptions("edit-org-node", orgs.items || [], "id", "path");
+  AssetRegistryUI.setOptions("edit-location-node", locs.items || [], "id", "path");
+  AssetRegistryUI.setOptions("edit-cost-center", costCenters.items || [], "id", "name", "Cost center yok");
+  AssetRegistryUI.setOptions("edit-primary-person", people.items || [], "id", "full_name", "Primary user yok");
+  AssetRegistryUI.setOptions("edit-owner-person", people.items || [], "id", "full_name", "Owner yok");
+}
+
+function renderHero(item) {
+  const issueTone = Number(item.issue_count || 0) > 0 ? "bg-yellow-lt text-yellow" : "bg-green-lt text-green";
+  document.getElementById("asset-hero").innerHTML = `
+    <div class="card"><div class="card-body"><div class="subheader">Asset</div><div class="h2 m-0">${AssetRegistryUI.escHtml(item.asset_tag)}</div><div class="text-secondary small mt-1">${AssetRegistryUI.escHtml(item.device_type)} / ${AssetRegistryUI.escHtml(item.usage_type)}</div></div></div>
+    <div class="card"><div class="card-body"><div class="subheader">Yasam Dongusu</div><div class="h2 m-0">${AssetRegistryUI.escHtml(item.lifecycle_status)}</div></div></div>
+    <div class="card"><div class="card-body"><div class="subheader">Data Quality</div><div class="h2 m-0">${AssetRegistryUI.escHtml(String(item.data_quality_score))}</div></div></div>
+    <div class="card"><div class="card-body"><div class="subheader">Issue</div><div class="h2 m-0"><span class="badge ${issueTone}">${AssetRegistryUI.escHtml(String(item.issue_count || 0))}</span></div></div></div>
+  `;
+}
+
+function renderDetail(item) {
+  document.getElementById("asset-detail-body").innerHTML = `
+    <div class="ar-asset-detail-grid">
+      <div class="card bg-body-secondary border-0">
+        <div class="card-body">
+          <h3 class="card-title">Kimlik ve Yasam Dongusu</h3>
+          <div class="datagrid">
+            <div class="datagrid-item"><div class="datagrid-title">Asset Tag</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.asset_tag)}</div></div>
+            <div class="datagrid-item"><div class="datagrid-title">Seri No</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.serial_number || "-")}</div></div>
+            <div class="datagrid-item"><div class="datagrid-title">Env No</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.inventory_number || "-")}</div></div>
+            <div class="datagrid-item"><div class="datagrid-title">Yasam Dongusu</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.lifecycle_status || "-")}</div></div>
+            <div class="datagrid-item"><div class="datagrid-title">Uretici / Model</div><div class="datagrid-content">${AssetRegistryUI.escHtml([item.manufacturer, item.model].filter(Boolean).join(" ") || "-")}</div></div>
+            <div class="datagrid-item"><div class="datagrid-title">Son Dogrulama</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.last_verified_at ? AppCenterApi.formatDate(item.last_verified_at) : "-")}</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="card bg-body-secondary border-0">
+        <div class="card-body">
+          <h3 class="card-title">Baglam ve Sorumluluk</h3>
+          <div class="datagrid">
+            <div class="datagrid-item"><div class="datagrid-title">Organizasyon</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.org_path || "-")}</div></div>
+            <div class="datagrid-item"><div class="datagrid-title">Lokasyon</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.location_path || "-")}</div></div>
+            <div class="datagrid-item"><div class="datagrid-title">Primary User</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.primary_person_name || "-")}</div></div>
+            <div class="datagrid-item"><div class="datagrid-title">Owner</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.owner_person_name || "-")}</div></div>
+            <div class="datagrid-item"><div class="datagrid-title">Cost Center</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.cost_center_name || "-")}</div></div>
+            <div class="datagrid-item"><div class="datagrid-title">Support Team</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.support_team || "-")}</div></div>
+            <div class="datagrid-item"><div class="datagrid-title">Not</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.notes || "-")}</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="card bg-body-secondary border-0">
+        <div class="card-body">
+          <h3 class="card-title">Teknik Baglanti</h3>
+          <div class="datagrid">
+            <div class="datagrid-item"><div class="datagrid-title">Bagli Agent</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.linked_agent_hostname || item.linked_agent_uuid || "-")}</div></div>
+            <div class="datagrid-item"><div class="datagrid-title">Agent Durumu</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.linked_agent_status || "-")}</div></div>
+            <div class="datagrid-item"><div class="datagrid-title">Agent IP</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.linked_agent_ip || "-")}</div></div>
+            <div class="datagrid-item"><div class="datagrid-title">Son Gorulme</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.linked_agent_last_seen ? AppCenterApi.formatDate(item.linked_agent_last_seen) : "-")}</div></div>
+            <div class="datagrid-item"><div class="datagrid-title">Eslesme Kaynagi</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.match_source || "-")}</div></div>
+            <div class="datagrid-item"><div class="datagrid-title">Confidence</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.confidence_score != null ? String(item.confidence_score) : "-")}</div></div>
+            <div class="datagrid-item"><div class="datagrid-title">Baglandigi Zaman</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.linked_at ? AppCenterApi.formatDate(item.linked_at) : "-")}</div></div>
+            <div class="datagrid-item"><div class="datagrid-title">Sahiplik Tipi</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.ownership_type || "-")}</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="card bg-body-secondary border-0">
+        <div class="card-body">
+          <h3 class="card-title">Veri Kalitesi</h3>
+          <div class="datagrid">
+            <div class="datagrid-item"><div class="datagrid-title">Skor</div><div class="datagrid-content">${AssetRegistryUI.escHtml(String(item.data_quality_score))}</div></div>
+            <div class="datagrid-item"><div class="datagrid-title">Issue Sayisi</div><div class="datagrid-content">${AssetRegistryUI.escHtml(String(item.issue_count || 0))}</div></div>
+            <div class="datagrid-item"><div class="datagrid-title">Durum</div><div class="datagrid-content">${Number(item.issue_count || 0) > 0 ? "Takip gerekli" : "Temiz"}</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function loadAssetDetail() {
+  const item = await AppCenterApi.req(`/asset-registry/assets/${assetId}`);
+  renderHero(item);
+  renderDetail(item);
+  AssetRegistryUI.fillValues({
+    "edit-asset-tag": item.asset_tag,
+    "edit-usage-type": item.usage_type,
+    "edit-lifecycle-status": item.lifecycle_status,
+    "edit-org-node": item.org_node_id,
+    "edit-location-node": item.location_node_id,
+    "edit-cost-center": item.cost_center_id,
+    "edit-primary-person": item.primary_person_id,
+    "edit-owner-person": item.owner_person_id,
+    "edit-support-team": item.support_team,
+    "asset-link-agent": item.linked_agent_uuid,
+  });
+  document.getElementById("asset-unlink-btn").classList.toggle("d-none", !item.linked_agent_uuid);
+  document.getElementById("asset-issues-list").innerHTML = (item.issues || []).map(x => `<li class="list-group-item d-flex justify-content-between"><span>${AssetRegistryUI.escHtml(x.summary)}</span><span class="badge bg-yellow-lt text-yellow">${AssetRegistryUI.escHtml(x.severity)}</span></li>`).join("") || `<li class="list-group-item text-secondary">Acik issue yok</li>`;
+  document.getElementById("asset-history-body").innerHTML = (item.history || []).map(x => `<tr><td>${AppCenterApi.formatDate(x.changed_at)}</td><td>${AssetRegistryUI.escHtml(x.change_type)}</td><td>${AssetRegistryUI.escHtml(x.field_name || "-")}</td><td>${AssetRegistryUI.escHtml(x.old_value || "-")}</td><td>${AssetRegistryUI.escHtml(x.new_value || "-")}</td></tr>`).join("") || `<tr><td colspan="5" class="text-secondary">Kayit yok</td></tr>`;
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  await AppCenterApi.protectPage();
+  await loadDeps();
+  await loadAssetDetail();
+  document.getElementById("asset-edit-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await AppCenterApi.req(`/asset-registry/assets/${assetId}`, {method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({
+      asset_tag: document.getElementById("edit-asset-tag").value,
+      usage_type: document.getElementById("edit-usage-type").value,
+      lifecycle_status: document.getElementById("edit-lifecycle-status").value,
+      org_node_id: AssetRegistryUI.toNumberOrNull(document.getElementById("edit-org-node").value),
+      location_node_id: AssetRegistryUI.toNumberOrNull(document.getElementById("edit-location-node").value),
+      cost_center_id: AssetRegistryUI.toNumberOrNull(document.getElementById("edit-cost-center").value),
+      primary_person_id: AssetRegistryUI.toNumberOrNull(document.getElementById("edit-primary-person").value),
+      owner_person_id: AssetRegistryUI.toNumberOrNull(document.getElementById("edit-owner-person").value),
+      support_team: document.getElementById("edit-support-team").value || null
+    })});
+    AppCenterApi.toast("Asset guncellendi", "success");
+    await loadAssetDetail();
+  });
+  document.getElementById("asset-link-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await AppCenterApi.req("/asset-registry/matching/link", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({
+      asset_id: assetId,
+      agent_uuid: document.getElementById("asset-link-agent").value,
+      match_source: "manual",
+      is_primary: true
+    })});
+    AppCenterApi.toast("Agent baglandi", "success");
+    e.target.reset();
+    await loadAssetDetail();
+  });
+  document.getElementById("asset-unlink-btn").addEventListener("click", async () => {
+    const agentUuid = document.getElementById("asset-link-agent").value;
+    if (!agentUuid) return;
+    const ok = await AppCenterApi.confirm("Bu asset ile agent baglantisi kesilsin mi?");
+    if (!ok) return;
+    await AppCenterApi.req("/asset-registry/matching/unlink", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({
+      asset_id: assetId,
+      agent_uuid: agentUuid,
+      unlink_reason: "manual_detail_unlink"
+    })});
+    AppCenterApi.toast("Agent baglantisi kaldirildi", "success");
+    await loadAssetDetail();
+  });
+  document.getElementById("asset-deactivate-btn").addEventListener("click", async () => {
+    const ok = await AppCenterApi.confirm("Bu asset pasife alinsin mi?");
+    if (!ok) return;
+    await AppCenterApi.req(`/asset-registry/assets/${assetId}/deactivate`, {method:"POST"});
+    AppCenterApi.toast("Asset pasife alindi", "success");
+    await loadAssetDetail();
+  });
+});
+</script>
+{% endblock %}

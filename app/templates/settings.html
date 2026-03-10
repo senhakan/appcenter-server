@@ -91,6 +91,64 @@
 
           <div class="col-12"><hr class="my-2" /></div>
           <div class="col-12">
+            <div class="subheader mb-2">Remote Support</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-check form-switch mt-1">
+              <input class="form-check-input" id="s-remote-support-enabled" type="checkbox" />
+              <span class="form-check-label">Destek Merkezi Global Aktif</span>
+            </label>
+            <div class="form-hint">Kapaliysa menu gizlenir, yeni session acilmaz, agent tarafina remote support istegi gonderilmez.</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Onay Timeout (sn)</label>
+            <input class="form-control" id="s-remote-support-approval-timeout" type="number" min="30" max="3600" />
+            <div class="form-hint">Kullanici popup onayi icin beklenen maksimum sure. Sure dolarsa session timeout olur.</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Varsayilan Maksimum Sure (dk)</label>
+            <input class="form-control" id="s-remote-support-default-duration" type="number" min="1" max="480" />
+            <div class="form-hint">Baglanti modalinda ilk gelen varsayilan sure. Operator bunu asabilir ama ust limite takilir.</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Ust Sure Limiti (dk)</label>
+            <input class="form-control" id="s-remote-support-max-duration" type="number" min="1" max="480" />
+            <div class="form-hint">Her remote support session istegi bu limit ile clamp edilir.</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Viewer Modu</label>
+            <select class="form-select" id="s-remote-support-novnc-mode">
+              <option value="embedded">embedded</option>
+              <option value="iframe">iframe</option>
+            </select>
+            <div class="form-hint">`embedded`: RFB dogrudan session sayfasinda acilir. `iframe`: legacy noVNC vnc.html akisi.</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">WebSocket Bridge Modu</label>
+            <select class="form-select" id="s-remote-support-ws-mode">
+              <option value="internal">internal</option>
+              <option value="external">external</option>
+            </select>
+            <div class="form-hint">`internal`: FastAPI `/novnc-ws` bridge. `external`: harici websockify/token-file akisi.</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Kontrol Bar</label>
+            <select class="form-select" id="s-remote-support-control-bar-mode">
+              <option value="embedded">Embedded</option>
+              <option value="topbar">Topbar</option>
+            </select>
+            <div class="form-hint">Session ekranindaki ana kontrol barinin solda rail mi yoksa ustte toolbar mi olacagini belirler.</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-check form-switch mt-4">
+              <input class="form-check-input" id="s-remote-support-log-screen-enabled" type="checkbox" />
+              <span class="form-check-label">Log Screen Aktif</span>
+            </label>
+            <div class="form-hint">Session ekraninin altindaki baglanti log panelini gosterir veya gizler.</div>
+          </div>
+
+          <div class="col-12"><hr class="my-2" /></div>
+          <div class="col-12">
             <div class="subheader mb-2">Session Recording</div>
           </div>
           <div class="col-12 col-md-3">
@@ -203,6 +261,14 @@
       document.getElementById('s-dynamic-group-sync').value = map.dynamic_group_sync_interval_sec || '120';
       document.getElementById('s-service-monitoring-enabled').checked = ['1', 'true', 'yes', 'on'].includes((map.service_monitoring_enabled || 'false').toString().toLowerCase());
       document.getElementById('s-remote-support-approval-required').checked = ['1', 'true', 'yes', 'on'].includes((map.remote_support_approval_required || 'true').toString().toLowerCase());
+      document.getElementById('s-remote-support-enabled').checked = ['1', 'true', 'yes', 'on'].includes((map.remote_support_enabled || 'true').toString().toLowerCase());
+      document.getElementById('s-remote-support-approval-timeout').value = map.remote_support_approval_timeout_sec || '30';
+      document.getElementById('s-remote-support-default-duration').value = map.remote_support_default_max_duration_min || '60';
+      document.getElementById('s-remote-support-max-duration').value = map.remote_support_max_duration_min || '480';
+      document.getElementById('s-remote-support-novnc-mode').value = map.remote_support_novnc_mode || 'embedded';
+      document.getElementById('s-remote-support-ws-mode').value = map.remote_support_ws_mode || 'internal';
+      document.getElementById('s-remote-support-control-bar-mode').value = map.remote_support_control_bar_mode || 'embedded';
+      document.getElementById('s-remote-support-log-screen-enabled').checked = ['1', 'true', 'yes', 'on'].includes((map.remote_support_log_screen_enabled || 'true').toString().toLowerCase());
       initialRemoteSupportApprovalRequired = document.getElementById('s-remote-support-approval-required').checked;
       document.getElementById('s-session-recording-enabled').checked = ['1', 'true', 'yes', 'on'].includes((map.session_recording_enabled || 'false').toString().toLowerCase());
       document.getElementById('s-session-recording-fps').value = map.session_recording_fps || '10';
@@ -270,7 +336,15 @@
             runtime_update_jitter_sec: document.getElementById('s-runtime-jitter').value,
             dynamic_group_sync_interval_sec: document.getElementById('s-dynamic-group-sync').value,
             service_monitoring_enabled: document.getElementById('s-service-monitoring-enabled').checked ? 'true' : 'false',
+            remote_support_enabled: document.getElementById('s-remote-support-enabled').checked ? 'true' : 'false',
             remote_support_approval_required: document.getElementById('s-remote-support-approval-required').checked ? 'true' : 'false',
+            remote_support_approval_timeout_sec: document.getElementById('s-remote-support-approval-timeout').value,
+            remote_support_default_max_duration_min: document.getElementById('s-remote-support-default-duration').value,
+            remote_support_max_duration_min: document.getElementById('s-remote-support-max-duration').value,
+            remote_support_novnc_mode: document.getElementById('s-remote-support-novnc-mode').value,
+            remote_support_ws_mode: document.getElementById('s-remote-support-ws-mode').value,
+            remote_support_control_bar_mode: document.getElementById('s-remote-support-control-bar-mode').value,
+            remote_support_log_screen_enabled: document.getElementById('s-remote-support-log-screen-enabled').checked ? 'true' : 'false',
             session_recording_enabled: document.getElementById('s-session-recording-enabled').checked ? 'true' : 'false',
             session_recording_fps: document.getElementById('s-session-recording-fps').value,
             session_recording_watermark_enabled: document.getElementById('s-session-recording-watermark-enabled').checked ? 'true' : 'false',

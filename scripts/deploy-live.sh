@@ -7,8 +7,6 @@ SERVICE_NAME="${3:-appcenter.service}"
 
 echo "[deploy] rsync ${SRC_DIR} -> ${DST_DIR}"
 rsync -az --delete \
-  --exclude '.env' \
-  --exclude '.env.*' \
   --exclude 'venv/' \
   --exclude '__pycache__/' \
   --exclude '.pytest_cache/' \

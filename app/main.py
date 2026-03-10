@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.api.v1.agent import router as agent_router
+from app.api.v1.asset_registry import router as asset_registry_router
 from app.api.v1.agent_ws import router as agent_ws_router
 from app.api.v1 import announcements as announcements_router
 from app.api.v1.audit import router as audit_router
@@ -29,11 +30,12 @@ from app.api.v1.ui_ws import router as ui_ws_router
 from app.api.v1.users import router as users_router
 from app.api.v1.web import router as web_router
 from app.config import get_settings
-from app.database import get_db, init_db, seed_initial_data
+from app.database import SessionLocal, get_db, init_db, seed_initial_data
 from app.models import Setting
 from app.tasks.scheduler import start_scheduler, stop_scheduler
 from app.utils.file_handler import ensure_upload_dir
 from app.services import agent_signal, novnc_service
+from app.services import runtime_config_service as runtime_config
 from app.services.ws_manager import ws_manager
 from sqlalchemy.orm import Session
 
@@ -82,6 +84,7 @@ NAV_SCHEMA: list[dict[str, Any]] = [
         "roles": ["admin", "operator", "viewer"],
         "feature_flag": None,
         "permission": "ui.menu.announcements",
+        "icon": "ti ti-speakerphone",
     },
     {
         "key": "groups",
@@ -111,12 +114,39 @@ NAV_SCHEMA: list[dict[str, Any]] = [
         "permission": "ui.menu.deployments",
     },
     {
-        "key": "inventory",
-        "title": "Envanter",
+        "key": "asset_management",
+        "title": "Asset Management",
         "roles": ["admin", "operator", "viewer"],
         "feature_flag": None,
-        "permission": "ui.menu.inventory",
+        "permission": "ui.menu.asset_management",
         "children": [
+            {
+                "key": "asset_management_hardware",
+                "title": "Hardware",
+                "path": None,
+                "active_pages": [],
+                "roles": ["admin", "operator", "viewer"],
+                "feature_flag": None,
+                "permission": "ui.menu.asset_management",
+            },
+            {
+                "key": "asset_registry",
+                "title": "Asset Registry",
+                "path": "/asset-registry",
+                "active_pages": ["asset_registry"],
+                "roles": ["admin", "operator", "viewer"],
+                "feature_flag": None,
+                "permission": "ui.menu.asset_registry",
+            },
+            {
+                "key": "asset_management_software",
+                "title": "Software",
+                "path": None,
+                "active_pages": [],
+                "roles": ["admin", "operator", "viewer"],
+                "feature_flag": None,
+                "permission": "ui.menu.asset_management",
+            },
             {
                 "key": "sam_dashboard",
                 "title": "SAM Dashboard",
@@ -240,6 +270,7 @@ PAGE_PERMISSION_BY_ACTIVE: dict[str, str] = {
     "dashboard": "ui.page.dashboard",
     "agents": "ui.page.agents",
     "remote_support": "ui.page.remote_support",
+    "asset_registry": "ui.page.asset_registry",
     "announcements": "ui.page.announcements",
     "groups": "ui.page.groups",
     "applications": "ui.page.applications",
@@ -272,8 +303,12 @@ def _page_ctx(request: Request, active_page: str, **extra: Any) -> dict[str, Any
 
 def _enabled_menu_features() -> set[str]:
     features = {"licenses", "infra", "audit", "users", "rbac"}
-    if settings.remote_support_enabled:
-        features.add("remote_support")
+    db = SessionLocal()
+    try:
+        if runtime_config.is_remote_support_enabled(db):
+            features.add("remote_support")
+    finally:
+        db.close()
     return features
 
 
@@ -342,6 +377,7 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(agent_router, prefix=settings.api_v1_prefix)
+app.include_router(asset_registry_router, prefix=settings.api_v1_prefix)
 app.include_router(agent_ws_router, prefix=settings.api_v1_prefix + "/agent")
 app.include_router(ui_ws_router, prefix=settings.api_v1_prefix + "/ui")
 app.include_router(web_router, prefix=settings.api_v1_prefix)
@@ -394,7 +430,12 @@ async def novnc_ws_bridge(websocket: WebSocket):
     Internal noVNC bridge mode:
     Browser WS <-> raw TCP VNC (agent_ip:5900), validated by one-time ticket.
     """
-    if settings.remote_support_ws_mode != "internal":
+    db = SessionLocal()
+    try:
+        runtime = runtime_config.get_remote_support_runtime(db)
+    finally:
+        db.close()
+    if runtime.ws_mode != "internal":
         await websocket.close(code=1008, reason="internal_ws_mode_disabled")
         return
 
@@ -561,9 +602,107 @@ def agents_page(request: Request):
     return templates.TemplateResponse("agents/list.html", _page_ctx(request, "agents"))
 
 
+@app.get("/agents-v2")
+def agents_v2_page(request: Request):
+    return templates.TemplateResponse("agents/list_v2.html", _page_ctx(request, "agents"))
+
+
 @app.get("/remote-support")
 def remote_support_list_page(request: Request):
     return templates.TemplateResponse("remote_support/list.html", _page_ctx(request, "remote_support"))
+
+
+@app.get("/asset-registry")
+def asset_registry_overview_page(request: Request):
+    return templates.TemplateResponse("asset_registry/overview.html", _page_ctx(request, "asset_registry"))
+
+
+@app.get("/asset-registry/organization")
+def asset_registry_organization_page(request: Request):
+    return templates.TemplateResponse(
+        "asset_registry/organization.html",
+        _page_ctx(request, "asset_registry", page_permissions="asset_registry.view"),
+    )
+
+
+@app.get("/asset-registry/locations")
+def asset_registry_locations_page(request: Request):
+    return templates.TemplateResponse(
+        "asset_registry/locations.html",
+        _page_ctx(request, "asset_registry", page_permissions="asset_registry.view"),
+    )
+
+
+@app.get("/asset-registry/people")
+def asset_registry_people_page(request: Request):
+    return templates.TemplateResponse(
+        "asset_registry/people_list.html",
+        _page_ctx(request, "asset_registry", page_permissions="asset_registry.view"),
+    )
+
+
+@app.get("/asset-registry/people/{person_id}")
+def asset_registry_person_detail_page(request: Request, person_id: int):
+    return templates.TemplateResponse(
+        "asset_registry/person_detail.html",
+        _page_ctx(request, "asset_registry", page_permissions="asset_registry.view", person_id=person_id),
+    )
+
+
+@app.get("/asset-registry/assets")
+def asset_registry_assets_page(request: Request):
+    return templates.TemplateResponse(
+        "asset_registry/assets_list.html",
+        _page_ctx(request, "asset_registry", page_permissions="asset_registry.view"),
+    )
+
+
+@app.get("/asset-registry/assets/{asset_id}")
+def asset_registry_asset_detail_page(request: Request, asset_id: int):
+    return templates.TemplateResponse(
+        "asset_registry/asset_detail.html",
+        _page_ctx(request, "asset_registry", page_permissions="asset_registry.view", asset_id=asset_id),
+    )
+
+
+@app.get("/asset-registry/matching")
+def asset_registry_matching_page(request: Request):
+    return templates.TemplateResponse(
+        "asset_registry/matching_queue.html",
+        _page_ctx(request, "asset_registry", page_permissions="asset_registry.view"),
+    )
+
+
+@app.get("/asset-registry/data-quality")
+def asset_registry_data_quality_page(request: Request):
+    return templates.TemplateResponse(
+        "asset_registry/data_quality.html",
+        _page_ctx(request, "asset_registry", page_permissions="asset_registry.view"),
+    )
+
+
+@app.get("/asset-registry/reports")
+def asset_registry_reports_page(request: Request):
+    return templates.TemplateResponse(
+        "asset_registry/reports.html",
+        _page_ctx(request, "asset_registry", page_permissions="asset_registry.reports.view"),
+    )
+
+
+@app.get("/asset-registry/settings")
+def asset_registry_settings_page(request: Request):
+    return templates.TemplateResponse(
+        "asset_registry/settings.html",
+        _page_ctx(request, "asset_registry", page_permissions="asset_registry.settings.manage"),
+    )
+
+
+@app.get("/asset-registry/help")
+def asset_registry_help_page(request: Request):
+    return templates.TemplateResponse(
+        "asset_registry/help.html",
+        _page_ctx(request, "asset_registry", page_permissions="asset_registry.view"),
+    )
 
 
 @app.get("/announcements")
@@ -601,9 +740,21 @@ def agent_detail_page(request: Request, agent_uuid: str):
 
 @app.get("/remote-support/sessions/{session_id}")
 def remote_support_session_page(request: Request, session_id: int):
+    db = SessionLocal()
+    try:
+        runtime = runtime_config.get_remote_support_runtime(db)
+    finally:
+        db.close()
     return templates.TemplateResponse(
         "remote_support/session.html",
-        _page_ctx(request, "remote_support", session_id=session_id, novnc_mode=settings.remote_support_novnc_mode),
+        _page_ctx(
+            request,
+            "remote_support",
+            session_id=session_id,
+            novnc_mode=runtime.novnc_mode,
+            control_bar_mode=runtime.control_bar_mode,
+            log_screen_enabled=runtime.log_screen_enabled,
+        ),
     )
 
 

@@ -21,6 +21,24 @@ pip install -r requirements.txt
   - `./venv/bin/python -m pytest -q`
   - Dokuman guncellemesi (`README.md`, gerekirse `CLAUDE.md`).
 
+## 2.2 Asset Registry Lab Kapsam Kurali
+
+- `server/docs/ASSET_REGISTRY_LAB/` ve bu mod icin acilacak kod alanlari varsayilan olarak diger islerin kapsaminda degildir.
+- Yalnizca kullanici acikca asset management / asset registry / CMDB kapsami acarsa bu alan isleme alinir.
+- Asset Registry Lab ile ilgili plan, tasarim, migration veya kodlama isleri acik bir is emri olmadan backlog'a dahil edilmez.
+- Diger server gorevlerinde bu alanlara dokunulmamalidir.
+
+Varsayilan kapsam disi yollar:
+- `server/docs/ASSET_REGISTRY_LAB/`
+- `server/app/api/v1/asset_registry.py`
+- `server/app/services/asset_registry_service.py`
+- `server/app/services/organization_service.py`
+- `server/app/services/location_service.py`
+- `server/app/services/person_registry_service.py`
+- `server/app/services/asset_matching_service.py`
+- `server/app/services/asset_reporting_service.py`
+- `server/app/templates/asset_registry/`
+
 ## 2.1 Sonraki Asama Plani
 
 1. Faz 6.1:

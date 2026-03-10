@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Kisi Detay{% endblock %}
+{% block page_title %}Kisi Detay{% endblock %}
+{% block content %}
+{% include "asset_registry/_subnav.html" %}
+<style>
+  .ar-person-hero {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr;
+    gap: 0.75rem;
+  }
+  @media (max-width: 991.98px) {
+    .ar-person-hero {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+<div class="ar-person-hero mb-3" id="person-hero"></div>
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Kisi Bilgisi</h3></div>
+      <div class="card-body" id="person-detail-body"></div>
+    </div>
+    <div class="card mt-3">
+      <div class="card-header"><h3 class="card-title">Kisi Duzenle</h3></div>
+      <div class="card-body">
+        <form id="person-edit-form" class="d-flex flex-column gap-2">
+          <input id="person-edit-full-name" class="form-control" placeholder="Ad Soyad" required />
+          <input id="person-edit-username" class="form-control" placeholder="Kullanici" />
+          <input id="person-edit-email" class="form-control" placeholder="E-posta" />
+          <input id="person-edit-phone" class="form-control" placeholder="Telefon" />
+          <input id="person-edit-title" class="form-control" placeholder="Unvan" />
+          <select id="person-edit-org" class="form-select"><option value="">Organizasyon yok</option></select>
+          <select id="person-edit-status" class="form-select"><option value="true">Aktif</option><option value="false">Pasif</option></select>
+          <button class="btn btn-primary" type="submit">Guncelle</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Bagli Assetler</h3></div>
+      <div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th>Asset</th><th>Cihaz Tipi</th><th>Durum</th></tr></thead><tbody id="person-assets-body"></tbody></table></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/asset-registry.js?v={{ ASSET_VERSION }}"></script>
+<script>
+const personId = {{ person_id }};
+let personOrgs = [];
+
+async function loadPersonDependencies() {
+  const orgs = await AppCenterApi.req("/asset-registry/organization?include_inactive=true");
+  personOrgs = orgs.items || [];
+  AssetRegistryUI.setOptions("person-edit-org", personOrgs, "id", "path", "Organizasyon yok");
+}
+
+async function loadPersonDetail() {
+  const item = await AppCenterApi.req(`/asset-registry/people/${personId}`);
+  const linkedAssets = item.linked_assets || [];
+  document.getElementById("person-hero").innerHTML = `
+    <div class="card"><div class="card-body"><div class="subheader">Kisi</div><div class="h2 m-0">${AssetRegistryUI.escHtml(item.full_name)}</div><div class="text-secondary small mt-1">${AssetRegistryUI.escHtml(item.title || item.username || "-")}</div></div></div>
+    <div class="card"><div class="card-body"><div class="subheader">Bagli Asset</div><div class="h2 m-0">${linkedAssets.length}</div></div></div>
+    <div class="card"><div class="card-body"><div class="subheader">Durum</div><div class="h2 m-0">${item.is_active ? "Aktif" : "Pasif"}</div></div></div>
+  `;
+  document.getElementById("person-detail-body").innerHTML = `
+    <div class="datagrid">
+      <div class="datagrid-item"><div class="datagrid-title">Kullanici</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.username || "-")}</div></div>
+      <div class="datagrid-item"><div class="datagrid-title">E-posta</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.email || "-")}</div></div>
+      <div class="datagrid-item"><div class="datagrid-title">Telefon</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.phone || "-")}</div></div>
+      <div class="datagrid-item"><div class="datagrid-title">Unvan</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.title || "-")}</div></div>
+      <div class="datagrid-item"><div class="datagrid-title">Organizasyon</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.org_path || "-")}</div></div>
+      <div class="datagrid-item"><div class="datagrid-title">Maliyet Merkezi</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.cost_center_name || "-")}</div></div>
+      <div class="datagrid-item"><div class="datagrid-title">Kaynak</div><div class="datagrid-content">${AssetRegistryUI.escHtml(item.source_type || "-")}</div></div>
+      <div class="datagrid-item"><div class="datagrid-title">Durum</div><div class="datagrid-content">${item.is_active ? "Aktif" : "Pasif"}</div></div>
+    </div>
+  `;
+  document.getElementById("person-assets-body").innerHTML = linkedAssets.map((x) => `<tr><td><a href="/asset-registry/assets/${x.id}">${AssetRegistryUI.escHtml(x.asset_tag)}</a></td><td>${AssetRegistryUI.escHtml(x.device_type)}</td><td>${AssetRegistryUI.escHtml(x.lifecycle_status)}</td></tr>`).join("") || `<tr><td colspan="3" class="text-secondary">Bagli asset yok</td></tr>`;
+  AssetRegistryUI.fillValues({
+    "person-edit-full-name": item.full_name,
+    "person-edit-username": item.username,
+    "person-edit-email": item.email,
+    "person-edit-phone": item.phone,
+    "person-edit-title": item.title,
+    "person-edit-org": item.org_node_id,
+    "person-edit-status": item.is_active ? "true" : "false",
+  });
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  await AppCenterApi.protectPage();
+  await loadPersonDependencies();
+  await loadPersonDetail();
+  document.getElementById("person-edit-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await AppCenterApi.req(`/asset-registry/people/${personId}`, {method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({
+      full_name: document.getElementById("person-edit-full-name").value,
+      username: document.getElementById("person-edit-username").value || null,
+      email: document.getElementById("person-edit-email").value || null,
+      phone: document.getElementById("person-edit-phone").value || null,
+      title: document.getElementById("person-edit-title").value || null,
+      org_node_id: AssetRegistryUI.toNumberOrNull(document.getElementById("person-edit-org").value),
+      is_active: document.getElementById("person-edit-status").value === "true"
+    })});
+    AppCenterApi.toast("Kisi guncellendi", "success");
+    await loadPersonDetail();
+  });
+});
+</script>
+{% endblock %}

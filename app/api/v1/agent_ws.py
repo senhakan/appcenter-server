@@ -24,6 +24,7 @@ from app.schemas import ServiceItem
 from app.services import announcement_service
 from app.services import remote_support_service as rs
 from app.services import inventory_service
+from app.services import runtime_config_service as runtime_config
 from app.services.heartbeat_service import (
     _diff_services,
     _diff_system_profile,
@@ -341,7 +342,7 @@ async def agent_ws_endpoint(websocket: WebSocket):
 
             config = get_heartbeat_config(db, agent.platform or "windows").model_dump()
             config["store_tray_enabled"] = _is_store_tray_enabled_for_agent(db, agent.uuid)
-            config["remote_support_enabled"] = _is_remote_support_enabled_for_agent(db, agent.uuid)
+            config["remote_support_enabled"] = runtime_config.is_remote_support_enabled(db) and _is_remote_support_enabled_for_agent(db, agent.uuid)
             config["inventory_scan_interval_min"] = _to_int(
                 _setting_map(db, ["inventory_scan_interval_min"]).get("inventory_scan_interval_min"),
                 10,

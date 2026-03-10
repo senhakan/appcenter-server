@@ -4,150 +4,818 @@
 {% block page_actions %}
 <div class="btn-list">
   <a class="btn btn-outline-secondary btn-sm" href="/dashboard"><i class="ti ti-layout-dashboard me-1"></i>Stable Dashboard</a>
-  <button class="btn btn-outline-primary btn-sm" type="button" onclick="loadDashboardV2()">
+  <button class="btn btn-primary btn-sm" type="button" onclick="loadDashboardV2(true)">
     <i class="ti ti-refresh me-1"></i>Yenile
   </button>
 </div>
 {% endblock %}
 {% block content %}
 <style>
-  .dash-v2-grid {
+  .dashv2-shell {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  .dashv2-hero {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(6, 111, 209, 0.08);
+    background:
+      radial-gradient(circle at top left, rgba(6, 111, 209, 0.16), transparent 28%),
+      radial-gradient(circle at 85% 15%, rgba(14, 165, 233, 0.12), transparent 24%),
+      linear-gradient(135deg, #ffffff 0%, #f6f9ff 45%, #f8fbff 100%);
+    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.07);
+  }
+  .dashv2-hero::after {
+    content: "";
+    position: absolute;
+    inset: auto -8% -32% auto;
+    width: 280px;
+    height: 280px;
+    border-radius: 999px;
+    background: rgba(6, 111, 209, 0.06);
+    filter: blur(10px);
+  }
+  .dashv2-hero-body {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr);
     gap: 1rem;
     align-items: start;
   }
-  .dash-v2-note {
-    margin-top: 0.75rem;
-    color: var(--tblr-yellow, #f59f00);
+  .dashv2-eyebrow {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--tblr-primary, #066fd1);
+  }
+  .dashv2-hero-title {
+    margin: 0.2rem 0 0;
+    font-size: clamp(1.7rem, 2.8vw, 2.4rem);
+    line-height: 1.05;
+    font-weight: 800;
+    color: var(--tblr-body-color, #182433);
+  }
+  .dashv2-hero-copy {
+    margin: 0.7rem 0 0;
+    max-width: 68ch;
+    color: var(--tblr-secondary-color, #626976);
+    font-size: 0.96rem;
+    line-height: 1.6;
+  }
+  .dashv2-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+  }
+  .dashv2-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.45rem 0.7rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    color: var(--tblr-body-color, #182433);
+    font-size: 0.82rem;
+    font-weight: 600;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+  }
+  .dashv2-chip i {
+    color: var(--tblr-primary, #066fd1);
+  }
+  .dashv2-hero-side {
+    display: grid;
+    gap: 0.75rem;
+  }
+  .dashv2-pulse {
+    display: grid;
+    gap: 0.85rem;
+    padding: 1rem;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid rgba(15, 23, 42, 0.07);
+    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.05);
+  }
+  .dashv2-pulse-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .dashv2-pulse-title {
+    font-size: 0.76rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #6b7fa6;
+    font-weight: 700;
+  }
+  .dashv2-pulse-value {
+    font-size: 2rem;
+    line-height: 1;
+    font-weight: 800;
+    color: var(--tblr-body-color, #182433);
+  }
+  .dashv2-pulse-note {
+    color: var(--tblr-secondary-color, #626976);
     font-size: 0.85rem;
   }
-  @media (max-width: 1199.98px) {
-    .dash-v2-grid {
+  .dashv2-sparkline {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.3rem;
+    height: 44px;
+  }
+  .dashv2-sparkline span {
+    flex: 1 1 0;
+    min-width: 0;
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(6, 111, 209, 0.28), rgba(6, 111, 209, 0.85));
+  }
+  .dashv2-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  .dashv2-kpi {
+    position: relative;
+    overflow: hidden;
+    min-height: 180px;
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    box-shadow: 0 14px 36px rgba(15, 23, 42, 0.05);
+  }
+  .dashv2-kpi::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(247, 250, 255, 0.94));
+  }
+  .dashv2-kpi > .card-body {
+    position: relative;
+    z-index: 1;
+  }
+  .dashv2-kpi-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .dashv2-kpi-icon {
+    width: 2.65rem;
+    height: 2.65rem;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+  }
+  .dashv2-kpi-icon.is-blue {
+    background: rgba(6, 111, 209, 0.12);
+    color: #066fd1;
+  }
+  .dashv2-kpi-icon.is-green {
+    background: rgba(34, 197, 94, 0.12);
+    color: #15803d;
+  }
+  .dashv2-kpi-icon.is-yellow {
+    background: rgba(245, 158, 11, 0.14);
+    color: #b45309;
+  }
+  .dashv2-kpi-icon.is-red {
+    background: rgba(220, 38, 38, 0.12);
+    color: #b91c1c;
+  }
+  .dashv2-kpi-label {
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6b7fa6;
+  }
+  .dashv2-kpi-main {
+    display: flex;
+    align-items: baseline;
+    gap: 0.45rem;
+    margin-top: 1rem;
+  }
+  .dashv2-kpi-value {
+    font-size: 2.2rem;
+    line-height: 1;
+    font-weight: 800;
+    color: var(--tblr-body-color, #182433);
+  }
+  .dashv2-kpi-side {
+    font-size: 0.84rem;
+    font-weight: 700;
+  }
+  .dashv2-kpi-note {
+    margin-top: 0.5rem;
+    color: var(--tblr-secondary-color, #626976);
+    font-size: 0.84rem;
+  }
+  .dashv2-progressline {
+    display: flex;
+    gap: 0.45rem;
+    margin-top: 1rem;
+  }
+  .dashv2-progressline .progress {
+    flex: 1 1 0;
+    height: 0.45rem;
+  }
+  .dashv2-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(340px, 0.95fr);
+    gap: 1rem;
+    align-items: start;
+  }
+  .dashv2-stack {
+    display: grid;
+    gap: 1rem;
+  }
+  .dashv2-panel {
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.05);
+  }
+  .dashv2-panel .card-header {
+    padding-bottom: 0.5rem;
+  }
+  .dashv2-panel-subtitle {
+    color: var(--tblr-secondary-color, #626976);
+    font-size: 0.84rem;
+  }
+  .dashv2-health-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+  }
+  .dashv2-metric-box {
+    padding: 1rem;
+    border-radius: 16px;
+    background: linear-gradient(180deg, #ffffff, #f8fbff);
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    min-height: 150px;
+  }
+  .dashv2-metric-box-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .dashv2-metric-box-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #6b7fa6;
+  }
+  .dashv2-metric-box-value {
+    margin-top: 0.75rem;
+    font-size: 1.55rem;
+    font-weight: 800;
+    color: var(--tblr-body-color, #182433);
+  }
+  .dashv2-metric-box-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    margin-top: 0.65rem;
+    color: var(--tblr-secondary-color, #626976);
+    font-size: 0.82rem;
+  }
+  .dashv2-watchlist {
+    display: grid;
+    gap: 0.6rem;
+  }
+  .dashv2-watch-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.8rem 0.9rem;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #fff, #fbfcff);
+    border: 1px solid rgba(15, 23, 42, 0.06);
+  }
+  .dashv2-watch-avatar {
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    background: rgba(6, 111, 209, 0.1);
+    color: #066fd1;
+  }
+  .dashv2-watch-name {
+    font-weight: 700;
+    color: var(--tblr-body-color, #182433);
+    text-decoration: none;
+  }
+  .dashv2-watch-meta {
+    color: var(--tblr-secondary-color, #626976);
+    font-size: 0.82rem;
+  }
+  .dashv2-watch-score {
+    min-width: 48px;
+    text-align: center;
+    border-radius: 999px;
+    padding: 0.35rem 0.55rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+  .dashv2-watch-score.is-red {
+    background: rgba(220, 38, 38, 0.12);
+    color: #b91c1c;
+  }
+  .dashv2-watch-score.is-yellow {
+    background: rgba(245, 158, 11, 0.16);
+    color: #b45309;
+  }
+  .dashv2-watch-score.is-blue {
+    background: rgba(6, 111, 209, 0.1);
+    color: #066fd1;
+  }
+  .dashv2-dual-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  .dashv2-list {
+    display: grid;
+    gap: 0.7rem;
+  }
+  .dashv2-soft-item,
+  .dashv2-client-item,
+  .dashv2-insight-item,
+  .dashv2-rs-item,
+  .dashv2-day-row {
+    display: grid;
+    gap: 0.55rem;
+    padding: 0.85rem 0.95rem;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #fff, #fbfcff);
+    border: 1px solid rgba(15, 23, 42, 0.06);
+  }
+  .dashv2-soft-top,
+  .dashv2-client-top,
+  .dashv2-day-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .dashv2-soft-name,
+  .dashv2-client-name {
+    font-weight: 700;
+    color: var(--tblr-body-color, #182433);
+  }
+  .dashv2-soft-bar .progress,
+  .dashv2-day-progress .progress {
+    height: 0.45rem;
+  }
+  .dashv2-soft-meta,
+  .dashv2-client-meta,
+  .dashv2-day-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    font-size: 0.82rem;
+    color: var(--tblr-secondary-color, #626976);
+  }
+  .dashv2-timeline-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .dashv2-segmented {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem;
+    border-radius: 999px;
+    background: #f1f5fb;
+  }
+  .dashv2-segmented .btn {
+    border-radius: 999px;
+  }
+  .dashv2-timeline-wrap {
+    display: grid;
+    gap: 0.75rem;
+  }
+  .dashv2-minute-card {
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    border-radius: 16px;
+    background: linear-gradient(180deg, #fff, #fbfcff);
+    overflow: hidden;
+  }
+  .dashv2-minute-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.8rem 0.95rem;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  }
+  .dashv2-minute-body {
+    display: grid;
+    gap: 0;
+  }
+  .dashv2-minute-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 0.8rem;
+    padding: 0.85rem 0.95rem;
+  }
+  .dashv2-minute-item + .dashv2-minute-item {
+    border-top: 1px solid rgba(15, 23, 42, 0.05);
+  }
+  .dashv2-minute-icon {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(6, 111, 209, 0.1);
+    color: #066fd1;
+  }
+  .dashv2-minute-title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+  .dashv2-minute-label {
+    font-weight: 700;
+    color: var(--tblr-body-color, #182433);
+  }
+  .dashv2-minute-summary {
+    margin-top: 0.2rem;
+    color: var(--tblr-secondary-color, #626976);
+    font-size: 0.84rem;
+    line-height: 1.5;
+  }
+  .dashv2-note {
+    color: var(--tblr-secondary-color, #626976);
+    font-size: 0.85rem;
+  }
+  @media (max-width: 1279.98px) {
+    .dashv2-kpi-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .dashv2-hero-body,
+    .dashv2-layout,
+    .dashv2-dual-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (max-width: 767.98px) {
+    .dashv2-kpi-grid,
+    .dashv2-health-grid {
+      grid-template-columns: 1fr;
+    }
+    .dashv2-hero-title {
+      font-size: 1.5rem;
+    }
+    .dashv2-minute-item {
       grid-template-columns: 1fr;
     }
   }
 </style>
 
-<div class="dash-v2-grid">
-  <div class="card">
-    <div class="card-header">
-      <h3 class="card-title">Operasyon Analizi (V2)</h3>
-    </div>
-    <div class="list-group list-group-flush list-group-hoverable" id="ops-insights-list">
-      <div class="list-group-item text-secondary">Yukleniyor...</div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-header">
-      <h3 class="card-title">Top Software (Cross-Agent)</h3>
-    </div>
-    <table class="table card-table table-vcenter">
-      <thead>
-        <tr>
-          <th>Yazilim</th>
-          <th colspan="2">Ajan Sayisi</th>
-        </tr>
-      </thead>
-      <tbody id="top-software-rows">
-        <tr><td colspan="3" class="text-secondary">Yukleniyor...</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div class="card">
-    <div class="card-header d-flex align-items-center justify-content-between">
-      <h3 class="card-title">Top Risk Clients</h3>
-      <span class="badge bg-yellow-lt text-yellow" id="risk-total-badge">0</span>
-    </div>
-    <table class="table card-table table-vcenter">
-      <thead>
-        <tr>
-          <th>Client</th>
-          <th>Lisans</th>
-          <th>Prohibited</th>
-          <th>Skor</th>
-        </tr>
-      </thead>
-      <tbody id="risk-clients-rows">
-        <tr><td colspan="4" class="text-secondary">Yukleniyor...</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div class="card">
-    <div class="card-header">
-      <h3 class="card-title">Remote Support KPI (7 Gun)</h3>
-    </div>
-    <div class="list-group list-group-flush" id="remote-metrics-list">
-      <div class="list-group-item text-secondary">Yukleniyor...</div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-header">
-      <h3 class="card-title">7 Gun Task Kalitesi</h3>
-    </div>
-    <table class="table card-table table-vcenter">
-      <thead>
-        <tr>
-          <th>Gun</th>
-          <th>Success / Failed / Pending</th>
-          <th class="w-25">Basari Orani</th>
-        </tr>
-      </thead>
-      <tbody id="task-trend-rows">
-        <tr><td colspan="3" class="text-secondary">Yukleniyor...</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div class="card">
-    <div class="card-header">
-      <h3 class="card-title">7 Gun Status Gecisleri</h3>
-    </div>
-    <table class="table card-table table-vcenter">
-      <thead>
-        <tr>
-          <th>Gun</th>
-          <th>Online / Offline Gecis</th>
-          <th class="w-25">Net Etki</th>
-        </tr>
-      </thead>
-      <tbody id="status-trend-rows">
-        <tr><td colspan="3" class="text-secondary">Yukleniyor...</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div class="card">
-    <div class="card-header d-flex align-items-center justify-content-between">
-      <h3 class="card-title">Timeline Lab (V2)</h3>
-      <div class="d-flex align-items-center gap-2">
-        <select id="timeline-view-mode" class="form-select form-select-sm w-auto">
-          <option value="host_status">A: Host + Status (Onerilen)</option>
-          <option value="minute_summary">B: Dakika Ozeti</option>
-          <option value="raw_stream">C: Ham Olay Akisi</option>
-        </select>
-        <span class="badge bg-secondary-lt text-secondary" id="timeline-group-total">0</span>
+<div class="dashv2-shell">
+  <div class="card dashv2-hero">
+    <div class="card-body dashv2-hero-body">
+      <div>
+        <div class="dashv2-eyebrow">Operations Cockpit</div>
+        <h2 class="dashv2-hero-title" id="v2-hero-title">Estate durumu yukleniyor...</h2>
+        <p class="dashv2-hero-copy" id="v2-hero-copy">Canli ajan sagligi, envanter kapsami, risk baskisi ve uzak destek temposu bu deneysel panelde birlikte okunur.</p>
+        <div class="dashv2-chip-row">
+          <span class="dashv2-chip"><i class="ti ti-devices"></i><span id="v2-chip-agents">Ajan: -</span></span>
+          <span class="dashv2-chip"><i class="ti ti-package"></i><span id="v2-chip-inventory">Envanter: -</span></span>
+          <span class="dashv2-chip"><i class="ti ti-headset"></i><span id="v2-chip-remote">Remote: -</span></span>
+          <span class="dashv2-chip"><i class="ti ti-plug-connected"></i><span id="v2-chip-fabric">Fabric: -</span></span>
+        </div>
+      </div>
+      <div class="dashv2-hero-side">
+        <div class="dashv2-pulse">
+          <div class="dashv2-pulse-head">
+            <div>
+              <div class="dashv2-pulse-title">Son 7 Gun Operasyon Nabzi</div>
+              <div class="dashv2-pulse-value" id="v2-pulse-value">-</div>
+            </div>
+            <span class="badge bg-primary-lt text-primary" id="v2-pulse-badge">Hazirlaniyor</span>
+          </div>
+          <div class="dashv2-pulse-note" id="v2-pulse-note">Gorev kalitesi ve agent gecisleri toplu okunur.</div>
+          <div class="dashv2-sparkline" id="v2-pulse-sparkline">
+            <span style="height:20%"></span><span style="height:36%"></span><span style="height:44%"></span><span style="height:58%"></span><span style="height:66%"></span><span style="height:62%"></span><span style="height:78%"></span>
+          </div>
+        </div>
       </div>
     </div>
-    <div class="card-body" id="timeline-grouped">
-      <div class="text-secondary">Yukleniyor...</div>
+  </div>
+
+  <div class="dashv2-kpi-grid">
+    <div class="card dashv2-kpi">
+      <div class="card-body">
+        <div class="dashv2-kpi-head">
+          <div class="dashv2-kpi-label">Ajan Kapsami</div>
+          <span class="dashv2-kpi-icon is-blue"><i class="ti ti-devices"></i></span>
+        </div>
+        <div class="dashv2-kpi-main">
+          <div class="dashv2-kpi-value" id="v2-kpi-total">-</div>
+          <div class="dashv2-kpi-side text-green" id="v2-kpi-online-rate">-%</div>
+        </div>
+        <div class="dashv2-kpi-note" id="v2-kpi-total-note">Online / offline dagilimi bekleniyor.</div>
+        <div class="dashv2-progressline">
+          <div class="progress"><div id="v2-kpi-online-progress" class="progress-bar bg-primary" style="width:0%"></div></div>
+          <div class="progress"><div id="v2-kpi-offline-progress" class="progress-bar bg-secondary" style="width:100%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card dashv2-kpi">
+      <div class="card-body">
+        <div class="dashv2-kpi-head">
+          <div class="dashv2-kpi-label">Envanter Yogunlugu</div>
+          <span class="dashv2-kpi-icon is-green"><i class="ti ti-packages"></i></span>
+        </div>
+        <div class="dashv2-kpi-main">
+          <div class="dashv2-kpi-value" id="v2-kpi-unique-sw">-</div>
+          <div class="dashv2-kpi-side text-green" id="v2-kpi-coverage">-%</div>
+        </div>
+        <div class="dashv2-kpi-note" id="v2-kpi-inventory-note">Yazilim cesitliligi ve kapsama bekleniyor.</div>
+        <div class="dashv2-progressline">
+          <div class="progress"><div id="v2-kpi-coverage-progress" class="progress-bar bg-green" style="width:0%"></div></div>
+          <div class="progress"><div id="v2-kpi-gap-progress" class="progress-bar bg-secondary" style="width:100%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card dashv2-kpi">
+      <div class="card-body">
+        <div class="dashv2-kpi-head">
+          <div class="dashv2-kpi-label">Risk Baskisi</div>
+          <span class="dashv2-kpi-icon is-yellow"><i class="ti ti-alert-triangle"></i></span>
+        </div>
+        <div class="dashv2-kpi-main">
+          <div class="dashv2-kpi-value" id="v2-kpi-risk-agents">-</div>
+          <div class="dashv2-kpi-side text-yellow" id="v2-kpi-risk-rules">-</div>
+        </div>
+        <div class="dashv2-kpi-note" id="v2-kpi-risk-note">Lisans ve yasakli yazilim baskisi bekleniyor.</div>
+        <div class="dashv2-progressline">
+          <div class="progress"><div id="v2-kpi-licensed-progress" class="progress-bar bg-warning" style="width:0%"></div></div>
+          <div class="progress"><div id="v2-kpi-prohibited-progress" class="progress-bar bg-danger" style="width:0%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card dashv2-kpi">
+      <div class="card-body">
+        <div class="dashv2-kpi-head">
+          <div class="dashv2-kpi-label">Remote Tempo</div>
+          <span class="dashv2-kpi-icon is-red"><i class="ti ti-headset"></i></span>
+        </div>
+        <div class="dashv2-kpi-main">
+          <div class="dashv2-kpi-value" id="v2-kpi-remote-active">-</div>
+          <div class="dashv2-kpi-side text-red" id="v2-kpi-remote-issues">-</div>
+        </div>
+        <div class="dashv2-kpi-note" id="v2-kpi-remote-note">Aktif oturum, onay ve hata temposu bekleniyor.</div>
+        <div class="dashv2-progressline">
+          <div class="progress"><div id="v2-kpi-remote-volume-progress" class="progress-bar bg-primary" style="width:0%"></div></div>
+          <div class="progress"><div id="v2-kpi-remote-problem-progress" class="progress-bar bg-danger" style="width:0%"></div></div>
+        </div>
+      </div>
     </div>
   </div>
-</div>
 
-<div class="dash-v2-note">
-  Bu ekran deneysel yerlesim alanidir. Onaydan sonra stable dashboard'a tasinacaktir.
+  <div class="dashv2-layout">
+    <div class="dashv2-stack">
+      <div class="card dashv2-panel">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title mb-1">Estate Health Matrix</h3>
+            <div class="dashv2-panel-subtitle">Ayni anda kapsama, gorev kalitesi, fabric ve remote destek durumu.</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="dashv2-health-grid">
+            <div class="dashv2-metric-box">
+              <div class="dashv2-metric-box-head">
+                <div class="dashv2-metric-box-title">Inventory Pulse</div>
+                <span class="badge bg-green-lt text-green" id="v2-health-inventory-badge">-</span>
+              </div>
+              <div class="dashv2-metric-box-value" id="v2-health-inventory-value">-</div>
+              <div class="dashv2-metric-box-meta">
+                <span id="v2-health-added">Bugun +0</span>
+                <span id="v2-health-removed">Bugun -0</span>
+              </div>
+              <div class="progress progress-sm mt-3"><div id="v2-health-inventory-progress" class="progress-bar bg-green" style="width:0%"></div></div>
+            </div>
+
+            <div class="dashv2-metric-box">
+              <div class="dashv2-metric-box-head">
+                <div class="dashv2-metric-box-title">Task Fabric</div>
+                <span class="badge bg-blue-lt text-blue" id="v2-health-task-badge">-</span>
+              </div>
+              <div class="dashv2-metric-box-value" id="v2-health-task-value">-</div>
+              <div class="dashv2-metric-box-meta">
+                <span id="v2-health-task-success">Success -</span>
+                <span id="v2-health-task-failed">Failed -</span>
+              </div>
+              <div class="progress progress-sm mt-3"><div id="v2-health-task-progress" class="progress-bar bg-primary" style="width:0%"></div></div>
+            </div>
+
+            <div class="dashv2-metric-box">
+              <div class="dashv2-metric-box-head">
+                <div class="dashv2-metric-box-title">Connectivity Fabric</div>
+                <span class="badge bg-azure-lt text-azure" id="v2-health-fabric-badge">-</span>
+              </div>
+              <div class="dashv2-metric-box-value" id="v2-health-fabric-value">-</div>
+              <div class="dashv2-metric-box-meta">
+                <span id="v2-health-fabric-ui">UI -</span>
+                <span id="v2-health-fabric-http">HTTP -</span>
+              </div>
+              <div class="progress progress-sm mt-3"><div id="v2-health-fabric-progress" class="progress-bar bg-azure" style="width:0%"></div></div>
+            </div>
+
+            <div class="dashv2-metric-box">
+              <div class="dashv2-metric-box-head">
+                <div class="dashv2-metric-box-title">Remote Experience</div>
+                <span class="badge bg-red-lt text-red" id="v2-health-remote-badge">-</span>
+              </div>
+              <div class="dashv2-metric-box-value" id="v2-health-remote-value">-</div>
+              <div class="dashv2-metric-box-meta">
+                <span id="v2-health-approval">Onay -</span>
+                <span id="v2-health-duration">Sure -</span>
+              </div>
+              <div class="progress progress-sm mt-3"><div id="v2-health-remote-progress" class="progress-bar bg-danger" style="width:0%"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dashv2-dual-grid">
+        <div class="card dashv2-panel">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title mb-1">Software Concentration</h3>
+              <div class="dashv2-panel-subtitle">En yaygin yazilimlar ve estate icindeki dagilim gucu.</div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="dashv2-list" id="v2-software-list">
+              <div class="dashv2-soft-item text-secondary">Yukleniyor...</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card dashv2-panel">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title mb-1">Client Density</h3>
+              <div class="dashv2-panel-subtitle">Uygulama yogunlugu en yuksek clientlar ve son gorulme durumu.</div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="dashv2-list" id="v2-clients-list">
+              <div class="dashv2-client-item text-secondary">Yukleniyor...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dashv2-dual-grid">
+        <div class="card dashv2-panel">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title mb-1">Task Quality 7 Gun</h3>
+              <div class="dashv2-panel-subtitle">Gun bazinda basari ritmi, failure baskisi ve bekleyen is yogunlugu.</div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="dashv2-list" id="v2-task-days">
+              <div class="dashv2-day-row text-secondary">Yukleniyor...</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card dashv2-panel">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title mb-1">Status Transitions 7 Gun</h3>
+              <div class="dashv2-panel-subtitle">Online / offline gecisleri ve gunluk net etki.</div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="dashv2-list" id="v2-status-days">
+              <div class="dashv2-day-row text-secondary">Yukleniyor...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dashv2-stack">
+      <div class="card dashv2-panel">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title mb-1">Priority Watchlist</h3>
+            <div class="dashv2-panel-subtitle">Risk skoru, offline baskisi ve stale gorunumlu ajanlar icin kisa takip listesi.</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="dashv2-watchlist" id="v2-watchlist">
+            <div class="dashv2-watch-item text-secondary">Yukleniyor...</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card dashv2-panel">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title mb-1">Operational Insights</h3>
+            <div class="dashv2-panel-subtitle">Mevcut veriden cikarilan hizli operasyon yorumlari.</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="dashv2-list" id="v2-insights-list">
+            <div class="dashv2-insight-item text-secondary">Yukleniyor...</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card dashv2-panel">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title mb-1">Remote Support Command Center</h3>
+            <div class="dashv2-panel-subtitle">Haftalik remote destek temposu, onay gecikmesi ve hata baskisi.</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="dashv2-list" id="v2-remote-list">
+            <div class="dashv2-rs-item text-secondary">Yukleniyor...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card dashv2-panel">
+    <div class="card-header">
+      <div class="dashv2-timeline-toolbar w-100">
+        <div>
+          <h3 class="card-title mb-1">Timeline Lab (V2)</h3>
+          <div class="dashv2-panel-subtitle">Dakika bazli gruplanmis olay akisinda host, tip ve siddet yogunlugunu birlikte oku.</div>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <div class="dashv2-segmented" role="group" aria-label="Timeline gorunumu">
+            <button id="timeline-mode-host_status" class="btn btn-sm btn-primary" type="button" onclick="setTimelineMode('host_status')">Host + Status</button>
+            <button id="timeline-mode-minute_summary" class="btn btn-sm btn-ghost-secondary" type="button" onclick="setTimelineMode('minute_summary')">Dakika Ozeti</button>
+            <button id="timeline-mode-raw_stream" class="btn btn-sm btn-ghost-secondary" type="button" onclick="setTimelineMode('raw_stream')">Ham Akis</button>
+          </div>
+          <span class="badge bg-secondary-lt text-secondary" id="v2-timeline-total">0 olay</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="dashv2-timeline-wrap" id="v2-timeline-wrap">
+        <div class="text-secondary">Yukleniyor...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dashv2-note">
+    Bu ekran deneysel yerlesim alanidir. Begenilen moduller daha sonra stable dashboard'a tasinabilir.
+  </div>
 </div>
 {% endblock %}
 {% block scripts %}
 <script>
   AppCenterApi.protectPage();
-  let _timelineItems = [];
-  let _timelineGroups = [];
+
+  const V2_STATE = {
+    stats: null,
+    inventory: null,
+    agents: [],
+    trends: null,
+    compliance: null,
+    remote: null,
+    timeline: [],
+    timelineGroups: [],
+    topSoftware: [],
+    topClients: [],
+    ws: null,
+    timelineMode: 'host_status',
+  };
 
   function esc(s) {
     return (s || '')
@@ -159,13 +827,41 @@
       .replaceAll("'", '&#39;');
   }
 
+  function setText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value == null ? '' : String(value);
+  }
+
+  function setHtml(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = value || '';
+  }
+
+  function setProgress(id, value) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const v = Math.max(0, Math.min(100, Number(value) || 0));
+    el.style.width = `${v}%`;
+  }
+
+  function fmtInt(value) {
+    return Number(value || 0).toLocaleString('tr-TR');
+  }
+
   function fmtDuration(sec) {
     const s = Math.max(0, Number(sec) || 0);
+    if (s < 60) return `${s} sn`;
     const h = Math.floor(s / 3600);
     const m = Math.floor((s % 3600) / 60);
     if (h > 0) return `${h}s ${m}dk`;
-    return `${m}dk`;
+    return `${m} dk`;
   }
+
+  function relTimeSafe(value) {
+    if (!value) return '-';
+    return AppCenterApi.relTime(value) || '-';
+  }
+
   function severityBadge(sev) {
     const key = (sev || '').toLowerCase();
     if (key === 'ok') return { klass: 'bg-green-lt text-green', label: 'ok' };
@@ -173,6 +869,7 @@
     if (key === 'danger') return { klass: 'bg-red-lt text-red', label: 'danger' };
     return { klass: 'bg-blue-lt text-blue', label: key || 'info' };
   }
+
   function timelineIconByType(eventType, severity) {
     const t = (eventType || '').toLowerCase();
     const s = (severity || '').toLowerCase();
@@ -192,6 +889,7 @@
     if (t.includes('agent') || t.includes('status') || t.includes('heartbeat')) return { icon: 'ti ti-devices', tone };
     return { icon: 'ti ti-activity', tone };
   }
+
   function timelineMinuteMeta(detectedAt) {
     const dt = AppCenterApi.parseDate(detectedAt);
     if (!dt) return { key: 'unknown', ts: 0, label: '-' };
@@ -203,246 +901,7 @@
       label: `${AppCenterApi.relTime(minuteIso)} · ${AppCenterApi.formatDate(minuteIso)}`,
     };
   }
-  function summarizeTimelineGroup(eventType, hosts, total) {
-    const t = (eventType || '').toLowerCase();
-    const list = (hosts || []).filter(Boolean);
-    const freq = new Map();
-    list.forEach((h) => {
-      freq.set(h, (freq.get(h) || 0) + 1);
-    });
-    const top = Array.from(freq.entries())
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .slice(0, 2)
-      .map(([name, cnt]) => (cnt > 1 ? `${name} x${cnt}` : name))
-      .join(', ');
-    const compact = `${top}${freq.size > 2 ? '...' : ''} (${total})`;
-    if (t === 'status') return `${compact} status change`;
-    if (t === 'identity') return `${compact} identity change`;
-    if (t === 'task') return `${compact} task event`;
-    if (t === 'system_profile') return `${compact} system profile update`;
-    return `${compact} ${t || 'event'}`;
-  }
-  function clientsTooltip(hosts) {
-    const list = (hosts || []).filter(Boolean);
-    const freq = new Map();
-    list.forEach((h) => {
-      freq.set(h, (freq.get(h) || 0) + 1);
-    });
-    return Array.from(freq.entries())
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .map(([name, cnt]) => (cnt > 1 ? `${name} (x${cnt})` : name))
-      .join(', ');
-  }
-  function statusLabelFromSeverity(sev) {
-    const s = (sev || '').toLowerCase();
-    if (s === 'ok') return 'Up';
-    if (s === 'danger') return 'Down';
-    return 'Unknown';
-  }
-  function eventTypeLabel(t) {
-    const e = (t || '').toLowerCase();
-    if (e === 'status') return 'Status';
-    if (e === 'task') return 'Task';
-    if (e === 'identity') return 'Identity';
-    if (e === 'system_profile') return 'System';
-    return e || '-';
-  }
 
-  async function loadTopSoftware() {
-    try {
-      const data = await AppCenterApi.req('/inventory/software?page=1&per_page=10');
-      const rows = data.items || [];
-      const el = document.getElementById('top-software-rows');
-      if (!rows.length) {
-        el.innerHTML = '<tr><td colspan="3" class="text-secondary">Kayit yok</td></tr>';
-        return;
-      }
-      const maxAgents = Math.max(...rows.map((x) => Number(x.agent_count || 0)), 1);
-      el.innerHTML = rows.map((item) => {
-        const count = Number(item.agent_count || 0);
-        const ratio = Math.max(0, Math.min(100, Math.round((count / maxAgents) * 10000) / 100));
-        return `<tr>
-          <td>${esc(item.name || '-')}</td>
-          <td>${count.toLocaleString('tr-TR')}</td>
-          <td class="w-50">
-            <div class="progress progress-xs" title="${count}">
-              <div class="progress-bar bg-info" style="width:${ratio}%"></div>
-            </div>
-          </td>
-        </tr>`;
-      }).join('');
-    } catch (err) {
-      const el = document.getElementById('top-software-rows');
-      if (el) el.innerHTML = `<tr><td colspan="3" class="text-danger">${esc(err.message || 'Yuklenemedi')}</td></tr>`;
-    }
-  }
-
-  async function loadOpsInsights() {
-    try {
-      const data = await AppCenterApi.req('/agents');
-      const agents = data.items || [];
-      const now = Date.now();
-      const withSeen = agents
-        .map((a) => ({ ...a, ts: (AppCenterApi.parseDate(a.last_seen) || new Date(0)).getTime() }))
-        .filter((a) => a.ts > 0);
-      const avgLagMs = withSeen.length
-        ? Math.round(withSeen.reduce((acc, a) => acc + Math.max(0, now - a.ts), 0) / withSeen.length)
-        : 0;
-      const avgLagMin = Math.round(avgLagMs / 60000);
-      const offline = agents
-        .filter((a) => (a.status || '').toLowerCase() !== 'online')
-        .sort((a, b) => ((AppCenterApi.parseDate(a.last_seen) || new Date(0)).getTime()) - ((AppCenterApi.parseDate(b.last_seen) || new Date(0)).getTime()))
-        .slice(0, 5);
-      const list = document.getElementById('ops-insights-list');
-      if (!list) return;
-      list.innerHTML = `
-        <div class="list-group-item">
-          <div class="d-flex align-items-center">
-            <div class="text-secondary">Ortalama Son Gorulme Gecikmesi</div>
-            <div class="ms-auto fw-semibold">${avgLagMin.toLocaleString('tr-TR')} dk</div>
-          </div>
-        </div>
-        <div class="list-group-item">
-          <div class="d-flex align-items-center">
-            <div class="text-secondary">Offline Agent (Top 5 Risk)</div>
-            <div class="ms-auto"><span class="badge bg-yellow-lt text-yellow">${offline.length}</span></div>
-          </div>
-          <div class="mt-2">
-            ${offline.length
-              ? offline.map((a) => `<div class="small text-secondary"><a class="text-reset" href="/agents/${esc(a.uuid)}">${esc(a.hostname || a.uuid)}</a> · ${esc(AppCenterApi.relTime(a.last_seen))}</div>`).join('')
-              : '<div class="small text-secondary">Offline risk kaydi yok.</div>'}
-          </div>
-        </div>`;
-    } catch (err) {
-      const list = document.getElementById('ops-insights-list');
-      if (list) list.innerHTML = `<div class="list-group-item text-danger">${esc(err.message || 'Yuklenemedi')}</div>`;
-    }
-  }
-
-  async function loadTrends() {
-    try {
-      const data = await AppCenterApi.req('/dashboard/trends');
-      const labels = data.labels || [];
-      const succ = data.task_success || [];
-      const fail = data.task_failed || [];
-      const pend = data.task_pending || [];
-      const online = data.online_transitions || [];
-      const offline = data.offline_transitions || [];
-
-      const taskRows = document.getElementById('task-trend-rows');
-      const statusRows = document.getElementById('status-trend-rows');
-      if (!taskRows || !statusRows || !labels.length) return;
-
-      taskRows.innerHTML = labels.map((lbl, i) => {
-        const s = Number(succ[i] || 0);
-        const f = Number(fail[i] || 0);
-        const p = Number(pend[i] || 0);
-        const total = Math.max(1, s + f + p);
-        const ratio = Math.round((s / total) * 100);
-        const barClass = ratio >= 70 ? 'bg-green' : ratio >= 40 ? 'bg-yellow' : 'bg-red';
-        return `<tr>
-          <td>${esc(lbl)}</td>
-          <td>
-            <span class="text-green">${s}</span> /
-            <span class="text-red">${f}</span> /
-            <span class="text-yellow">${p}</span>
-          </td>
-          <td>
-            <div class="progress progress-xs" title="${ratio}%">
-              <div class="progress-bar ${barClass}" style="width:${ratio}%"></div>
-            </div>
-          </td>
-        </tr>`;
-      }).join('');
-
-      statusRows.innerHTML = labels.map((lbl, i) => {
-        const on = Number(online[i] || 0);
-        const off = Number(offline[i] || 0);
-        const total = Math.max(1, on + off);
-        const onlineRatio = Math.round((on / total) * 100);
-        const net = on - off;
-        const netClass = net > 0 ? 'text-green' : net < 0 ? 'text-red' : 'text-secondary';
-        const barClass = onlineRatio >= 50 ? 'bg-green' : 'bg-red';
-        return `<tr>
-          <td>${esc(lbl)}</td>
-          <td><span class="text-green">${on}</span> / <span class="text-red">${off}</span></td>
-          <td>
-            <div class="d-flex align-items-center gap-2">
-              <div class="progress progress-xs flex-grow-1" title="Online oran ${onlineRatio}%">
-                <div class="progress-bar ${barClass}" style="width:${onlineRatio}%"></div>
-              </div>
-              <span class="small ${netClass}">${net > 0 ? '+' : ''}${net}</span>
-            </div>
-          </td>
-        </tr>`;
-      }).join('');
-    } catch (err) {
-      const taskRows = document.getElementById('task-trend-rows');
-      const statusRows = document.getElementById('status-trend-rows');
-      if (taskRows) taskRows.innerHTML = `<tr><td colspan="3" class="text-danger">${esc(err.message || 'Yuklenemedi')}</td></tr>`;
-      if (statusRows) statusRows.innerHTML = `<tr><td colspan="3" class="text-danger">${esc(err.message || 'Yuklenemedi')}</td></tr>`;
-    }
-  }
-
-  async function loadComplianceBreakdown() {
-    try {
-      const data = await AppCenterApi.req('/dashboard/compliance-breakdown');
-      const rows = data.items || [];
-      const el = document.getElementById('risk-clients-rows');
-      const badge = document.getElementById('risk-total-badge');
-      if (badge) badge.textContent = String(data.at_risk_agents || 0);
-      if (!el) return;
-      if (!rows.length) {
-        el.innerHTML = '<tr><td colspan="4" class="text-secondary">Riskli client yok</td></tr>';
-        return;
-      }
-      el.innerHTML = rows.map((item) => {
-        const score = Number(item.risk_score || 0);
-        const scoreClass = score >= 4 ? 'bg-red-lt text-red' : score >= 2 ? 'bg-yellow-lt text-yellow' : 'bg-blue-lt text-blue';
-        return `<tr>
-          <td><a class="text-reset text-decoration-none" href="/agents/${esc(item.agent_uuid)}">${esc(item.hostname || '-')}</a></td>
-          <td>${Number(item.licensed_violations || 0)}</td>
-          <td>${Number(item.prohibited_hits || 0)}</td>
-          <td><span class="badge ${scoreClass}">${score}</span></td>
-        </tr>`;
-      }).join('');
-    } catch (err) {
-      const el = document.getElementById('risk-clients-rows');
-      if (el) el.innerHTML = `<tr><td colspan="4" class="text-danger">${esc(err.message || 'Yuklenemedi')}</td></tr>`;
-    }
-  }
-
-  async function loadRemoteMetrics() {
-    try {
-      const data = await AppCenterApi.req('/dashboard/remote-metrics');
-      const el = document.getElementById('remote-metrics-list');
-      if (!el) return;
-      el.innerHTML = `
-        <div class="list-group-item d-flex justify-content-between align-items-center">
-          <span class="text-secondary">Aktif Oturum</span>
-          <span class="fw-semibold">${Number(data.active_sessions || 0).toLocaleString('tr-TR')}</span>
-        </div>
-        <div class="list-group-item d-flex justify-content-between align-items-center">
-          <span class="text-secondary">Toplam Oturum (7g)</span>
-          <span class="fw-semibold">${Number(data.sessions_last_7d || 0).toLocaleString('tr-TR')}</span>
-        </div>
-        <div class="list-group-item d-flex justify-content-between align-items-center">
-          <span class="text-secondary">Reddedilen / Timeout / Error</span>
-          <span class="fw-semibold text-red">${Number(data.rejected_last_7d || 0)} / ${Number(data.timeout_last_7d || 0)} / ${Number(data.error_last_7d || 0)}</span>
-        </div>
-        <div class="list-group-item d-flex justify-content-between align-items-center">
-          <span class="text-secondary">Ort. Onay Gecikmesi</span>
-          <span class="fw-semibold">${fmtDuration(data.avg_approval_delay_sec || 0)}</span>
-        </div>
-        <div class="list-group-item d-flex justify-content-between align-items-center">
-          <span class="text-secondary">Ort. Oturum Suresi</span>
-          <span class="fw-semibold">${fmtDuration(data.avg_session_duration_sec || 0)}</span>
-        </div>`;
-    } catch (err) {
-      const el = document.getElementById('remote-metrics-list');
-      if (el) el.innerHTML = `<div class="list-group-item text-danger">${esc(err.message || 'Yuklenemedi')}</div>`;
-    }
-  }
   function buildTimelineGroups(items) {
     const buckets = new Map();
     (items || []).forEach((i) => {
@@ -464,221 +923,624 @@
       });
   }
 
-  function renderTimelineHostStatus(groups) {
-    return groups.map((g) => {
-        const eventGroups = new Map();
-        g.items.forEach((i) => {
-          const et = (i.event_type || 'event').toLowerCase();
-          const sev = (i.severity || 'info').toLowerCase();
-          const k = et === 'status' ? et : `${et}|${sev}`;
-          if (!eventGroups.has(k)) {
-            eventGroups.set(k, { eventType: et, severity: sev, rows: [] });
-          }
-          eventGroups.get(k).rows.push(i);
-        });
-        const summarized = Array.from(eventGroups.values()).sort((a, b) => b.rows.length - a.rows.length);
-        return `
-        <div class="card mb-2">
-          <div class="card-header py-2 d-flex align-items-center justify-content-between">
-            <span class="fw-semibold">${esc(g.label)}</span>
-            <span class="badge bg-primary-lt text-primary">${g.items.length}</span>
-          </div>
-          <div class="list-group list-group-flush">
-            ${summarized.map((sg) => {
-              let sevForBadge = (sg.severity || 'info').toLowerCase();
-              if ((sg.eventType || '') === 'status') {
-                const all = sg.rows.map((x) => (x.severity || '').toLowerCase());
-                if (all.includes('danger')) sevForBadge = 'danger';
-                else if (all.includes('warn')) sevForBadge = 'warn';
-                else if (all.includes('ok')) sevForBadge = 'ok';
-              }
-              const b = severityBadge(sevForBadge);
-              const iconMeta = timelineIconByType(sg.eventType, sevForBadge);
-              const hosts = sg.rows.map((x) => x.hostname || x.agent_uuid || '-');
-              const tip = clientsTooltip(hosts);
-              const sample = sg.rows[0] || {};
-              let summaryHtml = esc(summarizeTimelineGroup(sg.eventType, hosts, sg.rows.length));
-              if ((sg.eventType || '') === 'status') {
-                const byHost = new Map();
-                sg.rows.forEach((r) => {
-                  const h = (r.hostname || r.agent_uuid || '-').toString();
-                  if (!byHost.has(h)) byHost.set(h, []);
-                  byHost.get(h).push(r);
-                });
-                const parts = [];
-                Array.from(byHost.entries())
-                  .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
-                  .slice(0, 3)
-                  .forEach(([host, rows]) => {
-                    const stateTimes = new Map();
-                    rows
-                      .sort((a, b) => (AppCenterApi.parseDate(a.detected_at) || new Date(0)).getTime() - (AppCenterApi.parseDate(b.detected_at) || new Date(0)).getTime())
-                      .forEach((r) => {
-                        const label = statusLabelFromSeverity(r.severity);
-                        if (!stateTimes.has(label)) stateTimes.set(label, []);
-                        stateTimes.get(label).push(AppCenterApi.formatDate(r.detected_at));
-                      });
-                    const statesHtml = Array.from(stateTimes.entries())
-                      .map(([label, times]) => `<span class="badge bg-secondary-lt text-secondary" title="${esc(times.join(' | '))}">${esc(label)}</span>`)
-                      .join(' ');
-                    parts.push(`${esc(host)} status change ${statesHtml}`);
-                  });
-                if (byHost.size > 3) parts.push(`<span class="text-secondary">+${byHost.size - 3} host daha</span>`);
-                summaryHtml = parts.join(' · ');
-              }
-              return `
-                <div class="list-group-item">
-                  <div class="d-flex align-items-start gap-2">
-                    <i class="${iconMeta.icon} ${iconMeta.tone} mt-1"></i>
-                    <div class="flex-grow-1">
-                      <div class="d-flex align-items-center gap-2 flex-wrap">
-                        <a class="text-reset text-decoration-none fw-medium" href="/agents/${esc(sample.agent_uuid || '')}">${esc(sample.hostname || '-')}</a>
-                        <span class="badge ${b.klass}">${esc(b.label)}</span>
-                        <span class="text-secondary small">${esc(sg.eventType || '-')}</span>
-                        <span class="badge bg-secondary-lt text-secondary">${sg.rows.length}</span>
-                      </div>
-                      <div class="text-secondary small mt-1" title="${esc(tip)}">${summaryHtml}</div>
-                    </div>
-                    <div class="text-secondary small text-nowrap" title="${esc(AppCenterApi.formatDate(sample.detected_at))}">${esc(AppCenterApi.relTime(sample.detected_at))}</div>
-                  </div>
-                </div>`;
-            }).join('')}
-          </div>
-        </div>
-      `;
-      }).join('');
+  function eventTypeLabel(t) {
+    const e = (t || '').toLowerCase();
+    if (e === 'status') return 'Status';
+    if (e === 'task') return 'Task';
+    if (e === 'identity') return 'Identity';
+    if (e === 'system_profile') return 'System';
+    return e || '-';
   }
 
-  function renderTimelineMinuteSummary(groups) {
-    return groups.map((g) => {
-      const byType = new Map();
-      g.items.forEach((i) => {
-        const t = (i.event_type || 'event').toLowerCase();
-        if (!byType.has(t)) {
-          byType.set(t, { type: t, total: 0, up: 0, down: 0, hosts: new Set() });
-        }
-        const row = byType.get(t);
-        row.total += 1;
-        row.hosts.add(i.hostname || i.agent_uuid || '-');
-        const sev = (i.severity || '').toLowerCase();
-        if (t === 'status' && sev === 'ok') row.up += 1;
-        if (t === 'status' && sev === 'danger') row.down += 1;
+  function summarizeTimelineGroup(eventType, hosts, total) {
+    const t = (eventType || '').toLowerCase();
+    const list = (hosts || []).filter(Boolean);
+    const freq = new Map();
+    list.forEach((h) => freq.set(h, (freq.get(h) || 0) + 1));
+    const top = Array.from(freq.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 2)
+      .map(([name, cnt]) => (cnt > 1 ? `${name} x${cnt}` : name))
+      .join(', ');
+    const compact = `${top}${freq.size > 2 ? '...' : ''} (${total})`;
+    if (t === 'status') return `${compact} status change`;
+    if (t === 'identity') return `${compact} identity change`;
+    if (t === 'task') return `${compact} task event`;
+    if (t === 'system_profile') return `${compact} system profile update`;
+    return `${compact} ${t || 'event'}`;
+  }
+
+  function timelineSummaryHtml(mode, rows, eventType) {
+    if (mode !== 'host_status' || (eventType || '') !== 'status') {
+      return esc(summarizeTimelineGroup(eventType, rows.map((x) => x.hostname || x.agent_uuid || '-'), rows.length));
+    }
+    const byHost = new Map();
+    rows.forEach((r) => {
+      const h = (r.hostname || r.agent_uuid || '-').toString();
+      if (!byHost.has(h)) byHost.set(h, []);
+      byHost.get(h).push(r);
+    });
+    const parts = [];
+    Array.from(byHost.entries())
+      .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
+      .slice(0, 3)
+      .forEach(([host, hostRows]) => {
+        const states = hostRows.map((r) => (r.severity || '').toLowerCase() === 'danger' ? 'Down' : (r.severity || '').toLowerCase() === 'ok' ? 'Up' : 'Unknown');
+        parts.push(`${esc(host)} · ${esc(states.join(' → '))}`);
       });
-      const rows = Array.from(byType.values()).sort((a, b) => b.total - a.total);
-      return `
-        <div class="card mb-2">
-          <div class="card-header py-2 d-flex align-items-center justify-content-between">
-            <span class="fw-semibold">${esc(g.label)}</span>
-            <span class="badge bg-primary-lt text-primary">${g.items.length}</span>
-          </div>
-          <div class="table-responsive">
-            <table class="table card-table table-vcenter">
-              <thead><tr><th>Tip</th><th>Host Ozeti</th><th>Durum</th><th>Olay</th></tr></thead>
-              <tbody>
-                ${rows.map((r) => {
-                  const hostList = Array.from(r.hosts);
-                  const hostPreview = `${hostList.slice(0, 2).join(', ')}${hostList.length > 2 ? '...' : ''} (${hostList.length})`;
-                  const hostTip = hostList.join(', ');
-                  let state = '<span class="text-secondary">-</span>';
-                  if (r.type === 'status') {
-                    state = `<span class="badge bg-green-lt text-green" title="Up sayisi">Up ${r.up}</span> <span class="badge bg-red-lt text-red" title="Down sayisi">Down ${r.down}</span>`;
-                  }
-                  return `<tr>
-                    <td><span class="badge bg-secondary-lt text-secondary">${esc(eventTypeLabel(r.type))}</span></td>
-                    <td title="${esc(hostTip)}">${esc(hostPreview)}</td>
-                    <td>${state}</td>
-                    <td><span class="badge bg-primary-lt text-primary">${r.total}</span></td>
-                  </tr>`;
-                }).join('')}
-              </tbody>
-            </table>
-          </div>
+    if (byHost.size > 3) parts.push(`<span class="text-secondary">+${byHost.size - 3} host daha</span>`);
+    return parts.join(' · ');
+  }
+
+  function setTimelineMode(mode) {
+    V2_STATE.timelineMode = mode || 'host_status';
+    ['host_status', 'minute_summary', 'raw_stream'].forEach((key) => {
+      const btn = document.getElementById(`timeline-mode-${key}`);
+      if (!btn) return;
+      const active = key === V2_STATE.timelineMode;
+      btn.classList.toggle('btn-primary', active);
+      btn.classList.toggle('btn-ghost-secondary', !active);
+    });
+    renderTimeline();
+  }
+
+  function renderHero() {
+    const stats = V2_STATE.stats || {};
+    const inv = V2_STATE.inventory || {};
+    const remote = V2_STATE.remote || {};
+    const ws = V2_STATE.ws || {};
+    const total = Number(stats.total_agents || 0);
+    const online = Number(stats.online_agents || 0);
+    const coverage = total > 0 ? Math.round((Number(inv.agents_with_inventory || 0) / total) * 100) : 0;
+    const risk = Number((V2_STATE.compliance && V2_STATE.compliance.at_risk_agents) || 0);
+    const onlineRate = total > 0 ? Math.round((online / total) * 100) : 0;
+
+    let title = 'Estate sinyali olusuyor';
+    if (total > 0) {
+      if (onlineRate >= 90 && risk === 0) title = 'Estate stabil, risk baskisi dusuk';
+      else if (onlineRate >= 75) title = 'Estate genel olarak saglikli, odakli takip gerekli';
+      else title = 'Estate dikkat istiyor, baglanti ve risk baskisi artmis durumda';
+    }
+    let copy = `Toplam ${fmtInt(total)} ajan icin online oran ${onlineRate}% seviyesinde. `;
+    copy += `Envanter kapsami ${coverage}%, riskli client sayisi ${fmtInt(risk)}, aktif remote oturum ${fmtInt(remote.active_sessions || 0)}.`;
+
+    setText('v2-hero-title', title);
+    setText('v2-hero-copy', copy);
+    setText('v2-chip-agents', `${fmtInt(online)} online / ${fmtInt(Math.max(0, total - online))} offline`);
+    setText('v2-chip-inventory', `${coverage}% kapsama`);
+    setText('v2-chip-remote', `${fmtInt(remote.active_sessions || 0)} aktif · ${fmtInt(remote.sessions_last_7d || 0)} / 7g`);
+    setText('v2-chip-fabric', `${fmtInt(ws.ws_agent_connections || 0)} WS · ${fmtInt(ws.agents_http_count || 0)} HTTP`);
+
+    const trendTotal = ((V2_STATE.trends && V2_STATE.trends.task_success) || []).reduce((a, b) => a + Number(b || 0), 0);
+    const failTotal = ((V2_STATE.trends && V2_STATE.trends.task_failed) || []).reduce((a, b) => a + Number(b || 0), 0);
+    const pulse = trendTotal + failTotal;
+    const pulseStatus = pulse > 0 ? `${fmtInt(pulse)} olay` : 'Sessiz';
+    setText('v2-pulse-value', pulseStatus);
+    setText('v2-pulse-badge', pulse > 0 ? 'Canli akis' : 'Dusuk hacim');
+    setText('v2-pulse-note', `${fmtInt(trendTotal)} basarili task, ${fmtInt(failTotal)} failure/timeout ve ${fmtInt(risk)} riskli ajan birlikte okunuyor.`);
+
+    const spark = document.getElementById('v2-pulse-sparkline');
+    const series = ((V2_STATE.trends && V2_STATE.trends.task_success) || []).map((v, i) => Number(v || 0) + Number(((V2_STATE.trends && V2_STATE.trends.task_failed) || [])[i] || 0));
+    const max = Math.max(...series, 1);
+    if (spark && series.length) {
+      spark.innerHTML = series.map((v) => `<span style="height:${Math.max(18, Math.round((v / max) * 100))}%"></span>`).join('');
+    }
+  }
+
+  function renderKpis() {
+    const stats = V2_STATE.stats || {};
+    const inv = V2_STATE.inventory || {};
+    const risk = V2_STATE.compliance || {};
+    const remote = V2_STATE.remote || {};
+    const total = Number(stats.total_agents || 0);
+    const online = Number(stats.online_agents || 0);
+    const offline = Math.max(0, total - online);
+    const onlineRate = total > 0 ? Math.round((online / total) * 100) : 0;
+    const invAgents = Number(inv.agents_with_inventory || 0);
+    const coverage = total > 0 ? Math.round((invAgents / total) * 100) : 0;
+    const licensed = Number(risk.violation_licensed_rules || 0);
+    const prohibited = Number(risk.violation_prohibited_rules || 0);
+    const issues = Number(remote.rejected_last_7d || 0) + Number(remote.timeout_last_7d || 0) + Number(remote.error_last_7d || 0);
+
+    setText('v2-kpi-total', fmtInt(total));
+    setText('v2-kpi-online-rate', `${onlineRate}% online`);
+    setText('v2-kpi-total-note', `${fmtInt(online)} online / ${fmtInt(offline)} offline`);
+    setProgress('v2-kpi-online-progress', onlineRate);
+    setProgress('v2-kpi-offline-progress', 100 - onlineRate);
+
+    setText('v2-kpi-unique-sw', fmtInt(inv.total_unique_software || 0));
+    setText('v2-kpi-coverage', `${coverage}% kapsama`);
+    setText('v2-kpi-inventory-note', `${fmtInt(invAgents)} ajan envanterli, ${fmtInt(Math.max(0, total - invAgents))} ajan eksik`);
+    setProgress('v2-kpi-coverage-progress', coverage);
+    setProgress('v2-kpi-gap-progress', 100 - coverage);
+
+    setText('v2-kpi-risk-agents', fmtInt(risk.at_risk_agents || 0));
+    setText('v2-kpi-risk-rules', `${licensed + prohibited} kural`);
+    setText('v2-kpi-risk-note', `${fmtInt(licensed)} lisans, ${fmtInt(prohibited)} yasakli yazilim ihlali`);
+    const totalRiskRules = Math.max(1, licensed + prohibited);
+    setProgress('v2-kpi-licensed-progress', Math.round((licensed / totalRiskRules) * 100));
+    setProgress('v2-kpi-prohibited-progress', Math.round((prohibited / totalRiskRules) * 100));
+
+    setText('v2-kpi-remote-active', fmtInt(remote.active_sessions || 0));
+    setText('v2-kpi-remote-issues', `${fmtInt(issues)} issue`);
+    setText('v2-kpi-remote-note', `${fmtInt(remote.sessions_last_7d || 0)} oturum / 7g, ort. onay ${fmtDuration(remote.avg_approval_delay_sec || 0)}`);
+    const remoteVolume = Math.min(100, Number(remote.sessions_last_7d || 0) * 8);
+    const remoteProblems = Math.min(100, issues * 10);
+    setProgress('v2-kpi-remote-volume-progress', remoteVolume);
+    setProgress('v2-kpi-remote-problem-progress', remoteProblems);
+  }
+
+  function renderHealthMatrix() {
+    const stats = V2_STATE.stats || {};
+    const inv = V2_STATE.inventory || {};
+    const remote = V2_STATE.remote || {};
+    const ws = V2_STATE.ws || {};
+    const trends = V2_STATE.trends || {};
+
+    const total = Number(stats.total_agents || 0);
+    const invAgents = Number(inv.agents_with_inventory || 0);
+    const coverage = total > 0 ? Math.round((invAgents / total) * 100) : 0;
+    setText('v2-health-inventory-badge', `${coverage}%`);
+    setText('v2-health-inventory-value', `${fmtInt(inv.total_unique_software || 0)} yazilim`);
+    setText('v2-health-added', `Bugun +${fmtInt(inv.added_today || 0)}`);
+    setText('v2-health-removed', `Bugun -${fmtInt(inv.removed_today || 0)}`);
+    setProgress('v2-health-inventory-progress', coverage);
+
+    const successTotal = (trends.task_success || []).reduce((a, b) => a + Number(b || 0), 0);
+    const failedTotal = (trends.task_failed || []).reduce((a, b) => a + Number(b || 0), 0);
+    const pendingTotal = (trends.task_pending || []).reduce((a, b) => a + Number(b || 0), 0);
+    const taskTotal = Math.max(1, successTotal + failedTotal + pendingTotal);
+    const taskQuality = Math.round((successTotal / taskTotal) * 100);
+    setText('v2-health-task-badge', `${taskQuality}%`);
+    setText('v2-health-task-value', `${fmtInt(successTotal)} success`);
+    setText('v2-health-task-success', `Pending ${fmtInt(pendingTotal)}`);
+    setText('v2-health-task-failed', `Failed ${fmtInt(failedTotal)}`);
+    setProgress('v2-health-task-progress', taskQuality);
+
+    const wsAgents = Number(ws.ws_agent_connections || 0);
+    const httpAgents = Number(ws.agents_http_count || 0);
+    const liveTotal = Math.max(1, wsAgents + httpAgents);
+    const wsRatio = Math.round((wsAgents / liveTotal) * 100);
+    setText('v2-health-fabric-badge', `${wsRatio}% WS`);
+    setText('v2-health-fabric-value', `${fmtInt(wsAgents)} WS agent`);
+    setText('v2-health-fabric-ui', `UI ${fmtInt(ws.ws_ui_connections || 0)}`);
+    setText('v2-health-fabric-http', `HTTP ${fmtInt(httpAgents)}`);
+    setProgress('v2-health-fabric-progress', wsRatio);
+
+    const issueCount = Number(remote.rejected_last_7d || 0) + Number(remote.timeout_last_7d || 0) + Number(remote.error_last_7d || 0);
+    const sessionCount = Math.max(1, Number(remote.sessions_last_7d || 0));
+    const cleanRatio = Math.max(0, 100 - Math.round((issueCount / sessionCount) * 100));
+    setText('v2-health-remote-badge', `${cleanRatio}% temiz`);
+    setText('v2-health-remote-value', `${fmtInt(remote.active_sessions || 0)} aktif`);
+    setText('v2-health-approval', `Onay ${fmtDuration(remote.avg_approval_delay_sec || 0)}`);
+    setText('v2-health-duration', `Sure ${fmtDuration(remote.avg_session_duration_sec || 0)}`);
+    setProgress('v2-health-remote-progress', cleanRatio);
+  }
+
+  function renderWatchlist() {
+    const wrap = document.getElementById('v2-watchlist');
+    if (!wrap) return;
+    const agents = V2_STATE.agents || [];
+    const riskItems = (V2_STATE.compliance && V2_STATE.compliance.items) || [];
+    const riskMap = new Map(riskItems.map((x) => [String(x.agent_uuid), x]));
+    const offline = agents
+      .filter((a) => (a.status || '').toLowerCase() !== 'online')
+      .sort((a, b) => ((AppCenterApi.parseDate(a.last_seen) || new Date(0)).getTime()) - ((AppCenterApi.parseDate(b.last_seen) || new Date(0)).getTime()))
+      .slice(0, 4);
+
+    const combined = [];
+    riskItems.slice(0, 4).forEach((item) => combined.push({ kind: 'risk', agent: item }));
+    offline.forEach((item) => {
+      if (!riskMap.has(String(item.uuid))) combined.push({ kind: 'offline', agent: item });
+    });
+
+    if (!combined.length) {
+      wrap.innerHTML = '<div class="dashv2-watch-item text-secondary">Takip gerektiren client yok.</div>';
+      return;
+    }
+
+    wrap.innerHTML = combined.slice(0, 6).map((entry) => {
+      const a = entry.agent || {};
+      const riskScore = Number(a.risk_score || 0);
+      const scoreClass = riskScore >= 4 ? 'is-red' : riskScore >= 2 ? 'is-yellow' : 'is-blue';
+      const meta = entry.kind === 'risk'
+        ? `${fmtInt(a.licensed_violations || 0)} lisans · ${fmtInt(a.prohibited_hits || 0)} yasakli`
+        : `Offline · ${esc(relTimeSafe(a.last_seen))}`;
+      const sideLabel = entry.kind === 'risk' ? `R${riskScore}` : 'OFF';
+      return `<div class="dashv2-watch-item">
+        <span class="dashv2-watch-avatar"><i class="ti ${entry.kind === 'risk' ? 'ti-alert-triangle' : 'ti-plug-connected-x'}"></i></span>
+        <div>
+          <a class="dashv2-watch-name" href="/agents/${esc(a.agent_uuid || a.uuid || '')}">${esc(a.hostname || '-')}</a>
+          <div class="dashv2-watch-meta">${meta}</div>
         </div>
-      `;
+        <span class="dashv2-watch-score ${scoreClass}">${esc(sideLabel)}</span>
+      </div>`;
     }).join('');
   }
 
-  function renderTimelineRaw(groups) {
-    return groups.map((g) => `
-      <div class="card mb-2">
-        <div class="card-header py-2 d-flex align-items-center justify-content-between">
-          <span class="fw-semibold">${esc(g.label)}</span>
-          <span class="badge bg-primary-lt text-primary">${g.items.length}</span>
+  function renderInsights() {
+    const wrap = document.getElementById('v2-insights-list');
+    if (!wrap) return;
+    const agents = V2_STATE.agents || [];
+    const stats = V2_STATE.stats || {};
+    const inv = V2_STATE.inventory || {};
+    const remote = V2_STATE.remote || {};
+    const ws = V2_STATE.ws || {};
+    const trends = V2_STATE.trends || {};
+    const total = Number(stats.total_agents || 0);
+    const online = Number(stats.online_agents || 0);
+    const coverage = total > 0 ? Math.round((Number(inv.agents_with_inventory || 0) / total) * 100) : 0;
+    const avgLagMin = agents.length
+      ? Math.round(agents
+        .map((a) => (AppCenterApi.parseDate(a.last_seen) || new Date(0)).getTime())
+        .filter((ts) => ts > 0)
+        .reduce((acc, ts) => acc + Math.max(0, Date.now() - ts), 0) / Math.max(1, agents.filter((a) => !!AppCenterApi.parseDate(a.last_seen)).length) / 60000)
+      : 0;
+    const statusNet = ((trends.online_transitions || []).reduce((a, b) => a + Number(b || 0), 0))
+      - ((trends.offline_transitions || []).reduce((a, b) => a + Number(b || 0), 0));
+    const items = [
+      {
+        icon: 'ti ti-heart-rate-monitor',
+        title: 'Estate cevap hizi',
+        meta: `Ajanlarin ortalama son gorulme gecikmesi ${fmtInt(avgLagMin)} dk seviyesinde.`,
+      },
+      {
+        icon: 'ti ti-box-multiple',
+        title: 'Envanter kapsama yorumu',
+        meta: coverage >= 90 ? 'Envanter kapsami guclu; veri koridoru stabil.' : `Envanter kapsami ${coverage}% seviyesinde, eksik ajanlar takip edilmeli.`,
+      },
+      {
+        icon: 'ti ti-plug-connected',
+        title: 'Baglanti fabric yorumu',
+        meta: `${fmtInt(ws.ws_agent_connections || 0)} agent WS ile bagli, ${fmtInt(ws.agents_http_count || 0)} agent fallback modunda.`,
+      },
+      {
+        icon: 'ti ti-route-2',
+        title: 'Durum gecis trendi',
+        meta: `Son 7 gunde net durum etkisi ${statusNet > 0 ? '+' : ''}${fmtInt(statusNet)} seviyesinde.`,
+      },
+      {
+        icon: 'ti ti-headset',
+        title: 'Remote destek yorumu',
+        meta: `${fmtInt(remote.sessions_last_7d || 0)} oturum icin ortalama onay suresi ${fmtDuration(remote.avg_approval_delay_sec || 0)}.`,
+      },
+    ];
+    wrap.innerHTML = items.map((item) => `<div class="dashv2-insight-item">
+      <div class="d-flex align-items-start gap-3">
+        <span class="dashv2-watch-avatar"><i class="ti ${item.icon}"></i></span>
+        <div>
+          <div class="dashv2-soft-name">${esc(item.title)}</div>
+          <div class="dashv2-watch-meta mt-1">${esc(item.meta)}</div>
         </div>
-        <div class="list-group list-group-flush">
-          ${g.items.map((i) => {
-            const b = severityBadge(i.severity);
-            const iconMeta = timelineIconByType(i.event_type, i.severity);
-            return `<div class="list-group-item">
-              <div class="d-flex align-items-start gap-2">
-                <i class="${iconMeta.icon} ${iconMeta.tone} mt-1"></i>
-                <div class="flex-grow-1">
-                  <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <a class="text-reset text-decoration-none fw-medium" href="/agents/${esc(i.agent_uuid || '')}">${esc(i.hostname || '-')}</a>
-                    <span class="badge ${b.klass}">${esc(b.label)}</span>
-                    <span class="text-secondary small">${esc(eventTypeLabel(i.event_type))}</span>
-                  </div>
-                  <div class="text-secondary small mt-1">${esc(i.summary || '-')}</div>
+      </div>
+    </div>`).join('');
+  }
+
+  function renderRemoteCenter() {
+    const wrap = document.getElementById('v2-remote-list');
+    if (!wrap) return;
+    const remote = V2_STATE.remote || {};
+    const issueCount = Number(remote.rejected_last_7d || 0) + Number(remote.timeout_last_7d || 0) + Number(remote.error_last_7d || 0);
+    const items = [
+      {
+        label: 'Aktif Oturum',
+        value: fmtInt(remote.active_sessions || 0),
+        note: `Toplam ${fmtInt(remote.sessions_last_7d || 0)} oturum / son 7 gun`,
+        badge: '<span class="badge bg-green-lt text-green">Canli</span>',
+      },
+      {
+        label: 'Onay Gecikmesi',
+        value: fmtDuration(remote.avg_approval_delay_sec || 0),
+        note: 'Kullanici onayi ile onaylama zamani arasindaki ortalama fark',
+        badge: '<span class="badge bg-azure-lt text-azure">Consent</span>',
+      },
+      {
+        label: 'Ortalama Sure',
+        value: fmtDuration(remote.avg_session_duration_sec || 0),
+        note: 'Baglanti kurulan ve kapanan oturumlarin ortalama suresi',
+        badge: '<span class="badge bg-primary-lt text-primary">Duration</span>',
+      },
+      {
+        label: 'Issue Basinci',
+        value: fmtInt(issueCount),
+        note: `${fmtInt(remote.rejected_last_7d || 0)} red · ${fmtInt(remote.timeout_last_7d || 0)} timeout · ${fmtInt(remote.error_last_7d || 0)} error`,
+        badge: '<span class="badge bg-red-lt text-red">Issue</span>',
+      },
+    ];
+    wrap.innerHTML = items.map((item) => `<div class="dashv2-rs-item">
+      <div class="d-flex align-items-center justify-content-between gap-3">
+        <div>
+          <div class="dashv2-metric-box-title">${esc(item.label)}</div>
+          <div class="dashv2-metric-box-value mt-2">${esc(item.value)}</div>
+        </div>
+        ${item.badge}
+      </div>
+      <div class="dashv2-watch-meta">${esc(item.note)}</div>
+    </div>`).join('');
+  }
+
+  function renderSoftwareList() {
+    const wrap = document.getElementById('v2-software-list');
+    if (!wrap) return;
+    const rows = V2_STATE.topSoftware || [];
+    if (!rows.length) {
+      wrap.innerHTML = '<div class="dashv2-soft-item text-secondary">Kayit yok</div>';
+      return;
+    }
+    const maxAgents = Math.max(...rows.map((x) => Number(x.agent_count || 0)), 1);
+    wrap.innerHTML = rows.map((item, index) => {
+      const count = Number(item.agent_count || 0);
+      const ratio = Math.max(0, Math.min(100, Math.round((count / maxAgents) * 100)));
+      return `<div class="dashv2-soft-item">
+        <div class="dashv2-soft-top">
+          <div class="dashv2-soft-name">${index + 1}. ${esc(item.name || '-')}</div>
+          <span class="badge bg-blue-lt text-blue">${fmtInt(count)} ajan</span>
+        </div>
+        <div class="dashv2-soft-bar">
+          <div class="progress progress-sm"><div class="progress-bar bg-primary" style="width:${ratio}%"></div></div>
+        </div>
+        <div class="dashv2-soft-meta">
+          <span>Estate yayginlik orani</span>
+          <span>${ratio}%</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderClientsList() {
+    const wrap = document.getElementById('v2-clients-list');
+    if (!wrap) return;
+    const rows = V2_STATE.topClients || [];
+    if (!rows.length) {
+      wrap.innerHTML = '<div class="dashv2-client-item text-secondary">Kayit yok</div>';
+      return;
+    }
+    const maxApps = Math.max(...rows.map((x) => Number(x.installed_app_count || 0)), 1);
+    wrap.innerHTML = rows.map((item) => {
+      const count = Number(item.installed_app_count || 0);
+      const ratio = Math.max(0, Math.min(100, Math.round((count / maxApps) * 100)));
+      const statusBadge = (item.status || '').toLowerCase() === 'online'
+        ? '<span class="badge bg-green-lt text-green">online</span>'
+        : '<span class="badge bg-red-lt text-red">offline</span>';
+      return `<div class="dashv2-client-item">
+        <div class="dashv2-client-top">
+          <a class="dashv2-client-name text-reset text-decoration-none" href="/agents/${esc(item.agent_uuid || '')}">${esc(item.hostname || '-')}</a>
+          ${statusBadge}
+        </div>
+        <div class="progress progress-sm"><div class="progress-bar bg-azure" style="width:${ratio}%"></div></div>
+        <div class="dashv2-client-meta">
+          <span>${fmtInt(count)} yuklu uygulama</span>
+          <span>${esc(relTimeSafe(item.last_seen))}</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderTrends() {
+    const taskWrap = document.getElementById('v2-task-days');
+    const statusWrap = document.getElementById('v2-status-days');
+    const data = V2_STATE.trends || {};
+    const labels = data.labels || [];
+    if (!taskWrap || !statusWrap) return;
+    if (!labels.length) {
+      taskWrap.innerHTML = '<div class="dashv2-day-row text-secondary">Trend verisi yok</div>';
+      statusWrap.innerHTML = '<div class="dashv2-day-row text-secondary">Trend verisi yok</div>';
+      return;
+    }
+
+    taskWrap.innerHTML = labels.map((lbl, i) => {
+      const s = Number((data.task_success || [])[i] || 0);
+      const f = Number((data.task_failed || [])[i] || 0);
+      const p = Number((data.task_pending || [])[i] || 0);
+      const total = Math.max(1, s + f + p);
+      const ratio = Math.round((s / total) * 100);
+      return `<div class="dashv2-day-row">
+        <div class="dashv2-day-top">
+          <div class="dashv2-soft-name">${esc(lbl)}</div>
+          <span class="badge ${ratio >= 70 ? 'bg-green-lt text-green' : ratio >= 40 ? 'bg-yellow-lt text-yellow' : 'bg-red-lt text-red'}">${ratio}%</span>
+        </div>
+        <div class="dashv2-day-progress"><div class="progress progress-sm"><div class="progress-bar ${ratio >= 70 ? 'bg-green' : ratio >= 40 ? 'bg-yellow' : 'bg-red'}" style="width:${ratio}%"></div></div></div>
+        <div class="dashv2-day-meta"><span><span class="text-green">${s}</span> success · <span class="text-red">${f}</span> failed · <span class="text-yellow">${p}</span> pending</span><span>${fmtInt(total)} toplam</span></div>
+      </div>`;
+    }).join('');
+
+    statusWrap.innerHTML = labels.map((lbl, i) => {
+      const on = Number((data.online_transitions || [])[i] || 0);
+      const off = Number((data.offline_transitions || [])[i] || 0);
+      const total = Math.max(1, on + off);
+      const onlineRatio = Math.round((on / total) * 100);
+      const net = on - off;
+      return `<div class="dashv2-day-row">
+        <div class="dashv2-day-top">
+          <div class="dashv2-soft-name">${esc(lbl)}</div>
+          <span class="badge ${net > 0 ? 'bg-green-lt text-green' : net < 0 ? 'bg-red-lt text-red' : 'bg-secondary-lt text-secondary'}">${net > 0 ? '+' : ''}${net}</span>
+        </div>
+        <div class="dashv2-day-progress"><div class="progress progress-sm"><div class="progress-bar ${onlineRatio >= 50 ? 'bg-green' : 'bg-red'}" style="width:${onlineRatio}%"></div></div></div>
+        <div class="dashv2-day-meta"><span><span class="text-green">${on}</span> online · <span class="text-red">${off}</span> offline</span><span>${onlineRatio}% up</span></div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderTimeline() {
+    const wrap = document.getElementById('v2-timeline-wrap');
+    if (!wrap) return;
+    const groups = V2_STATE.timelineGroups || [];
+    setText('v2-timeline-total', `${fmtInt((V2_STATE.timeline || []).length)} olay`);
+    if (!groups.length) {
+      wrap.innerHTML = '<div class="text-secondary">Kayit yok</div>';
+      return;
+    }
+    const mode = V2_STATE.timelineMode || 'host_status';
+    wrap.innerHTML = groups.map((group) => {
+      if (mode === 'minute_summary') {
+        const byType = new Map();
+        group.items.forEach((i) => {
+          const t = (i.event_type || 'event').toLowerCase();
+          if (!byType.has(t)) byType.set(t, { type: t, total: 0, hosts: new Set() });
+          const row = byType.get(t);
+          row.total += 1;
+          row.hosts.add(i.hostname || i.agent_uuid || '-');
+        });
+        const items = Array.from(byType.values()).sort((a, b) => b.total - a.total);
+        return `<div class="dashv2-minute-card">
+          <div class="dashv2-minute-head">
+            <span class="fw-semibold">${esc(group.label)}</span>
+            <span class="badge bg-primary-lt text-primary">${fmtInt(group.items.length)}</span>
+          </div>
+          <div class="dashv2-minute-body">
+            ${items.map((item) => `<div class="dashv2-minute-item">
+              <span class="dashv2-minute-icon"><i class="${timelineIconByType(item.type, 'info').icon}"></i></span>
+              <div>
+                <div class="dashv2-minute-title">
+                  <span class="dashv2-minute-label">${esc(eventTypeLabel(item.type))}</span>
+                  <span class="badge bg-secondary-lt text-secondary">${fmtInt(item.total)}</span>
                 </div>
-                <div class="text-secondary small text-nowrap" title="${esc(AppCenterApi.formatDate(i.detected_at))}">${esc(AppCenterApi.relTime(i.detected_at))}</div>
+                <div class="dashv2-minute-summary">${esc(Array.from(item.hosts).slice(0, 3).join(', '))}${item.hosts.size > 3 ? ` ve +${item.hosts.size - 3} host` : ''}</div>
               </div>
+              <div class="text-secondary small">${fmtInt(item.hosts.size)} host</div>
+            </div>`).join('')}
+          </div>
+        </div>`;
+      }
+      if (mode === 'host_status') {
+        const grouped = new Map();
+        group.items.forEach((item) => {
+          const et = (item.event_type || 'event').toLowerCase();
+          const sev = (item.severity || 'info').toLowerCase();
+          const key = et === 'status' ? et : `${et}|${sev}`;
+          if (!grouped.has(key)) grouped.set(key, { eventType: et, severity: sev, rows: [] });
+          grouped.get(key).rows.push(item);
+        });
+        const rows = Array.from(grouped.values()).sort((a, b) => b.rows.length - a.rows.length);
+        return `<div class="dashv2-minute-card">
+          <div class="dashv2-minute-head">
+            <span class="fw-semibold">${esc(group.label)}</span>
+            <span class="badge bg-primary-lt text-primary">${fmtInt(group.items.length)}</span>
+          </div>
+          <div class="dashv2-minute-body">
+            ${rows.map((bucket) => {
+              const first = bucket.rows[0] || {};
+              const sev = severityBadge(bucket.severity);
+              const icon = timelineIconByType(bucket.eventType, bucket.severity);
+              return `<div class="dashv2-minute-item">
+                <span class="dashv2-minute-icon"><i class="${icon.icon} ${icon.tone}"></i></span>
+                <div>
+                  <div class="dashv2-minute-title">
+                    <a class="dashv2-minute-label text-reset text-decoration-none" href="/agents/${esc(first.agent_uuid || '')}">${esc(first.hostname || '-')}</a>
+                    <span class="badge ${sev.klass}">${esc(sev.label)}</span>
+                    <span class="badge bg-secondary-lt text-secondary">${esc(eventTypeLabel(bucket.eventType))}</span>
+                    <span class="badge bg-primary-lt text-primary">${fmtInt(bucket.rows.length)}</span>
+                  </div>
+                  <div class="dashv2-minute-summary">${timelineSummaryHtml(mode, bucket.rows, bucket.eventType)}</div>
+                </div>
+                <div class="text-secondary small text-nowrap" title="${esc(AppCenterApi.formatDate(first.detected_at))}">${esc(relTimeSafe(first.detected_at))}</div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+      }
+      return `<div class="dashv2-minute-card">
+        <div class="dashv2-minute-head">
+          <span class="fw-semibold">${esc(group.label)}</span>
+          <span class="badge bg-primary-lt text-primary">${fmtInt(group.items.length)}</span>
+        </div>
+        <div class="dashv2-minute-body">
+          ${group.items.map((item) => {
+            const sev = severityBadge(item.severity);
+            const icon = timelineIconByType(item.event_type, item.severity);
+            const label = mode === 'raw_stream'
+              ? esc(item.summary || '-')
+              : timelineSummaryHtml(mode, [item], item.event_type);
+            return `<div class="dashv2-minute-item">
+              <span class="dashv2-minute-icon"><i class="${icon.icon} ${icon.tone}"></i></span>
+              <div>
+                <div class="dashv2-minute-title">
+                  <a class="dashv2-minute-label text-reset text-decoration-none" href="/agents/${esc(item.agent_uuid || '')}">${esc(item.hostname || '-')}</a>
+                  <span class="badge ${sev.klass}">${esc(sev.label)}</span>
+                  <span class="badge bg-secondary-lt text-secondary">${esc(eventTypeLabel(item.event_type))}</span>
+                </div>
+                <div class="dashv2-minute-summary">${label}</div>
+              </div>
+              <div class="text-secondary small text-nowrap" title="${esc(AppCenterApi.formatDate(item.detected_at))}">${esc(relTimeSafe(item.detected_at))}</div>
             </div>`;
           }).join('')}
         </div>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
   }
 
-  function renderTimelineByMode() {
-    const el = document.getElementById('timeline-grouped');
-    if (!el) return;
-    if (!_timelineItems.length) {
-      el.innerHTML = '<div class="text-secondary">Kayit yok</div>';
-      return;
-    }
-    const mode = (document.getElementById('timeline-view-mode')?.value || 'host_status').toLowerCase();
-    if (mode === 'minute_summary') {
-      el.innerHTML = renderTimelineMinuteSummary(_timelineGroups);
-      return;
-    }
-    if (mode === 'raw_stream') {
-      el.innerHTML = renderTimelineRaw(_timelineGroups);
-      return;
-    }
-    el.innerHTML = renderTimelineHostStatus(_timelineGroups);
-  }
-
-  async function loadTimelineGrouped() {
-    const el = document.getElementById('timeline-grouped');
-    const totalBadge = document.getElementById('timeline-group-total');
+  async function loadDashboardV2(showToast) {
+    if (showToast) AppCenterApi.toast('Dashboard V2 yenileniyor', 'info');
     try {
-      const data = await AppCenterApi.req('/dashboard/timeline');
-      _timelineItems = data.items || [];
-      _timelineGroups = buildTimelineGroups(_timelineItems);
-      if (totalBadge) totalBadge.textContent = String(_timelineItems.length);
-      renderTimelineByMode();
+      const token = AppCenterApi.getToken() || '';
+      const wsPromise = fetch('/api/v1/ws/stats', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }).then(async (res) => res.ok ? res.json() : null).catch(() => null);
+
+      const [stats, inventory, agentsData, trends, compliance, remote, timeline, software, topClients, ws] = await Promise.all([
+        AppCenterApi.req('/dashboard/stats'),
+        AppCenterApi.req('/inventory/dashboard').catch(() => null),
+        AppCenterApi.req('/agents'),
+        AppCenterApi.req('/dashboard/trends'),
+        AppCenterApi.req('/dashboard/compliance-breakdown'),
+        AppCenterApi.req('/dashboard/remote-metrics'),
+        AppCenterApi.req('/dashboard/timeline'),
+        AppCenterApi.req('/inventory/software?page=1&per_page=8'),
+        AppCenterApi.req('/dashboard/top-clients'),
+        wsPromise,
+      ]);
+
+      V2_STATE.stats = stats || {};
+      V2_STATE.inventory = inventory || {};
+      V2_STATE.agents = (agentsData && agentsData.items) || [];
+      V2_STATE.trends = trends || {};
+      V2_STATE.compliance = compliance || {};
+      V2_STATE.remote = remote || {};
+      V2_STATE.timeline = (timeline && timeline.items) || [];
+      V2_STATE.timelineGroups = buildTimelineGroups(V2_STATE.timeline);
+      V2_STATE.topSoftware = (software && software.items) || [];
+      V2_STATE.topClients = (topClients && topClients.items) || [];
+      V2_STATE.ws = ws || {};
+
+      renderHero();
+      renderKpis();
+      renderHealthMatrix();
+      renderWatchlist();
+      renderInsights();
+      renderRemoteCenter();
+      renderSoftwareList();
+      renderClientsList();
+      renderTrends();
+      renderTimeline();
     } catch (err) {
-      if (el) el.innerHTML = `<div class="text-danger">${esc(err.message || 'Yuklenemedi')}</div>`;
+      AppCenterApi.toast(err.message || 'Dashboard V2 yuklenemedi');
     }
   }
 
-  async function loadDashboardV2() {
-    await Promise.all([
-      loadTopSoftware(),
-      loadOpsInsights(),
-      loadTrends(),
-      loadComplianceBreakdown(),
-      loadRemoteMetrics(),
-      loadTimelineGrouped(),
-    ]);
+  function currentDashboardV2PollMs() {
+    return (window.appCenterWS && window.appCenterWS.connected) ? 15000 : 5000;
   }
+
+  let dashboardV2PollTimer = null;
+  function resetDashboardV2Polling() {
+    if (dashboardV2PollTimer) clearInterval(dashboardV2PollTimer);
+    dashboardV2PollTimer = setInterval(() => loadDashboardV2(false), currentDashboardV2PollMs());
+  }
+
+  window.addEventListener('ws-connected', resetDashboardV2Polling);
+  window.addEventListener('ws-disconnected', resetDashboardV2Polling);
+  window.addEventListener('ws-event', function(e) {
+    const msg = e.detail || {};
+    if (msg.type === 'server.agent.status' || msg.type === 'server.task.update') {
+      loadDashboardV2(false);
+    }
+  });
 
   (async function () {
     await AppCenterApi.initUi();
-    const modeEl = document.getElementById('timeline-view-mode');
-    if (modeEl) modeEl.addEventListener('change', renderTimelineByMode);
-    await loadDashboardV2();
-    setInterval(loadDashboardV2, 15000);
+    setTimelineMode('host_status');
+    await loadDashboardV2(false);
+    resetDashboardV2Polling();
   })();
 </script>
 {% endblock %}

@@ -16,7 +16,7 @@
   box-sizing: border-box;
 }
 
-body {
+body:not(.app-shell) {
   margin: 0;
   font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
   background: radial-gradient(circle at 10% 10%, #eef4ff 0, transparent 45%),
@@ -127,7 +127,7 @@ body {
   background: #f8fafc;
 }
 
-.card {
+body:not(.app-shell) .card {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -135,7 +135,7 @@ body {
   padding: 18px;
 }
 
-.card + .card {
+body:not(.app-shell) .card + .card {
   margin-top: 14px;
 }
 
@@ -161,7 +161,7 @@ body {
   color: var(--muted);
 }
 
-.btn {
+body:not(.app-shell) .btn {
   border: 0;
   padding: 10px 14px;
   border-radius: 10px;
@@ -170,19 +170,19 @@ body {
   color: var(--primary-ink);
 }
 
-.btn.secondary {
+body:not(.app-shell) .btn.secondary {
   background: #fff;
   border: 1px solid var(--border);
   color: var(--ink);
 }
 
-.btn.danger {
+body:not(.app-shell) .btn.danger {
   background: var(--danger);
 }
 
-input,
-select,
-textarea {
+body:not(.app-shell) input,
+body:not(.app-shell) select,
+body:not(.app-shell) textarea {
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -192,7 +192,7 @@ textarea {
   background: #fff;
 }
 
-label {
+body:not(.app-shell) label {
   display: block;
   font-size: 0.9rem;
   margin-bottom: 6px;
@@ -203,13 +203,13 @@ label {
   overflow: auto;
 }
 
-table {
+body:not(.app-shell) table {
   width: 100%;
   border-collapse: collapse;
 }
 
-th,
-td {
+body:not(.app-shell) th,
+body:not(.app-shell) td {
   text-align: left;
   padding: 10px;
   border-bottom: 1px solid var(--border);

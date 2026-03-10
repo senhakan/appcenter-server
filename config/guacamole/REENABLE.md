@@ -25,18 +25,15 @@ Sonra:
 nginx -t && sudo systemctl reload nginx
 ```
 
-## 3. Server .env Ayarlari
+## 3. Server Bootstrap Config
 
-`.env` icine eklenecek/duzenlenecek alanlar:
+`server/config/server.ini` veya canlida `/opt/appcenter/server/config/server.ini`
+icinde guncellenecek alanlar:
 
-```env
-GUAC_REVERSE_VNC_HOST=appcenter.akgun.com.tr
-GUAC_REVERSE_VNC_PORT=4822
-GUAC_API_BASE_URL=http://127.0.0.1:8080/guacamole
-GUAC_API_USERNAME=guacadmin
-GUAC_API_PASSWORD=guacadmin
-GUAC_API_DATASOURCE=
-GUAC_CONNECTION_PREFIX=appcenter-rs
+```ini
+[remote_support]
+guac_reverse_vnc_host = appcenter.akgun.com.tr
+guac_reverse_vnc_port = 4822
 ```
 
 ## 4. Kod Entegrasyonu (ornek)

@@ -1,0 +1,1390 @@
+{% extends 'base.html' %}
+{% block title %}Ajanlar V2{% endblock %}
+{% block page_title %}Ajanlar{% endblock %}
+{% block page_actions %}
+<a class="btn btn-outline-secondary btn-sm" href="/agents">
+  <i class="ti ti-layout-list me-1"></i>Klasik Gorunum
+</a>
+<button class="btn btn-primary btn-sm" type="button" id="agents-v2-refresh-btn">
+  <i class="ti ti-refresh me-1"></i>Yenile
+</button>
+{% endblock %}
+{% block content %}
+<style>
+  .agentsv2-shell {
+    display: grid;
+    gap: 1rem;
+  }
+  .agentsv2-hero {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+  .agentsv2-hero-card {
+    grid-column: span 12;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--tblr-border-color, rgba(98, 105, 118, 0.16));
+  }
+  .agentsv2-hero-card::after {
+    content: "";
+    position: absolute;
+    inset: auto -10% -60% auto;
+    width: 140px;
+    height: 140px;
+    border-radius: 999px;
+    background: radial-gradient(circle, rgba(6, 111, 209, 0.14), rgba(6, 111, 209, 0));
+    pointer-events: none;
+  }
+  .agentsv2-hero-card .subheader {
+    letter-spacing: .04em;
+  }
+  .agentsv2-hero-value {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .agentsv2-layout {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+    align-items: start;
+  }
+  .agentsv2-sidebar {
+    position: sticky;
+    top: 1rem;
+    display: grid;
+    gap: 1rem;
+  }
+  .agentsv2-card-muted {
+    background:
+      radial-gradient(circle at top right, rgba(6, 111, 209, 0.08), rgba(6, 111, 209, 0) 40%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 248, 251, 0.92));
+  }
+  .agentsv2-filter-grid {
+    display: grid;
+    gap: .875rem;
+  }
+  .agentsv2-filter-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: .5rem;
+  }
+  .agentsv2-filter-block + .agentsv2-filter-block {
+    padding-top: .875rem;
+    border-top: 1px solid var(--tblr-border-color, rgba(98, 105, 118, 0.16));
+  }
+  .agentsv2-radio-stack {
+    display: grid;
+    gap: .5rem;
+  }
+  .agentsv2-version-list {
+    max-height: 220px;
+    overflow: auto;
+    padding-right: .25rem;
+  }
+  .agentsv2-version-list .form-check {
+    margin-bottom: .35rem;
+  }
+  .agentsv2-main {
+    display: grid;
+    gap: 1rem;
+  }
+  .agentsv2-overview-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.9fr);
+  }
+  .agentsv2-datagrid .datagrid-item {
+    min-width: 0;
+  }
+  .agentsv2-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+  }
+  .agentsv2-chips:empty::before {
+    content: "Varsayilan gorunum aktif";
+    color: var(--tblr-secondary, #667382);
+    font-size: .875rem;
+  }
+  .agentsv2-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .375rem;
+    padding: .375rem .625rem;
+    border-radius: 999px;
+    background: var(--tblr-azure-lt, #eef6ff);
+    color: var(--tblr-azure, #0ea5e9);
+    font-size: .8125rem;
+    font-weight: 600;
+  }
+  .agentsv2-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .agentsv2-toolbar-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    align-items: center;
+  }
+  .agentsv2-table-wrap {
+    overflow: auto;
+  }
+  .agentsv2-table {
+    min-width: 1080px;
+  }
+  .agentsv2-table tbody tr {
+    transition: background-color .18s ease, transform .18s ease;
+  }
+  .agentsv2-table tbody tr:hover {
+    background: var(--tblr-bg-surface-secondary, #f6f8fb);
+  }
+  .agentsv2-primary-cell {
+    min-width: 280px;
+  }
+  .agentsv2-host {
+    display: flex;
+    gap: .75rem;
+    align-items: flex-start;
+  }
+  .agentsv2-host-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    font-weight: 700;
+    flex: 0 0 auto;
+  }
+  .agentsv2-host-main {
+    min-width: 0;
+  }
+  .agentsv2-host-topline {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .375rem;
+    margin-bottom: .125rem;
+  }
+  .agentsv2-hostname {
+    font-weight: 600;
+  }
+  .agentsv2-subline {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .375rem;
+    color: var(--tblr-secondary, #667382);
+    font-size: .8125rem;
+    margin-top: .25rem;
+  }
+  .agentsv2-note-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    border: 0;
+    padding: 0;
+    border-radius: 999px;
+    background: var(--tblr-yellow-lt, #fff6dd);
+    color: var(--tblr-yellow-dark, #946300);
+  }
+  .agentsv2-status-stack,
+  .agentsv2-remote-stack,
+  .agentsv2-version-stack,
+  .agentsv2-user-stack {
+    display: grid;
+    gap: .35rem;
+  }
+  .agentsv2-badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .375rem;
+  }
+  .agentsv2-actions {
+    display: flex;
+    gap: .5rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .agentsv2-mobile-list {
+    display: none;
+    gap: .75rem;
+  }
+  .agentsv2-mobile-card {
+    border: 1px solid var(--tblr-border-color, rgba(98, 105, 118, 0.16));
+  }
+  .agentsv2-mobile-card .card-body {
+    display: grid;
+    gap: .875rem;
+  }
+  .agentsv2-mobile-section {
+    display: grid;
+    gap: .35rem;
+  }
+  .agentsv2-empty {
+    padding: 2.5rem 1rem;
+  }
+  .agentsv2-inline-pulse {
+    width: .5rem;
+    height: .5rem;
+    border-radius: 999px;
+    display: inline-block;
+  }
+  .agentsv2-inline-pulse.online {
+    background: var(--tblr-green, #2fb344);
+    box-shadow: 0 0 0 .25rem rgba(47, 179, 68, .12);
+  }
+  .agentsv2-inline-pulse.offline {
+    background: var(--tblr-red, #d63939);
+    box-shadow: 0 0 0 .25rem rgba(214, 57, 57, .10);
+  }
+  .agentsv2-attention-list .list-group-item {
+    padding-top: .75rem;
+    padding-bottom: .75rem;
+  }
+  @media (min-width: 768px) {
+    .agentsv2-hero-card {
+      grid-column: span 6;
+    }
+  }
+  @media (min-width: 1200px) {
+    .agentsv2-hero-card {
+      grid-column: span 3;
+    }
+  }
+  @media (max-width: 1199.98px) {
+    .agentsv2-layout,
+    .agentsv2-overview-grid {
+      grid-template-columns: 1fr;
+    }
+    .agentsv2-sidebar {
+      position: static;
+    }
+  }
+  @media (max-width: 991.98px) {
+    .agentsv2-table-card {
+      display: none;
+    }
+    .agentsv2-mobile-list {
+      display: grid;
+    }
+  }
+  @media (max-width: 575.98px) {
+    .agentsv2-hero-value {
+      font-size: 1.7rem;
+    }
+    .agentsv2-toolbar {
+      align-items: stretch;
+    }
+    .agentsv2-actions {
+      justify-content: stretch;
+    }
+    .agentsv2-actions .btn {
+      flex: 1 1 auto;
+    }
+  }
+</style>
+
+<div class="agentsv2-shell">
+  <div class="alert alert-primary" role="alert">
+    <div class="d-flex">
+      <div>
+        <i class="ti ti-sparkles icon alert-icon"></i>
+      </div>
+      <div>
+        <h4 class="alert-title mb-1">Ajanlar V2 onizleme</h4>
+        <div class="text-secondary">
+          Bu sayfa mevcut listeyi bozmadan yeni bilgi mimarisiyle sunar. Klasik ekran ile ayni API'leri kullanir; odak taranabilirlik, operasyon hizi ve Tabler butunlugudur.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="agentsv2-hero" id="agentsv2-hero">
+    <div class="card agentsv2-hero-card">
+      <div class="card-body">
+        <div class="subheader">Toplam Ajan</div>
+        <div class="agentsv2-hero-value" id="agentsv2-kpi-total">-</div>
+        <div class="text-secondary mt-2" id="agentsv2-kpi-total-note">Envanter yukleniyor</div>
+      </div>
+    </div>
+    <div class="card agentsv2-hero-card">
+      <div class="card-body">
+        <div class="subheader">Canli Durum</div>
+        <div class="agentsv2-hero-value" id="agentsv2-kpi-online">-</div>
+        <div class="text-secondary mt-2" id="agentsv2-kpi-online-note">Online / offline dagilimi</div>
+      </div>
+    </div>
+    <div class="card agentsv2-hero-card">
+      <div class="card-body">
+        <div class="subheader">Iletisim Fabrikasi</div>
+        <div class="agentsv2-hero-value" id="agentsv2-kpi-ws">-</div>
+        <div class="text-secondary mt-2" id="agentsv2-kpi-ws-note">WS ve HTTP fallback</div>
+      </div>
+    </div>
+    <div class="card agentsv2-hero-card">
+      <div class="card-body">
+        <div class="subheader">Dikkat Gerektiren</div>
+        <div class="agentsv2-hero-value" id="agentsv2-kpi-attention">-</div>
+        <div class="text-secondary mt-2" id="agentsv2-kpi-attention-note">Offline, stale veya bekleyen destek</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="agentsv2-layout">
+    <aside class="agentsv2-sidebar">
+      <div class="card agentsv2-card-muted">
+        <div class="card-header">
+          <h3 class="card-title mb-0">Filtreler</h3>
+          <div class="card-actions">
+            <button id="agentsv2-reset-filters" class="btn btn-outline-secondary btn-sm" type="button">
+              <i class="ti ti-rotate-2 me-1"></i>Sifirla
+            </button>
+          </div>
+        </div>
+        <div class="card-body agentsv2-filter-grid">
+          <div class="agentsv2-filter-block">
+            <label class="form-label" for="agentsv2-search">Ajan ara</label>
+            <div class="input-icon">
+              <span class="input-icon-addon"><i class="ti ti-search"></i></span>
+              <input id="agentsv2-search" class="form-control" placeholder="Hostname, kullanici, IP, UUID" autocomplete="off" />
+            </div>
+          </div>
+
+          <div class="agentsv2-filter-block">
+            <div class="agentsv2-filter-title">
+              <label class="form-label mb-0" for="agentsv2-group">Grup</label>
+              <span class="badge bg-blue-lt text-blue" id="agentsv2-group-count">0</span>
+            </div>
+            <select id="agentsv2-group" class="form-select">
+              <option value="all">Tum gruplar</option>
+            </select>
+          </div>
+
+          <div class="agentsv2-filter-block">
+            <div class="form-label mb-2">Durum</div>
+            <div class="agentsv2-radio-stack" id="agentsv2-status-radios">
+              <label class="form-check">
+                <input class="form-check-input" type="radio" name="agentsv2-status" value="all" checked />
+                <span class="form-check-label">Tum durumlar</span>
+              </label>
+              <label class="form-check">
+                <input class="form-check-input" type="radio" name="agentsv2-status" value="online" />
+                <span class="form-check-label">Sadece online</span>
+              </label>
+              <label class="form-check">
+                <input class="form-check-input" type="radio" name="agentsv2-status" value="offline" />
+                <span class="form-check-label">Sadece offline</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="agentsv2-filter-block">
+            <div class="form-label mb-2">Platform</div>
+            <div class="agentsv2-radio-stack" id="agentsv2-platform-radios">
+              <label class="form-check">
+                <input class="form-check-input" type="radio" name="agentsv2-platform" value="all" checked />
+                <span class="form-check-label">Tum platformlar</span>
+              </label>
+              <label class="form-check">
+                <input class="form-check-input" type="radio" name="agentsv2-platform" value="windows" />
+                <span class="form-check-label">Windows</span>
+              </label>
+              <label class="form-check">
+                <input class="form-check-input" type="radio" name="agentsv2-platform" value="linux" />
+                <span class="form-check-label">Linux</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="agentsv2-filter-block">
+            <div class="form-label mb-2">Baglanti modu</div>
+            <div class="agentsv2-radio-stack" id="agentsv2-conn-radios">
+              <label class="form-check">
+                <input class="form-check-input" type="radio" name="agentsv2-conn" value="all" checked />
+                <span class="form-check-label">Tum modlar</span>
+              </label>
+              <label class="form-check">
+                <input class="form-check-input" type="radio" name="agentsv2-conn" value="ws" />
+                <span class="form-check-label">WS bagli</span>
+              </label>
+              <label class="form-check">
+                <input class="form-check-input" type="radio" name="agentsv2-conn" value="http" />
+                <span class="form-check-label">HTTP fallback</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="agentsv2-filter-block">
+            <label class="form-label" for="agentsv2-sort">Siralama</label>
+            <select id="agentsv2-sort" class="form-select">
+              <option value="hostname_asc">Hostname A-Z</option>
+              <option value="hostname_desc">Hostname Z-A</option>
+              <option value="last_seen_desc">Son gorulme en yeni</option>
+              <option value="status_priority">Duruma gore</option>
+              <option value="version_desc">Versiyon yuksekten</option>
+            </select>
+          </div>
+
+          <div class="agentsv2-filter-block">
+            <div class="agentsv2-filter-title">
+              <div class="form-label mb-0">Agent version</div>
+              <span class="text-secondary small" id="agentsv2-version-summary">Tumleri</span>
+            </div>
+            <div id="agentsv2-version-list" class="agentsv2-version-list">
+              <div class="text-secondary small">Yukleniyor...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title mb-0">Operasyon Ozeti</h3>
+        </div>
+        <div class="card-body">
+          <div class="datagrid agentsv2-datagrid" id="agentsv2-datagrid">
+            <div class="datagrid-item">
+              <div class="datagrid-title">Filtrelenmis</div>
+              <div class="datagrid-content">-</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title mb-0">Dikkat Gerektirenler</h3>
+        </div>
+        <div class="list-group list-group-flush list-group-hoverable agentsv2-attention-list" id="agentsv2-attention-list">
+          <div class="list-group-item text-secondary">Yukleniyor...</div>
+        </div>
+      </div>
+    </aside>
+
+    <section class="agentsv2-main">
+      <div class="agentsv2-overview-grid">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title mb-0">Aktif Filtreler</h3>
+          </div>
+          <div class="card-body">
+            <div class="agentsv2-chips" id="agentsv2-active-chips"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title mb-0">Liste Modu</h3>
+          </div>
+          <div class="card-body">
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+              <span class="badge bg-azure-lt text-azure">
+                <i class="ti ti-layout-grid me-1"></i>V2 tablolu gorunum
+              </span>
+              <span class="badge bg-green-lt text-green" id="agentsv2-ws-indicator">WS bilgisi bekleniyor</span>
+              <span class="text-secondary small">Mobilde ayni veri kart gorunumu ile sunulur.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card agentsv2-table-card">
+        <div class="card-header">
+          <div class="agentsv2-toolbar w-100">
+            <div>
+              <h3 class="card-title mb-1">Ajan Operasyon Listesi</h3>
+              <div class="text-secondary small">Durum, baglanti modu, grup ve uzak destek sinyalleri tek satirda toplanir.</div>
+            </div>
+            <div class="agentsv2-toolbar-meta">
+              <span class="badge bg-secondary-lt text-secondary" id="agentsv2-page-info">-</span>
+            </div>
+          </div>
+        </div>
+        <div class="agentsv2-table-wrap">
+          <table class="table table-vcenter card-table agentsv2-table">
+            <thead>
+              <tr>
+                <th class="agentsv2-primary-cell">Ajan</th>
+                <th>Kullanici</th>
+                <th>Baglanti</th>
+                <th>Gruplar</th>
+                <th>Uzak Destek</th>
+                <th>Surum</th>
+                <th class="text-end">Aksiyon</th>
+              </tr>
+            </thead>
+            <tbody id="agentsv2-table-body">
+              <tr><td colspan="7" class="text-secondary">Yukleniyor...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-footer d-flex align-items-center justify-content-between">
+          <div class="text-secondary small" id="agentsv2-footer-meta">-</div>
+          <div class="btn-list">
+            <button id="agentsv2-prev" class="btn btn-outline-secondary btn-sm" type="button">
+              <i class="ti ti-chevron-left me-1"></i>Onceki
+            </button>
+            <button id="agentsv2-next" class="btn btn-outline-secondary btn-sm" type="button">
+              Sonraki<i class="ti ti-chevron-right ms-1"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="agentsv2-mobile-list" id="agentsv2-mobile-list">
+        <div class="card agentsv2-mobile-card">
+          <div class="card-body text-secondary">Yukleniyor...</div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="agentsv2-note-modal" class="modal modal-blur fade" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Ajan Notu</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+      </div>
+      <div class="modal-body">
+        <div class="text-secondary small mb-2" id="agentsv2-note-host">-</div>
+        <div class="alert alert-warning mb-0" id="agentsv2-note-content">-</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="agentsv2-rs-modal" class="modal modal-blur fade" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Baglanti Talebi</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-primary mb-3">
+          Kullaniciya baglanti onayi bildirimi gidecek. Aciklama alani zorunludur.
+        </div>
+        <div class="text-secondary small mb-2" id="agentsv2-rs-target">-</div>
+        <label class="form-label" for="agentsv2-rs-reason">Aciklama</label>
+        <textarea class="form-control" id="agentsv2-rs-reason" rows="4" maxlength="500" placeholder="Ornek: Kullanici talebi ile uzaktan destek"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Iptal</button>
+        <button class="btn btn-primary" type="button" id="agentsv2-rs-send">
+          <i class="ti ti-send me-1"></i>Talep Gonder
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+
+  const AGENTSV2_PAGE_SIZE = 20;
+  const AGENTSV2_FAST_MS = 2000;
+  const AGENTSV2_SLOW_MS = 60000;
+  const AGENTSV2_STALE_MS = 5 * 60 * 1000;
+  const AGENTSV2_REMOTE_ACTIVE_STATES = new Set(['pending_approval', 'approved', 'connecting', 'active']);
+
+  let agentsV2PollTimer = null;
+  let allAgents = [];
+  let allGroups = [];
+  let filteredAgents = [];
+  let wsAgents = new Set();
+  let currentPage = 1;
+  let pendingRemoteTarget = null;
+  let noteModal = null;
+  let remoteModal = null;
+
+  function esc(value) {
+    return (value || '')
+      .toString()
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  function parseFullIPs(agent) {
+    const raw = agent && agent.full_ip;
+    if (Array.isArray(raw)) {
+      return [...new Set(raw.map((x) => (x || '').toString().trim()).filter(Boolean))];
+    }
+    if (typeof raw === 'string') {
+      const t = raw.trim();
+      if (!t) return [];
+      try {
+        const parsed = JSON.parse(t);
+        if (Array.isArray(parsed)) {
+          return [...new Set(parsed.map((x) => (x || '').toString().trim()).filter(Boolean))];
+        }
+      } catch (_) {}
+      return [...new Set(t.split(',').map((x) => x.trim()).filter(Boolean))];
+    }
+    return [];
+  }
+
+  function getSessionEntries(agent) {
+    const out = [];
+    if (!Array.isArray(agent.logged_in_sessions)) return out;
+    agent.logged_in_sessions.forEach((item) => {
+      const username = (item && item.username ? String(item.username).trim() : '');
+      if (!username) return;
+      const kind = (item && item.session_type ? String(item.session_type).trim() : '');
+      out.push(kind ? `${username} (${kind})` : username);
+    });
+    return [...new Set(out)];
+  }
+
+  function getPrimaryUser(agent) {
+    const entries = getSessionEntries(agent);
+    return entries.length ? entries[0] : '-';
+  }
+
+  function getUserSummary(agent) {
+    const entries = getSessionEntries(agent);
+    if (!entries.length) return { primary: '-', secondary: 'Aktif oturum yok' };
+    if (entries.length === 1) return { primary: entries[0], secondary: 'Tek aktif oturum' };
+    return { primary: entries[0], secondary: `+${entries.length - 1} ek oturum` };
+  }
+
+  function getAgentGroupIds(agent) {
+    const ids = [];
+    if (Array.isArray(agent.group_ids)) {
+      agent.group_ids.forEach((value) => {
+        const n = Number(value);
+        if (Number.isFinite(n) && n > 0) ids.push(n);
+      });
+    } else {
+      const one = Number(agent.group_id || 0);
+      if (Number.isFinite(one) && one > 0) ids.push(one);
+    }
+    return [...new Set(ids)];
+  }
+
+  function groupNameById(id) {
+    const found = allGroups.find((group) => Number(group.id) === Number(id));
+    return found ? (found.name || `#${id}`) : `#${id}`;
+  }
+
+  function getGroupBadges(agent, limit) {
+    const ids = getAgentGroupIds(agent);
+    if (!ids.length) return '<span class="text-secondary">-</span>';
+    const names = ids.map((id) => groupNameById(id));
+    const visible = names.slice(0, limit);
+    const extra = Math.max(0, names.length - visible.length);
+    const html = visible.map((name) => `<span class="badge bg-secondary-lt text-secondary">${esc(name)}</span>`).join('');
+    return extra > 0 ? `${html}<span class="badge bg-blue-lt text-blue">+${extra}</span>` : html;
+  }
+
+  function selectedRadio(name, fallback) {
+    const el = document.querySelector(`input[name="${name}"]:checked`);
+    return (el && el.value ? el.value : fallback).toLowerCase();
+  }
+
+  function selectedVersions() {
+    const picked = [];
+    document.querySelectorAll('.js-agentsv2-version').forEach((el) => {
+      if (el.checked) picked.push((el.value || '').toString().trim().toLowerCase());
+    });
+    return picked;
+  }
+
+  function sortKeyValue(agent, mode) {
+    if (mode === 'last_seen_desc') {
+      const dt = AppCenterApi.parseDate(agent.last_seen);
+      return dt ? dt.getTime() : 0;
+    }
+    if (mode === 'version_desc') {
+      return (agent.version || '').toString().toLowerCase();
+    }
+    if (mode === 'status_priority') {
+      const remoteState = (agent.remote_support_state || '').toString().toLowerCase();
+      if (remoteState === 'active') return 4;
+      if (remoteState === 'pending_approval' || remoteState === 'approved' || remoteState === 'connecting') return 3;
+      return (agent.status || '').toLowerCase() === 'online' ? 2 : 1;
+    }
+    return (agent.hostname || '').toString().toLowerCase();
+  }
+
+  function matchesSearch(agent, q) {
+    if (!q) return true;
+    const haystack = [
+      agent.hostname,
+      agent.ip_address,
+      agent.uuid,
+      agent.version,
+      agent.platform,
+      agent.distro,
+      agent.notes,
+      getSessionEntries(agent).join(' '),
+      getAgentGroupIds(agent).map((id) => groupNameById(id)).join(' '),
+      parseFullIPs(agent).join(' '),
+    ]
+      .map((x) => (x || '').toString().toLowerCase())
+      .join(' ');
+    return haystack.includes(q);
+  }
+
+  function agentConnMode(agent) {
+    return wsAgents.has(String(agent.uuid || '')) ? 'ws' : 'http';
+  }
+
+  function isStale(agent) {
+    const dt = AppCenterApi.parseDate(agent.last_seen);
+    if (!dt) return true;
+    return (Date.now() - dt.getTime()) > AGENTSV2_STALE_MS;
+  }
+
+  function isAttentionAgent(agent) {
+    const remoteState = (agent.remote_support_state || '').toString().toLowerCase();
+    return (agent.status || '').toLowerCase() !== 'online' || isStale(agent) || AGENTSV2_REMOTE_ACTIVE_STATES.has(remoteState);
+  }
+
+  function relLastSeen(value) {
+    const dt = AppCenterApi.parseDate(value);
+    if (!dt) return '-';
+    const diffSec = Math.max(0, Math.floor((Date.now() - dt.getTime()) / 1000));
+    if (diffSec < 60) return `${diffSec} sn once`;
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin} dk once`;
+    const diffHour = Math.floor(diffMin / 60);
+    if (diffHour < 24) return `${diffHour} sa once`;
+    const diffDay = Math.floor(diffHour / 24);
+    return `${diffDay} gun once`;
+  }
+
+  function renderVersionFilters() {
+    const wrap = document.getElementById('agentsv2-version-list');
+    const summary = document.getElementById('agentsv2-version-summary');
+    if (!wrap || !summary) return;
+    const prev = new Set(selectedVersions());
+    const versions = [...new Set(allAgents.map((agent) => (agent.version || '').toString().trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    if (!versions.length) {
+      wrap.innerHTML = '<div class="text-secondary small">Versiyon bilgisi yok</div>';
+      summary.textContent = 'Veri yok';
+      return;
+    }
+    wrap.innerHTML = versions.map((version) => `
+      <label class="form-check">
+        <input class="form-check-input js-agentsv2-version" type="checkbox" value="${esc(version)}" ${prev.size === 0 || prev.has(version.toLowerCase()) ? 'checked' : ''} />
+        <span class="form-check-label">${esc(version)}</span>
+      </label>
+    `).join('');
+    const activeCount = wrap.querySelectorAll('.js-agentsv2-version:checked').length;
+    summary.textContent = activeCount === versions.length ? 'Tumleri' : `${activeCount} secili`;
+    wrap.querySelectorAll('.js-agentsv2-version').forEach((el) => {
+      el.addEventListener('change', () => {
+        const selectedCount = wrap.querySelectorAll('.js-agentsv2-version:checked').length;
+        summary.textContent = selectedCount === versions.length ? 'Tumleri' : `${selectedCount} secili`;
+        rerenderFromFilter();
+      });
+    });
+  }
+
+  function renderGroupSelect() {
+    const select = document.getElementById('agentsv2-group');
+    const count = document.getElementById('agentsv2-group-count');
+    if (!select || !count) return;
+    const selected = (select.value || 'all').toString();
+    const active = (allGroups || []).filter((group) => !!group && !!group.id).slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    const counts = new Map();
+    allAgents.forEach((agent) => {
+      getAgentGroupIds(agent).forEach((id) => counts.set(id, (counts.get(id) || 0) + 1));
+    });
+    const options = ['<option value="all">Tum gruplar</option>'].concat(
+      active.map((group) => `<option value="${group.id}">${esc(group.name || `#${group.id}`)} (${Number(counts.get(Number(group.id)) || 0)})</option>`)
+    );
+    select.innerHTML = options.join('');
+    select.value = active.some((group) => String(group.id) === selected) ? selected : 'all';
+    count.textContent = String(active.length);
+  }
+
+  function applyFilters() {
+    const q = (document.getElementById('agentsv2-search').value || '').toString().trim().toLowerCase();
+    const group = (document.getElementById('agentsv2-group').value || 'all').toString().toLowerCase();
+    const status = selectedRadio('agentsv2-status', 'all');
+    const platform = selectedRadio('agentsv2-platform', 'all');
+    const conn = selectedRadio('agentsv2-conn', 'all');
+    const sortMode = (document.getElementById('agentsv2-sort').value || 'hostname_asc').toString();
+    const versions = new Set(selectedVersions());
+
+    filteredAgents = allAgents.filter((agent) => {
+      const agentStatus = (agent.status || '').toString().toLowerCase();
+      const agentPlatform = (agent.platform || '').toString().toLowerCase();
+      const agentConn = agentConnMode(agent);
+      const groupIds = getAgentGroupIds(agent).map((id) => String(id));
+      const version = (agent.version || '').toString().trim().toLowerCase();
+
+      if (!matchesSearch(agent, q)) return false;
+      if (group !== 'all' && !groupIds.includes(group)) return false;
+      if (status !== 'all' && agentStatus !== status) return false;
+      if (platform !== 'all' && agentPlatform !== platform) return false;
+      if (conn !== 'all' && agentConn !== conn) return false;
+      if (versions.size > 0 && !versions.has(version)) return false;
+      return true;
+    });
+
+    filteredAgents.sort((a, b) => {
+      if (sortMode === 'hostname_desc') return sortKeyValue(b, 'hostname_asc').localeCompare(sortKeyValue(a, 'hostname_asc'));
+      if (sortMode === 'last_seen_desc') return Number(sortKeyValue(b, sortMode)) - Number(sortKeyValue(a, sortMode));
+      if (sortMode === 'status_priority') {
+        const diff = Number(sortKeyValue(b, sortMode)) - Number(sortKeyValue(a, sortMode));
+        if (diff !== 0) return diff;
+        return (a.hostname || '').localeCompare(b.hostname || '');
+      }
+      if (sortMode === 'version_desc') return String(sortKeyValue(b, sortMode)).localeCompare(String(sortKeyValue(a, sortMode)));
+      return String(sortKeyValue(a, sortMode)).localeCompare(String(sortKeyValue(b, sortMode)));
+    });
+  }
+
+  function renderActiveChips() {
+    const chips = document.getElementById('agentsv2-active-chips');
+    if (!chips) return;
+    const items = [];
+    const q = (document.getElementById('agentsv2-search').value || '').toString().trim();
+    const group = document.getElementById('agentsv2-group').value || 'all';
+    const status = selectedRadio('agentsv2-status', 'all');
+    const platform = selectedRadio('agentsv2-platform', 'all');
+    const conn = selectedRadio('agentsv2-conn', 'all');
+    const sortMode = document.getElementById('agentsv2-sort').value || 'hostname_asc';
+    const versions = selectedVersions();
+
+    if (q) items.push(`Arama: ${q}`);
+    if (group !== 'all') items.push(`Grup: ${groupNameById(Number(group))}`);
+    if (status !== 'all') items.push(`Durum: ${status}`);
+    if (platform !== 'all') items.push(`Platform: ${platform}`);
+    if (conn !== 'all') items.push(`Mod: ${conn.toUpperCase()}`);
+    if (sortMode !== 'hostname_asc') items.push(`Siralama: ${sortMode}`);
+    if (versions.length && versions.length !== [...new Set(allAgents.map((agent) => (agent.version || '').toString().trim().toLowerCase()).filter(Boolean))].length) {
+      items.push(`Versiyon: ${versions.length} secili`);
+    }
+    chips.innerHTML = items.map((item) => `<span class="agentsv2-chip"><i class="ti ti-adjustments-horizontal"></i>${esc(item)}</span>`).join('');
+  }
+
+  function renderHero() {
+    const total = allAgents.length;
+    const online = allAgents.filter((agent) => (agent.status || '').toLowerCase() === 'online').length;
+    const wsCount = allAgents.filter((agent) => agentConnMode(agent) === 'ws').length;
+    const attention = allAgents.filter(isAttentionAgent).length;
+    const remoteActive = allAgents.filter((agent) => AGENTSV2_REMOTE_ACTIVE_STATES.has((agent.remote_support_state || '').toLowerCase())).length;
+
+    document.getElementById('agentsv2-kpi-total').textContent = String(total);
+    document.getElementById('agentsv2-kpi-total-note').textContent = `${filteredAgents.length} ajan mevcut filtrede gorunuyor`;
+    document.getElementById('agentsv2-kpi-online').textContent = `${online}/${Math.max(total, 1)}`;
+    document.getElementById('agentsv2-kpi-online-note').textContent = `${online} online, ${Math.max(total - online, 0)} offline`;
+    document.getElementById('agentsv2-kpi-ws').textContent = `${wsCount}`;
+    document.getElementById('agentsv2-kpi-ws-note').textContent = `${Math.max(total - wsCount, 0)} ajan HTTP fallback modunda`;
+    document.getElementById('agentsv2-kpi-attention').textContent = `${attention}`;
+    document.getElementById('agentsv2-kpi-attention-note').textContent = `${remoteActive} ajan uzak destek akisinda`;
+
+    const wsIndicator = document.getElementById('agentsv2-ws-indicator');
+    if (wsIndicator) {
+      wsIndicator.className = `badge ${window.appCenterWS && window.appCenterWS.connected ? 'bg-green-lt text-green' : 'bg-yellow-lt text-yellow'}`;
+      wsIndicator.textContent = window.appCenterWS && window.appCenterWS.connected
+        ? `WS bagli, poll ${AGENTSV2_SLOW_MS / 1000}s`
+        : `WS kopuk, poll ${AGENTSV2_FAST_MS / 1000}s`;
+    }
+  }
+
+  function renderDatagrid() {
+    const datagrid = document.getElementById('agentsv2-datagrid');
+    if (!datagrid) return;
+    const linuxCount = filteredAgents.filter((agent) => (agent.platform || '').toLowerCase() === 'linux').length;
+    const windowsCount = filteredAgents.filter((agent) => (agent.platform || '').toLowerCase() === 'windows').length;
+    const staleCount = filteredAgents.filter(isStale).length;
+    const remoteReady = filteredAgents.filter((agent) => !!agent.remote_support_allowed).length;
+    const activeGroups = new Set(filteredAgents.flatMap((agent) => getAgentGroupIds(agent))).size;
+    datagrid.innerHTML = `
+      <div class="datagrid-item">
+        <div class="datagrid-title">Filtrelenmis</div>
+        <div class="datagrid-content">${filteredAgents.length}</div>
+      </div>
+      <div class="datagrid-item">
+        <div class="datagrid-title">Windows</div>
+        <div class="datagrid-content">${windowsCount}</div>
+      </div>
+      <div class="datagrid-item">
+        <div class="datagrid-title">Linux</div>
+        <div class="datagrid-content">${linuxCount}</div>
+      </div>
+      <div class="datagrid-item">
+        <div class="datagrid-title">Remote hazir</div>
+        <div class="datagrid-content">${remoteReady}</div>
+      </div>
+      <div class="datagrid-item">
+        <div class="datagrid-title">Stale</div>
+        <div class="datagrid-content">${staleCount}</div>
+      </div>
+      <div class="datagrid-item">
+        <div class="datagrid-title">Aktif grup</div>
+        <div class="datagrid-content">${activeGroups}</div>
+      </div>
+    `;
+  }
+
+  function renderAttentionList() {
+    const list = document.getElementById('agentsv2-attention-list');
+    if (!list) return;
+    const items = allAgents
+      .filter(isAttentionAgent)
+      .sort((a, b) => {
+        const aRemote = AGENTSV2_REMOTE_ACTIVE_STATES.has((a.remote_support_state || '').toLowerCase()) ? 1 : 0;
+        const bRemote = AGENTSV2_REMOTE_ACTIVE_STATES.has((b.remote_support_state || '').toLowerCase()) ? 1 : 0;
+        if (aRemote !== bRemote) return bRemote - aRemote;
+        if ((a.status || '').toLowerCase() !== (b.status || '').toLowerCase()) {
+          return (a.status || '').toLowerCase() === 'offline' ? -1 : 1;
+        }
+        return (a.hostname || '').localeCompare(b.hostname || '');
+      })
+      .slice(0, 6);
+
+    if (!items.length) {
+      list.innerHTML = '<div class="list-group-item text-secondary">Dikkat gerektiren ajan yok.</div>';
+      return;
+    }
+
+    list.innerHTML = items.map((agent) => {
+      const remoteState = (agent.remote_support_state || '').toString().toLowerCase();
+      const reason = remoteState && remoteState !== 'idle'
+        ? `Remote: ${remoteState}`
+        : ((agent.status || '').toLowerCase() !== 'online' ? 'Ajan offline' : (isStale(agent) ? `Stale: ${relLastSeen(agent.last_seen)}` : 'Izlemeye al'));
+      return `
+        <a href="/agents/${encodeURIComponent(agent.uuid || '')}" class="list-group-item list-group-item-action">
+          <div class="d-flex align-items-center justify-content-between">
+            <div class="min-w-0">
+              <div class="fw-semibold text-truncate">${esc(agent.hostname || '-')}</div>
+              <div class="text-secondary small text-truncate">${esc(reason)}</div>
+            </div>
+            <i class="ti ti-chevron-right text-secondary"></i>
+          </div>
+        </a>
+      `;
+    }).join('');
+  }
+
+  function hostAvatar(agent) {
+    const text = (agent.hostname || 'A').toString().trim();
+    return esc(text ? text.slice(0, 2).toUpperCase() : 'AG');
+  }
+
+  function statusBadge(agent) {
+    const online = (agent.status || '').toLowerCase() === 'online';
+    const stale = isStale(agent);
+    const badgeClass = online ? 'bg-green-lt text-green' : 'bg-red-lt text-red';
+    const staleBadge = stale ? '<span class="badge bg-yellow-lt text-yellow">stale</span>' : '';
+    const connBadge = agentConnMode(agent) === 'ws'
+      ? '<span class="badge bg-blue-lt text-blue">WS</span>'
+      : '<span class="badge bg-secondary-lt text-secondary">HTTP</span>';
+    return `
+      <div class="agentsv2-status-stack">
+        <div class="agentsv2-badge-row">
+          <span class="badge ${badgeClass}">
+            <span class="agentsv2-inline-pulse ${online ? 'online' : 'offline'} me-1"></span>
+            ${esc(agent.status || '-')}
+          </span>
+          ${connBadge}
+          ${staleBadge}
+        </div>
+        <div class="text-secondary small">Son gorulme: ${esc(relLastSeen(agent.last_seen))}</div>
+      </div>
+    `;
+  }
+
+  function remoteSupportHtml(agent) {
+    const state = (agent.remote_support_state || '-').toString();
+    const normalized = state.toLowerCase();
+    const tone = normalized === 'active'
+      ? 'bg-green-lt text-green'
+      : (normalized === 'pending_approval' || normalized === 'approved' || normalized === 'connecting'
+        ? 'bg-blue-lt text-blue'
+        : 'bg-secondary-lt text-secondary');
+    const helper = agent.remote_support_helper_running
+      ? '<span class="badge bg-green-lt text-green">helper ok</span>'
+      : '<span class="badge bg-secondary-lt text-secondary">helper -</span>';
+    const allowed = agent.remote_support_allowed
+      ? '<span class="badge bg-azure-lt text-azure">uygun</span>'
+      : '<span class="badge bg-yellow-lt text-yellow">grup disi</span>';
+    const lastRemote = agent.last_remote_connected_at ? relLastSeen(agent.last_remote_connected_at) : 'kayit yok';
+    return `
+      <div class="agentsv2-remote-stack">
+        <div class="agentsv2-badge-row">
+          <span class="badge ${tone}">${esc(state)}</span>
+          ${helper}
+          ${allowed}
+        </div>
+        <div class="text-secondary small">Son baglanti: ${esc(lastRemote)}</div>
+      </div>
+    `;
+  }
+
+  function versionHtml(agent) {
+    const platform = (agent.platform || '').toString().toLowerCase();
+    const platformBadge = platform === 'linux'
+      ? '<span class="badge bg-azure-lt text-azure">Linux</span>'
+      : '<span class="badge bg-indigo-lt text-indigo">Windows</span>';
+    const distro = [agent.distro, agent.distro_version].filter(Boolean).join(' ');
+    return `
+      <div class="agentsv2-version-stack">
+        <div class="fw-semibold">${esc(agent.version || '-')}</div>
+        <div class="agentsv2-badge-row">
+          ${platformBadge}
+          ${distro ? `<span class="badge bg-secondary-lt text-secondary">${esc(distro)}</span>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  function connectButtonState(agent) {
+    const canManage = AppCenterApi.canPermission('remote_support.session.manage');
+    const allowed = !!agent.remote_support_allowed;
+    const online = (agent.status || '').toLowerCase() === 'online';
+    const enabled = canManage && allowed && online;
+    let title = '';
+    if (!canManage) title = 'Bu islem icin yetkiniz yok';
+    else if (!allowed) title = 'Ajan Remote Support grubunda degil';
+    else if (!online) title = 'Baglanti istegi icin ajan online olmali';
+    return { enabled, title };
+  }
+
+  function renderTable() {
+    const body = document.getElementById('agentsv2-table-body');
+    const mobile = document.getElementById('agentsv2-mobile-list');
+    const pageInfo = document.getElementById('agentsv2-page-info');
+    const footerMeta = document.getElementById('agentsv2-footer-meta');
+    const prevBtn = document.getElementById('agentsv2-prev');
+    const nextBtn = document.getElementById('agentsv2-next');
+
+    const total = filteredAgents.length;
+    const totalPages = Math.max(1, Math.ceil(total / AGENTSV2_PAGE_SIZE));
+    currentPage = Math.min(Math.max(currentPage, 1), totalPages);
+    const start = (currentPage - 1) * AGENTSV2_PAGE_SIZE;
+    const pageItems = filteredAgents.slice(start, start + AGENTSV2_PAGE_SIZE);
+
+    if (!pageItems.length) {
+      body.innerHTML = `
+        <tr>
+          <td colspan="7">
+            <div class="empty agentsv2-empty">
+              <div class="empty-img"><i class="ti ti-filter-off" style="font-size: 2.5rem;"></i></div>
+              <p class="empty-title">Goruntulenecek ajan yok</p>
+              <p class="empty-subtitle text-secondary">Mevcut filtreler sonuc vermiyor. Filtreleri sifirlayarak tekrar deneyin.</p>
+            </div>
+          </td>
+        </tr>
+      `;
+      mobile.innerHTML = `
+        <div class="card agentsv2-mobile-card">
+          <div class="card-body">
+            <div class="empty">
+              <div class="empty-img"><i class="ti ti-filter-off" style="font-size: 2.5rem;"></i></div>
+              <p class="empty-title">Goruntulenecek ajan yok</p>
+              <p class="empty-subtitle text-secondary">Filtreleri sifirlayin veya arama metnini daraltin.</p>
+            </div>
+          </div>
+        </div>
+      `;
+    } else {
+      body.innerHTML = pageItems.map((agent) => {
+        const userSummary = getUserSummary(agent);
+        const noteButton = (agent.notes || '').trim()
+          ? `<button class="agentsv2-note-btn js-agentsv2-note" type="button" data-agent-host="${esc(agent.hostname || '-')}" data-agent-note="${esc(agent.notes || '')}" title="Notu goster"><i class="ti ti-notes"></i></button>`
+          : '';
+        const connectState = connectButtonState(agent);
+        const connectBtn = `
+          <button
+            class="btn btn-outline-primary btn-sm js-agentsv2-connect"
+            type="button"
+            data-agent-uuid="${esc(agent.uuid || '')}"
+            data-agent-host="${esc(agent.hostname || '')}"
+            data-agent-status="${esc(agent.status || '')}"
+            ${connectState.enabled ? '' : 'disabled'}
+            title="${esc(connectState.title || 'Baglanti istegi gonder')}"
+          >
+            <i class="ti ti-plug-connected me-1"></i>Baglan
+          </button>
+        `;
+        const sublineIps = parseFullIPs(agent);
+        return `
+          <tr>
+            <td class="agentsv2-primary-cell">
+              <div class="agentsv2-host">
+                <div class="avatar avatar-rounded bg-blue-lt text-blue agentsv2-host-avatar">${hostAvatar(agent)}</div>
+                <div class="agentsv2-host-main">
+                  <div class="agentsv2-host-topline">
+                    <a href="/agents/${encodeURIComponent(agent.uuid || '')}" class="agentsv2-hostname text-reset text-decoration-none">${esc(agent.hostname || '-')}</a>
+                    ${noteButton}
+                  </div>
+                  <div class="agentsv2-subline">
+                    <span><i class="ti ti-fingerprint me-1"></i>${esc((agent.uuid || '').slice(0, 12) || '-')}</span>
+                    <span><i class="ti ti-network me-1"></i>${esc(agent.ip_address || '-')}</span>
+                  </div>
+                  ${sublineIps.length > 1 ? `<div class="agentsv2-subline"><span><i class="ti ti-list me-1"></i>${esc(sublineIps.join(', '))}</span></div>` : ''}
+                </div>
+              </div>
+            </td>
+            <td>
+              <div class="agentsv2-user-stack">
+                <div class="fw-semibold">${esc(userSummary.primary)}</div>
+                <div class="text-secondary small">${esc(userSummary.secondary)}</div>
+              </div>
+            </td>
+            <td>${statusBadge(agent)}</td>
+            <td><div class="agentsv2-badge-row">${getGroupBadges(agent, 2)}</div></td>
+            <td>${remoteSupportHtml(agent)}</td>
+            <td>${versionHtml(agent)}</td>
+            <td class="text-end">
+              <div class="agentsv2-actions">
+                <a class="btn btn-outline-secondary btn-sm" href="/agents/${encodeURIComponent(agent.uuid || '')}">
+                  <i class="ti ti-eye me-1"></i>Detay
+                </a>
+                ${connectBtn}
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      mobile.innerHTML = pageItems.map((agent) => {
+        const userSummary = getUserSummary(agent);
+        const connectState = connectButtonState(agent);
+        return `
+          <div class="card agentsv2-mobile-card">
+            <div class="card-body">
+              <div class="d-flex align-items-start gap-3">
+                <div class="avatar avatar-rounded bg-blue-lt text-blue agentsv2-host-avatar">${hostAvatar(agent)}</div>
+                <div class="min-w-0 flex-fill">
+                  <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <a href="/agents/${encodeURIComponent(agent.uuid || '')}" class="fw-semibold text-reset text-decoration-none">${esc(agent.hostname || '-')}</a>
+                    ${(agent.notes || '').trim() ? `<button class="agentsv2-note-btn js-agentsv2-note" type="button" data-agent-host="${esc(agent.hostname || '-')}" data-agent-note="${esc(agent.notes || '')}" title="Notu goster"><i class="ti ti-notes"></i></button>` : ''}
+                  </div>
+                  <div class="text-secondary small mt-1">${esc(agent.ip_address || '-')} · ${esc((agent.uuid || '').slice(0, 10))}</div>
+                </div>
+              </div>
+              <div class="agentsv2-mobile-section">${statusBadge(agent)}</div>
+              <div class="agentsv2-mobile-section">
+                <div class="text-secondary small">Kullanici</div>
+                <div class="fw-semibold">${esc(userSummary.primary)}</div>
+                <div class="text-secondary small">${esc(userSummary.secondary)}</div>
+              </div>
+              <div class="agentsv2-mobile-section">
+                <div class="text-secondary small">Gruplar</div>
+                <div class="agentsv2-badge-row">${getGroupBadges(agent, 3)}</div>
+              </div>
+              <div class="agentsv2-mobile-section">${remoteSupportHtml(agent)}</div>
+              <div class="agentsv2-mobile-section">${versionHtml(agent)}</div>
+              <div class="agentsv2-actions">
+                <a class="btn btn-outline-secondary btn-sm" href="/agents/${encodeURIComponent(agent.uuid || '')}">
+                  <i class="ti ti-eye me-1"></i>Detay
+                </a>
+                <button
+                  class="btn btn-outline-primary btn-sm js-agentsv2-connect"
+                  type="button"
+                  data-agent-uuid="${esc(agent.uuid || '')}"
+                  data-agent-host="${esc(agent.hostname || '')}"
+                  data-agent-status="${esc(agent.status || '')}"
+                  ${connectState.enabled ? '' : 'disabled'}
+                  title="${esc(connectState.title || 'Baglanti istegi gonder')}"
+                >
+                  <i class="ti ti-plug-connected me-1"></i>Baglan
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    const from = total ? (start + 1) : 0;
+    const to = Math.min(start + AGENTSV2_PAGE_SIZE, total);
+    pageInfo.textContent = `${from}-${to} / ${total} (Sayfa ${currentPage}/${totalPages})`;
+    footerMeta.textContent = `${total} ajan, ${pageItems.length} satir gosteriliyor`;
+    prevBtn.disabled = currentPage <= 1;
+    nextBtn.disabled = currentPage >= totalPages;
+  }
+
+  function rerender() {
+    applyFilters();
+    renderActiveChips();
+    renderHero();
+    renderDatagrid();
+    renderAttentionList();
+    renderTable();
+  }
+
+  function rerenderFromFilter() {
+    currentPage = 1;
+    rerender();
+  }
+
+  async function loadData() {
+    await AppCenterApi.initUi();
+    const [agentData, groupData] = await Promise.all([
+      AppCenterApi.req('/agents'),
+      AppCenterApi.req('/groups'),
+    ]);
+    allAgents = agentData.items || [];
+    allGroups = groupData.items || [];
+
+    try {
+      const token = AppCenterApi.getToken() || '';
+      const wsRes = await fetch('/api/v1/ws/stats', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (wsRes.ok) {
+        const wsData = await wsRes.json();
+        wsAgents = new Set((wsData.agents_ws_mode || []).map((item) => String(item || '')));
+      } else {
+        wsAgents = new Set();
+      }
+    } catch (_) {
+      wsAgents = new Set();
+    }
+
+    renderGroupSelect();
+    renderVersionFilters();
+    rerender();
+  }
+
+  function resetPolling() {
+    if (agentsV2PollTimer) clearInterval(agentsV2PollTimer);
+    const ms = (window.appCenterWS && window.appCenterWS.connected) ? AGENTSV2_SLOW_MS : AGENTSV2_FAST_MS;
+    agentsV2PollTimer = setInterval(() => {
+      loadData().catch((err) => AppCenterApi.toast(err.message || 'Ajanlar yenilenemedi'));
+    }, ms);
+  }
+
+  async function requestRemoteSupport(agentUUID, agentHostname, agentStatus, reasonText) {
+    if ((agentStatus || '').toLowerCase() !== 'online') {
+      AppCenterApi.toast('Baglanti istegi icin ajan online olmali');
+      return false;
+    }
+    const reason = (reasonText || '').toString().trim();
+    if (reason.length < 3) {
+      AppCenterApi.toast('Aciklama en az 3 karakter olmali');
+      return false;
+    }
+    const payload = { agent_uuid: agentUUID, reason, max_duration_min: 60 };
+    try {
+      const data = await AppCenterApi.req('/remote-support/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const sid = data && data.session && data.session.id ? data.session.id : null;
+      AppCenterApi.toast(sid ? `Baglanti istegi gonderildi (oturum #${sid})` : 'Baglanti istegi gonderildi');
+      if (sid) {
+        window.open(`/remote-support/sessions/${encodeURIComponent(String(sid))}`, '_blank', 'noopener,noreferrer');
+      }
+      return true;
+    } catch (err) {
+      AppCenterApi.toast(err.message || 'Baglanti istegi gonderilemedi');
+      return false;
+    }
+  }
+
+  function bindEvents() {
+    document.getElementById('agentsv2-refresh-btn').addEventListener('click', () => {
+      loadData().catch((err) => AppCenterApi.toast(err.message || 'Ajanlar yenilenemedi'));
+    });
+    document.getElementById('agentsv2-search').addEventListener('input', rerenderFromFilter);
+    document.getElementById('agentsv2-group').addEventListener('change', rerenderFromFilter);
+    document.getElementById('agentsv2-sort').addEventListener('change', rerenderFromFilter);
+    document.querySelectorAll('input[name="agentsv2-status"], input[name="agentsv2-platform"], input[name="agentsv2-conn"]').forEach((el) => {
+      el.addEventListener('change', rerenderFromFilter);
+    });
+    document.getElementById('agentsv2-reset-filters').addEventListener('click', () => {
+      document.getElementById('agentsv2-search').value = '';
+      document.getElementById('agentsv2-group').value = 'all';
+      document.getElementById('agentsv2-sort').value = 'hostname_asc';
+      ['agentsv2-status', 'agentsv2-platform', 'agentsv2-conn'].forEach((name) => {
+        const first = document.querySelector(`input[name="${name}"][value="all"]`);
+        if (first) first.checked = true;
+      });
+      document.querySelectorAll('.js-agentsv2-version').forEach((el) => { el.checked = true; });
+      const summary = document.getElementById('agentsv2-version-summary');
+      if (summary) summary.textContent = 'Tumleri';
+      rerenderFromFilter();
+    });
+    document.getElementById('agentsv2-prev').addEventListener('click', () => {
+      currentPage -= 1;
+      renderTable();
+    });
+    document.getElementById('agentsv2-next').addEventListener('click', () => {
+      currentPage += 1;
+      renderTable();
+    });
+
+    document.addEventListener('click', (evt) => {
+      const noteBtn = evt.target.closest('.js-agentsv2-note');
+      if (noteBtn) {
+        document.getElementById('agentsv2-note-host').textContent = noteBtn.getAttribute('data-agent-host') || '-';
+        document.getElementById('agentsv2-note-content').textContent = noteBtn.getAttribute('data-agent-note') || '-';
+        if (noteModal) noteModal.show();
+        return;
+      }
+      const connectBtn = evt.target.closest('.js-agentsv2-connect');
+      if (connectBtn) {
+        if (connectBtn.disabled) return;
+        pendingRemoteTarget = {
+          uuid: connectBtn.getAttribute('data-agent-uuid') || '',
+          host: connectBtn.getAttribute('data-agent-host') || '',
+          status: connectBtn.getAttribute('data-agent-status') || '',
+        };
+        document.getElementById('agentsv2-rs-target').textContent = `Hedef ajan: ${pendingRemoteTarget.host || pendingRemoteTarget.uuid}`;
+        document.getElementById('agentsv2-rs-reason').value = '';
+        if (remoteModal) remoteModal.show();
+      }
+    });
+
+    document.getElementById('agentsv2-rs-send').addEventListener('click', async () => {
+      if (!pendingRemoteTarget) return;
+      const ok = await requestRemoteSupport(
+        pendingRemoteTarget.uuid,
+        pendingRemoteTarget.host,
+        pendingRemoteTarget.status,
+        document.getElementById('agentsv2-rs-reason').value || ''
+      );
+      if (ok && remoteModal) remoteModal.hide();
+    });
+
+    window.addEventListener('ws-connected', () => {
+      resetPolling();
+      renderHero();
+    });
+    window.addEventListener('ws-disconnected', () => {
+      resetPolling();
+      renderHero();
+    });
+    window.addEventListener('ws-event', (event) => {
+      const msg = event.detail || {};
+      if (msg.type === 'server.agent.status') {
+        loadData().catch((err) => AppCenterApi.toast(err.message || 'Ajanlar yenilenemedi'));
+      }
+    });
+  }
+
+  (async function initAgentsV2() {
+    await AppCenterApi.initUi();
+    noteModal = new bootstrap.Modal(document.getElementById('agentsv2-note-modal'));
+    remoteModal = new bootstrap.Modal(document.getElementById('agentsv2-rs-modal'));
+    bindEvents();
+    await loadData();
+    resetPolling();
+  })().catch((err) => {
+    AppCenterApi.toast(err.message || 'Ajanlar V2 yuklenemedi');
+  });
+</script>
+{% endblock %}

@@ -14,6 +14,7 @@ from app.services.announcement_service import check_expired_deliveries, check_sc
 from app.services import dynamic_group_service
 from app.services import inventory_service
 from app.services import remote_support_service
+from app.services import runtime_config_service as runtime_config
 from app.services.system_profile_service import cleanup_old_identity_history, cleanup_old_status_history, cleanup_old_system_history
 
 scheduler: Optional[AsyncIOScheduler] = None
@@ -56,7 +57,7 @@ def check_offline_agents() -> None:
 def check_remote_support_timeouts() -> None:
     db = SessionLocal()
     try:
-        if not remote_support_service.settings.remote_support_enabled:
+        if not runtime_config.is_remote_support_enabled(db):
             return
         remote_support_service.check_approval_timeouts(db)
         remote_support_service.check_max_durations(db)

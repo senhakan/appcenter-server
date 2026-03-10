@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Asset Registry Ayarlar{% endblock %}
+{% block page_title %}Asset Registry Ayarlari{% endblock %}
+{% block content %}
+{% include "asset_registry/_subnav.html" %}
+<div class="card">
+  <div class="card-header"><h3 class="card-title">Sozlukler ve Node Tipleri</h3></div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="card bg-body-secondary border-0 h-100">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <div>
+                <h4 class="mb-1">Organization Node Labels</h4>
+                <div class="text-secondary small">Semantik kodlar sabit kalir, sadece gorunen adlar degisir.</div>
+              </div>
+              <span class="badge bg-blue-lt text-blue">UI label</span>
+            </div>
+            <div id="set-org-types" class="d-flex flex-column gap-2"></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card bg-body-secondary border-0 h-100">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <div>
+                <h4 class="mb-1">Location Node Labels</h4>
+                <div class="text-secondary small">Fiziksel agac tiplerini kurum diline gore adlandir.</div>
+              </div>
+              <span class="badge bg-azure-lt text-azure">UI label</span>
+            </div>
+            <div id="set-loc-types" class="d-flex flex-column gap-2"></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6"><label class="form-label">Device Types</label><textarea id="set-device-types" class="form-control" rows="6"></textarea></div>
+      <div class="col-lg-6"><label class="form-label">Usage Types</label><textarea id="set-usage-types" class="form-control" rows="6"></textarea></div>
+      <div class="col-lg-6"><label class="form-label">Ownership Types</label><textarea id="set-ownership-types" class="form-control" rows="6"></textarea></div>
+      <div class="col-lg-6"><label class="form-label">Lifecycle Statuses</label><textarea id="set-lifecycle-statuses" class="form-control" rows="6"></textarea></div>
+      <div class="col-12 d-flex flex-wrap gap-2">
+        <button id="set-save-node-btn" class="btn btn-outline-primary" type="button">Node Label'lari Kaydet</button>
+        <button id="set-save-btn" class="btn btn-primary" type="button">Sozlukleri Kaydet</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function joinLines(items) { return (items || []).join("\\n"); }
+function escHtml(value) {
+  return (value || "").toString()
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+function renderTypeEditor(containerId, items) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = (items || []).map((item) => `
+    <label class="form-label mb-0">
+      <div class="d-flex align-items-center justify-content-between mb-1">
+        <span>${escHtml(item.display_name || item.code)}</span>
+        <span class="badge bg-secondary-lt text-secondary">${escHtml(item.code)}</span>
+      </div>
+      <input
+        class="form-control"
+        type="text"
+        data-node-code="${escHtml(item.code)}"
+        value="${escHtml(item.display_name || item.code)}"
+      />
+    </label>
+  `).join("") || `<div class="text-secondary">Kayit yok</div>`;
+}
+function collectNodeLabels(containerId) {
+  return Array.from(document.querySelectorAll(`#${containerId} [data-node-code]`)).map((input) => ({
+    code: input.getAttribute("data-node-code"),
+    display_name: input.value.trim(),
+  })).filter((item) => item.code && item.display_name);
+}
+document.addEventListener("DOMContentLoaded", async () => {
+  await AppCenterApi.protectPage();
+  const data = await AppCenterApi.req("/asset-registry/dictionaries");
+  renderTypeEditor("set-org-types", data.organization_node_types);
+  renderTypeEditor("set-loc-types", data.location_node_types);
+  document.getElementById("set-device-types").value = joinLines(data.device_types);
+  document.getElementById("set-usage-types").value = joinLines(data.usage_types);
+  document.getElementById("set-ownership-types").value = joinLines(data.ownership_types);
+  document.getElementById("set-lifecycle-statuses").value = joinLines(data.lifecycle_statuses);
+  document.getElementById("set-save-node-btn").addEventListener("click", async () => {
+    const updated = await AppCenterApi.req("/asset-registry/settings/node-labels", {
+      method:"PUT",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        organization_node_types: collectNodeLabels("set-org-types"),
+        location_node_types: collectNodeLabels("set-loc-types")
+      })
+    });
+    renderTypeEditor("set-org-types", updated.organization_node_types);
+    renderTypeEditor("set-loc-types", updated.location_node_types);
+    AppCenterApi.toast("Node label'lari guncellendi", "success");
+  });
+  document.getElementById("set-save-btn").addEventListener("click", async () => {
+    const split = (id) => document.getElementById(id).value.split("\\n").map(x => x.trim()).filter(Boolean);
+    await AppCenterApi.req("/asset-registry/settings/dictionaries", {method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({
+      device_types: split("set-device-types"),
+      usage_types: split("set-usage-types"),
+      ownership_types: split("set-ownership-types"),
+      lifecycle_statuses: split("set-lifecycle-statuses")
+    })});
+    AppCenterApi.toast("Sozlukler guncellendi", "success");
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Asset Registry Yardim{% endblock %}
+{% block page_title %}Asset Registry Yardim Merkezi{% endblock %}
+{% block content %}
+{% include "asset_registry/_subnav.html" %}
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Bu Modul Ne Icin Kullanilir</h3>
+      </div>
+      <div class="card-body">
+        <p class="text-secondary mb-0">Asset Registry, teknik ajan kaydini kurumsal varlik baglami ile birlestirmek icin kullanilir. Bu modul uzerinden cihazin kime ait oldugu, hangi organizasyona bagli oldugu, fiziksel olarak nerede oldugu, hangi agent ile eslestigi ve veri kalitesi sorunlari tek akista yonetilir.</p>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header">
+        <h3 class="card-title">Temel Is Akisi</h3>
+      </div>
+      <div class="card-body">
+        <div class="steps steps-vertical">
+          <a class="step-item">
+            <div class="h4 m-0">1. Organizasyon yapisini kur</div>
+            <div class="text-secondary small">Sirket, bolge, direktorluk, departman ve birim dugumlerini <strong>Organizasyon</strong> ekranindan tanimla.</div>
+          </a>
+          <a class="step-item">
+            <div class="h4 m-0">2. Lokasyon yapisini kur</div>
+            <div class="text-secondary small">Kampus, bina, blok, kat, alan ve oda hiyerarsisini <strong>Lokasyonlar</strong> ekranindan tanimla.</div>
+          </a>
+          <a class="step-item">
+            <div class="h4 m-0">3. Kisi havuzunu olustur</div>
+            <div class="text-secondary small">Primary user ve owner olacak person kayitlarini <strong>Kisiler</strong> ekranindan olustur veya guncelle.</div>
+          </a>
+          <a class="step-item">
+            <div class="h4 m-0">4. Asset kayitlarini gir</div>
+            <div class="text-secondary small"><strong>Assetler</strong> ekraninda cihaz kayitlarini ac, organizasyon, lokasyon, owner ve primary user baglarini kur.</div>
+          </a>
+          <a class="step-item">
+            <div class="h4 m-0">5. Agent ile eslestir</div>
+            <div class="text-secondary small"><strong>Eslestirme</strong> ekraninda agent ve asset bagini onayla veya manuel link kur.</div>
+          </a>
+          <a class="step-item">
+            <div class="h4 m-0">6. Veri kalitesini temizle</div>
+            <div class="text-secondary small"><strong>Veri Kalitesi</strong> ekraninda eksik owner, lokasyon veya catisan kayitlari duzelt.</div>
+          </a>
+          <a class="step-item">
+            <div class="h4 m-0">7. Operasyonu izle</div>
+            <div class="text-secondary small"><strong>Genel Bakis</strong> ve <strong>Raporlar</strong> ekranlarindan kapsama, risk ve acik issue yogunlugunu izle.</div>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header">
+        <h3 class="card-title">Ekran Bazli Kullanim</h3>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-vcenter card-table">
+          <thead>
+            <tr>
+              <th>Ekran</th>
+              <th>Ne Gorurum</th>
+              <th>Ne Yaparim</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Genel Bakis</strong></td>
+              <td>KPI kartlari, son 7 gun trendleri, risk yogunlugu, action required listesi</td>
+              <td>Oncelikli problemi gorur, ilgili ekrana gecersin</td>
+            </tr>
+            <tr>
+              <td><strong>Organizasyon</strong></td>
+              <td>Kurumsal hiyerarsi ve maliyet merkezleri</td>
+              <td>Dugum ekler, duzenler, pasife alir, cost center yonetirsin</td>
+            </tr>
+            <tr>
+              <td><strong>Lokasyonlar</strong></td>
+              <td>Fiziksel lokasyon agaci ve bagli asset yogunlugu</td>
+              <td>Lokasyon ekler, duzenler, pasife alirsin</td>
+            </tr>
+            <tr>
+              <td><strong>Kisiler</strong></td>
+              <td>Kisi listesi, aktiflik, organizasyon ve bagli asset sayisi</td>
+              <td>Kisi kaydi olusturur, detaydan gunceller, bagli assetleri gorursun</td>
+            </tr>
+            <tr>
+              <td><strong>Assetler</strong></td>
+              <td>Kurumsal cihaz listesi, owner, lokasyon, agent baglanti ve issue durumu</td>
+              <td>Asset olusturur, filtreler, detaya inersin</td>
+            </tr>
+            <tr>
+              <td><strong>Asset Detay</strong></td>
+              <td>Kimlik, baglam, teknik baglanti, veri kalitesi ve degisiklik gecmisi</td>
+              <td>Asset gunceller, cost center/owner degistirir, agent baglar veya baglantiyi kesersin</td>
+            </tr>
+            <tr>
+              <td><strong>Eslestirme</strong></td>
+              <td>Eslesmeyen agentler, adaylar, confidence sinyalleri</td>
+              <td>Link onaylar, reddeder, yeni asset acip dogrudan baglarsin</td>
+            </tr>
+            <tr>
+              <td><strong>Veri Kalitesi</strong></td>
+              <td>Acik issue listesi ve severity dagilimi</td>
+              <td>Toplu duzeltme, owner/primary atama ve yeniden hesaplama yaparsin</td>
+            </tr>
+            <tr>
+              <td><strong>Raporlar</strong></td>
+              <td>Organizasyon, lokasyon, owner eksigi ve matching kalitesi raporlari</td>
+              <td>Filtre uygular, CSV export alirsin</td>
+            </tr>
+            <tr>
+              <td><strong>Ayarlar</strong></td>
+              <td>Sozlukler ve node label editoru</td>
+              <td>Kurum diline gore gorunen etiketleri duzenlersin</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Hizli Baslangic</h3></div>
+      <div class="list-group list-group-flush">
+        <a class="list-group-item" href="/asset-registry/organization">1. Organizasyon dugumlerini ac</a>
+        <a class="list-group-item" href="/asset-registry/locations">2. Lokasyon hiyerarsisini tanimla</a>
+        <a class="list-group-item" href="/asset-registry/people">3. Kisi kayitlarini ekle</a>
+        <a class="list-group-item" href="/asset-registry/assets">4. Asset kayitlarini ac</a>
+        <a class="list-group-item" href="/asset-registry/matching">5. Agent eslestirmelerini tamamla</a>
+        <a class="list-group-item" href="/asset-registry/data-quality">6. Veri kalitesini temizle</a>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h3 class="card-title">Yayin Kurallari</h3></div>
+      <div class="card-body">
+        <ul class="mb-0 text-secondary">
+          <li>Owner ve lokasyon atanmamis assetler operasyonel olarak eksik kabul edilir.</li>
+          <li>Primary link tekildir; bir agent ayni anda tek ana asset ile bagli olmalidir.</li>
+          <li>Pasif kisi, organizasyon ve lokasyon yeni atamalarda secilmemelidir.</li>
+          <li>Overview ekrani gunluk operasyon takibi, raporlar ise export ve ozet paylasimi icin kullanilir.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h3 class="card-title">Ne Zaman Hangi Ekran</h3></div>
+      <div class="card-body">
+        <div class="text-secondary small mb-2">Yeni cihaz tanimlarken</div>
+        <div class="mb-3"><a class="btn btn-outline-primary w-100" href="/asset-registry/assets">Assetler</a></div>
+        <div class="text-secondary small mb-2">Bag sorunu oldugunda</div>
+        <div class="mb-3"><a class="btn btn-outline-primary w-100" href="/asset-registry/matching">Eslestirme</a></div>
+        <div class="text-secondary small mb-2">Eksik veri temizlerken</div>
+        <div><a class="btn btn-outline-primary w-100" href="/asset-registry/data-quality">Veri Kalitesi</a></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

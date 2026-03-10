@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.models import Agent, AgentGroup, Group, RemoteSupportSession, Setting, User
 from app.services import agent_signal
+from app.services import runtime_config_service as runtime_config
 from app.services.ws_manager import make_message, ws_manager
 
 settings = get_settings()
@@ -20,6 +21,7 @@ settings = get_settings()
 _ACTIVE_STATES = {"pending_approval", "approved", "connecting", "active"}
 _OFFLINE_END_STATES = {"approved", "connecting", "active"}
 _VNC_PASS_ALPHABET = string.ascii_letters + string.digits
+_STATIC_VNC_PASSWORD = "kp3cJ;@{"
 
 
 def _generate_vnc_password(length: int = 8) -> str:
@@ -27,8 +29,8 @@ def _generate_vnc_password(length: int = 8) -> str:
     return "".join(secrets.choice(_VNC_PASS_ALPHABET) for _ in range(max(1, length)))
 
 
-def ensure_enabled() -> None:
-    if not settings.remote_support_enabled:
+def ensure_enabled(db: Session) -> None:
+    if not runtime_config.is_remote_support_enabled(db):
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Remote support is disabled")
 
 
@@ -121,8 +123,14 @@ def is_approval_required_for_agent(db: Session, agent_uuid: str) -> bool:
     return bool(agent.remote_support_approval_required)
 
 
-def create_session(db: Session, agent_uuid: str, admin_user_id: int, reason: str, max_duration_min: int) -> RemoteSupportSession:
-    ensure_enabled()
+def create_session(
+    db: Session,
+    agent_uuid: str,
+    admin_user_id: int,
+    reason: str,
+    max_duration_min: int | None,
+) -> RemoteSupportSession:
+    ensure_enabled(db)
     clean_reason = (reason or "").strip()
     if len(clean_reason) < 3:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Connection reason is required")
@@ -136,13 +144,14 @@ def create_session(db: Session, agent_uuid: str, admin_user_id: int, reason: str
     _ensure_agent_online(db, agent_uuid)
     _ensure_no_active_session(db, agent_uuid)
 
-    max_allowed = max(1, settings.remote_support_max_duration_min)
-    requested = max(1, min(max_duration_min, max_allowed))
-    static_vnc_password = (settings.remote_support_vnc_password or "").strip()
-    vnc_password = static_vnc_password if static_vnc_password else _generate_vnc_password(8)
+    runtime = runtime_config.get_remote_support_runtime(db)
+    max_allowed = max(1, runtime.max_duration_min)
+    requested_duration = runtime.default_max_duration_min if max_duration_min is None else max_duration_min
+    requested = max(1, min(requested_duration, max_allowed))
+    vnc_password = _STATIC_VNC_PASSWORD
 
     now = _utcnow()
-    timeout_sec = max(30, settings.remote_support_approval_timeout_sec)
+    timeout_sec = max(30, runtime.approval_timeout_sec)
     session = RemoteSupportSession(
         agent_uuid=agent_uuid,
         admin_user_id=admin_user_id,
@@ -233,7 +242,7 @@ def get_session(db: Session, session_id: int) -> RemoteSupportSession:
 
 
 def get_pending_for_agent(db: Session, agent_uuid: str) -> Optional[RemoteSupportSession]:
-    ensure_enabled()
+    ensure_enabled(db)
     now = _utcnow()
     return (
         db.query(RemoteSupportSession)
@@ -248,7 +257,7 @@ def get_pending_for_agent(db: Session, agent_uuid: str) -> Optional[RemoteSuppor
 
 
 def get_actionable_for_agent(db: Session, agent_uuid: str) -> Optional[RemoteSupportSession]:
-    ensure_enabled()
+    ensure_enabled(db)
     now = _utcnow()
     pending = (
         db.query(RemoteSupportSession)
@@ -275,7 +284,7 @@ def get_actionable_for_agent(db: Session, agent_uuid: str) -> Optional[RemoteSup
 
 
 def get_end_signal_for_agent(db: Session, agent_uuid: str) -> Optional[RemoteSupportSession]:
-    ensure_enabled()
+    ensure_enabled(db)
     return (
         db.query(RemoteSupportSession)
         .filter(
@@ -309,7 +318,7 @@ def approve_from_agent(
     approved: bool,
     monitor_count: int | None = None,
 ) -> RemoteSupportSession:
-    ensure_enabled()
+    ensure_enabled(db)
     session = get_session(db, session_id)
     if session.agent_uuid != agent_uuid:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Session does not belong to agent")
@@ -344,7 +353,7 @@ def approve_from_agent(
 
 
 def mark_ready_from_agent(db: Session, session_id: int, agent_uuid: str) -> RemoteSupportSession:
-    ensure_enabled()
+    ensure_enabled(db)
     session = get_session(db, session_id)
     if session.agent_uuid != agent_uuid:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Session does not belong to agent")
@@ -363,7 +372,7 @@ def mark_ready_from_agent(db: Session, session_id: int, agent_uuid: str) -> Remo
 
 
 def end_session(db: Session, session_id: int, ended_by: str) -> RemoteSupportSession:
-    ensure_enabled()
+    ensure_enabled(db)
     session = get_session(db, session_id)
     if session.status in {"ended", "rejected", "timeout"}:
         return session
@@ -397,7 +406,7 @@ def end_session(db: Session, session_id: int, ended_by: str) -> RemoteSupportSes
 
 
 def end_session_from_agent(db: Session, session_id: int, agent_uuid: str, ended_by: str) -> RemoteSupportSession:
-    ensure_enabled()
+    ensure_enabled(db)
     session = get_session(db, session_id)
     if session.agent_uuid != agent_uuid:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Session does not belong to agent")
@@ -418,7 +427,7 @@ def end_session_from_agent(db: Session, session_id: int, agent_uuid: str, ended_
 
 
 def cancel_pending_session(db: Session, session_id: int, admin_user_id: int | None = None) -> RemoteSupportSession:
-    ensure_enabled()
+    ensure_enabled(db)
     session = get_session(db, session_id)
     if admin_user_id and int(session.admin_user_id) != int(admin_user_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Session does not belong to user")

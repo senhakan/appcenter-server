@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Asset Registry Raporlar{% endblock %}
+{% block page_title %}Raporlar{% endblock %}
+{% block content %}
+{% include "asset_registry/_subnav.html" %}
+<style>
+  .ar-report-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  .ar-report-filters {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 0.75rem;
+  }
+  @media (max-width: 991.98px) {
+    .ar-report-kpis,
+    .ar-report-filters {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  @media (max-width: 575.98px) {
+    .ar-report-kpis,
+    .ar-report-filters {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+      <div>
+        <h3 class="card-title mb-1">Rapor Filtreleri</h3>
+        <div class="text-secondary small">Node bazli raporlari daralt ve ozet KPI kartlarini birlikte incele.</div>
+      </div>
+      <div class="d-flex gap-2">
+        <a id="rep-org-csv" class="btn btn-outline-secondary" href="/api/v1/asset-registry/reports/assets-by-organization.csv" target="_blank">Org CSV</a>
+        <a id="rep-loc-csv" class="btn btn-outline-secondary" href="/api/v1/asset-registry/reports/assets-by-location.csv" target="_blank">Location CSV</a>
+      </div>
+    </div>
+    <div class="ar-report-filters">
+      <input id="rep-org-filter" class="form-control" placeholder="Organization node id (opsiyonel)" />
+      <input id="rep-loc-filter" class="form-control" placeholder="Location node id (opsiyonel)" />
+      <button id="rep-apply" class="btn btn-primary" type="button">Uygula</button>
+    </div>
+  </div>
+</div>
+<div class="ar-report-kpis mb-3">
+  <div class="card"><div class="card-body"><div class="subheader">Org Dagilimi</div><div id="rep-kpi-org" class="h2 m-0">0</div></div></div>
+  <div class="card"><div class="card-body"><div class="subheader">Lokasyon Dagilimi</div><div id="rep-kpi-loc" class="h2 m-0">0</div></div></div>
+  <div class="card"><div class="card-body"><div class="subheader">Owner Eksik</div><div id="rep-kpi-owner" class="h2 m-0">0</div></div></div>
+  <div class="card"><div class="card-body"><div class="subheader">Matching Kanal</div><div id="rep-kpi-match" class="h2 m-0">0</div></div></div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card"><div class="card-header"><h3 class="card-title">Assets By Organization</h3></div><div class="table-responsive"><table class="table table-vcenter card-table"><tbody id="rep-org"></tbody></table></div></div></div>
+  <div class="col-lg-6"><div class="card"><div class="card-header"><h3 class="card-title">Assets By Location</h3></div><div class="table-responsive"><table class="table table-vcenter card-table"><tbody id="rep-loc"></tbody></table></div></div></div>
+  <div class="col-lg-6"><div class="card"><div class="card-header"><h3 class="card-title">Without Owner</h3></div><div class="table-responsive"><table class="table table-vcenter card-table"><tbody id="rep-owner"></tbody></table></div></div></div>
+  <div class="col-lg-6"><div class="card"><div class="card-header"><h3 class="card-title">Matching Quality</h3></div><div class="table-responsive"><table class="table table-vcenter card-table"><tbody id="rep-match"></tbody></table></div></div></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function escHtml(value) {
+  return (value || "").toString()
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function draw(id, items) {
+  document.getElementById(id).innerHTML = (items || []).map((x) => `<tr><td>${escHtml(x.label)}</td><td>${x.value}</td></tr>`).join("") || `<tr><td colspan="2" class="text-secondary">Kayit yok</td></tr>`;
+}
+
+function totalOf(items) {
+  return (items || []).reduce((sum, item) => sum + Number(item.value || 0), 0);
+}
+
+async function loadReports() {
+  const orgId = document.getElementById("rep-org-filter").value ? Number(document.getElementById("rep-org-filter").value) : null;
+  const locId = document.getElementById("rep-loc-filter").value ? Number(document.getElementById("rep-loc-filter").value) : null;
+  const orgQuery = orgId ? `?org_node_id=${orgId}` : "";
+  const locQuery = locId ? `?location_node_id=${locId}` : "";
+  const orgItems = (await AppCenterApi.req(`/asset-registry/reports/assets-by-organization${orgQuery}`)).items;
+  const locItems = (await AppCenterApi.req(`/asset-registry/reports/assets-by-location${locQuery}`)).items;
+  const ownerItems = (await AppCenterApi.req("/asset-registry/reports/assets-without-owner")).items;
+  const matchItems = (await AppCenterApi.req("/asset-registry/reports/matching-quality")).items;
+  draw("rep-org", orgItems);
+  draw("rep-loc", locItems);
+  draw("rep-owner", ownerItems);
+  draw("rep-match", matchItems);
+  document.getElementById("rep-kpi-org").textContent = String(totalOf(orgItems));
+  document.getElementById("rep-kpi-loc").textContent = String(totalOf(locItems));
+  document.getElementById("rep-kpi-owner").textContent = String(totalOf(ownerItems));
+  document.getElementById("rep-kpi-match").textContent = String(totalOf(matchItems));
+  document.getElementById("rep-org-csv").href = `/api/v1/asset-registry/reports/assets-by-organization.csv${orgQuery}`;
+  document.getElementById("rep-loc-csv").href = `/api/v1/asset-registry/reports/assets-by-location.csv${locQuery}`;
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  await AppCenterApi.protectPage();
+  await loadReports();
+  document.getElementById("rep-apply").addEventListener("click", loadReports);
+});
+</script>
+{% endblock %}

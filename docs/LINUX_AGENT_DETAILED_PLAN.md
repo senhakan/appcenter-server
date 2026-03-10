@@ -1210,7 +1210,7 @@ journalctl -u appcenter-agent -f
 #### 6.4 Rollback Proseduru
 
 **Server tarafi:**
-1. `.env` → `REMOTE_SUPPORT_ENABLED=false` (gerekirse)
+1. `/settings` ekranindan veya DB `settings.remote_support_enabled=false` yap (gerekirse)
 2. Acik Linux RS oturumlarini sonlandir
 3. Son stabil server release'e donus (gerekirse)
 

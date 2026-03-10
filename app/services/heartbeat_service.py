@@ -26,6 +26,7 @@ from app.models import (
 )
 from app.schemas import CommandItem, HeartbeatConfig, HeartbeatRequest, PendingAnnouncementItem, ServiceItem
 from app.services.announcement_service import deliver_pending_to_agent
+from app.services import runtime_config_service as runtime_config
 from app.services.ws_manager import make_message, ws_manager
 
 
@@ -535,7 +536,7 @@ def process_heartbeat(
     config.inventory_scan_interval_min = int(_get_setting(db, "inventory_scan_interval_min", "10"))
     config.inventory_sync_required = inventory_sync_required
     config.store_tray_enabled = _is_store_tray_enabled_for_agent(db, agent.uuid)
-    config.remote_support_enabled = _is_remote_support_enabled_for_agent(db, agent.uuid)
+    config.remote_support_enabled = runtime_config.is_remote_support_enabled(db) and _is_remote_support_enabled_for_agent(db, agent.uuid)
     # WS agent-level enable: DB'de ws_agent_enabled=true ise tüm agentlara enable et
     ws_agent_flag = _get_setting(db, "ws_agent_enabled", "false")
     config.websocket_enabled = ws_agent_flag.strip().lower() in ("true", "1", "yes")

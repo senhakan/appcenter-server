@@ -218,7 +218,7 @@ class HeartbeatResponse(BaseModel):
 class RemoteSessionCreateRequest(BaseModel):
     agent_uuid: str
     reason: str = Field(min_length=3, max_length=500)
-    max_duration_min: int = Field(default=60, ge=1, le=480)
+    max_duration_min: Optional[int] = Field(default=None, ge=1, le=480)
 
 
 class RemoteSessionAgentApproveRequest(BaseModel):
@@ -1320,3 +1320,453 @@ class AnnouncementDeliveryListResponse(BaseModel):
 
 class AnnouncementAckRequest(BaseModel):
     announcement_id: int
+
+
+class AssetNodeTypeLabelResponse(BaseModel):
+    code: str
+    display_name: str
+    sort_order: int = 0
+    is_active: bool = True
+
+
+class AssetDictionaryResponse(BaseModel):
+    organization_node_types: list[AssetNodeTypeLabelResponse]
+    location_node_types: list[AssetNodeTypeLabelResponse]
+    device_types: list[str]
+    usage_types: list[str]
+    ownership_types: list[str]
+    lifecycle_statuses: list[str]
+
+
+class AssetOrganizationNodeBase(BaseModel):
+    node_type: str = Field(min_length=1, max_length=64)
+    parent_id: Optional[int] = None
+    name: str = Field(min_length=1, max_length=200)
+    code: Optional[str] = Field(default=None, max_length=120)
+    is_active: bool = True
+    sort_order: int = 0
+    notes: Optional[str] = None
+
+
+class AssetOrganizationNodeUpdateRequest(BaseModel):
+    node_type: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    parent_id: Optional[int] = None
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    code: Optional[str] = Field(default=None, max_length=120)
+    is_active: Optional[bool] = None
+    sort_order: Optional[int] = None
+    notes: Optional[str] = None
+
+
+class AssetOrganizationNodeResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    parent_id: Optional[int] = None
+    node_type: str
+    name: str
+    code: Optional[str] = None
+    is_active: bool
+    sort_order: int
+    notes: Optional[str] = None
+    path: str = ""
+    asset_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+class AssetOrganizationNodeListResponse(BaseModel):
+    items: list[AssetOrganizationNodeResponse]
+    total: int
+
+
+class AssetLocationNodeBase(BaseModel):
+    location_type: str = Field(min_length=1, max_length=64)
+    parent_id: Optional[int] = None
+    org_node_id: Optional[int] = None
+    name: str = Field(min_length=1, max_length=200)
+    code: Optional[str] = Field(default=None, max_length=120)
+    address_text: Optional[str] = None
+    is_active: bool = True
+    notes: Optional[str] = None
+
+
+class AssetLocationNodeUpdateRequest(BaseModel):
+    location_type: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    parent_id: Optional[int] = None
+    org_node_id: Optional[int] = None
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    code: Optional[str] = Field(default=None, max_length=120)
+    address_text: Optional[str] = None
+    is_active: Optional[bool] = None
+    notes: Optional[str] = None
+
+
+class AssetLocationNodeResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    parent_id: Optional[int] = None
+    org_node_id: Optional[int] = None
+    location_type: str
+    name: str
+    code: Optional[str] = None
+    address_text: Optional[str] = None
+    is_active: bool
+    notes: Optional[str] = None
+    path: str = ""
+    asset_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+class AssetLocationNodeListResponse(BaseModel):
+    items: list[AssetLocationNodeResponse]
+    total: int
+
+
+class AssetPersonCreateRequest(BaseModel):
+    person_code: Optional[str] = Field(default=None, max_length=120)
+    username: Optional[str] = Field(default=None, max_length=120)
+    full_name: str = Field(min_length=1, max_length=200)
+    email: Optional[str] = Field(default=None, max_length=200)
+    phone: Optional[str] = Field(default=None, max_length=50)
+    title: Optional[str] = Field(default=None, max_length=200)
+    org_node_id: Optional[int] = None
+    cost_center_id: Optional[int] = None
+    source_type: str = Field(default="manual", max_length=30)
+    is_active: bool = True
+
+
+class AssetPersonUpdateRequest(BaseModel):
+    person_code: Optional[str] = Field(default=None, max_length=120)
+    username: Optional[str] = Field(default=None, max_length=120)
+    full_name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    email: Optional[str] = Field(default=None, max_length=200)
+    phone: Optional[str] = Field(default=None, max_length=50)
+    title: Optional[str] = Field(default=None, max_length=200)
+    org_node_id: Optional[int] = None
+    cost_center_id: Optional[int] = None
+    source_type: Optional[str] = Field(default=None, max_length=30)
+    is_active: Optional[bool] = None
+
+
+class AssetPersonResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    person_code: Optional[str] = None
+    username: Optional[str] = None
+    full_name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    title: Optional[str] = None
+    org_node_id: Optional[int] = None
+    org_path: Optional[str] = None
+    cost_center_id: Optional[int] = None
+    cost_center_name: Optional[str] = None
+    source_type: str
+    is_active: bool
+    asset_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+class AssetPersonListResponse(BaseModel):
+    items: list[AssetPersonResponse]
+    total: int
+
+
+class AssetPersonLinkedAssetResponse(BaseModel):
+    id: int
+    asset_tag: str
+    device_type: str
+    lifecycle_status: str
+
+
+class AssetPersonDetailResponse(AssetPersonResponse):
+    linked_assets: list[AssetPersonLinkedAssetResponse] = Field(default_factory=list)
+
+
+class AssetCostCenterCreateRequest(BaseModel):
+    parent_id: Optional[int] = None
+    code: str = Field(min_length=1, max_length=120)
+    name: str = Field(min_length=1, max_length=200)
+    org_node_id: Optional[int] = None
+    is_active: bool = True
+
+
+class AssetCostCenterUpdateRequest(BaseModel):
+    parent_id: Optional[int] = None
+    code: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    org_node_id: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+class AssetCostCenterResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    parent_id: Optional[int] = None
+    code: str
+    name: str
+    org_node_id: Optional[int] = None
+    org_path: Optional[str] = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class AssetCostCenterListResponse(BaseModel):
+    items: list[AssetCostCenterResponse]
+    total: int
+
+
+class AssetRecordCreateRequest(BaseModel):
+    asset_tag: str = Field(min_length=1, max_length=120)
+    serial_number: Optional[str] = Field(default=None, max_length=200)
+    inventory_number: Optional[str] = Field(default=None, max_length=200)
+    device_type: str = Field(min_length=1, max_length=64)
+    usage_type: str = Field(min_length=1, max_length=64)
+    ownership_type: str = Field(min_length=1, max_length=64)
+    lifecycle_status: str = Field(min_length=1, max_length=64)
+    criticality: Optional[str] = Field(default=None, max_length=64)
+    manufacturer: Optional[str] = Field(default=None, max_length=200)
+    model: Optional[str] = Field(default=None, max_length=200)
+    purchase_date: Optional[str] = Field(default=None, max_length=32)
+    warranty_end_date: Optional[str] = Field(default=None, max_length=32)
+    org_node_id: int
+    location_node_id: int
+    cost_center_id: Optional[int] = None
+    primary_person_id: Optional[int] = None
+    owner_person_id: Optional[int] = None
+    support_team: Optional[str] = Field(default=None, max_length=200)
+    is_active: bool = True
+    notes: Optional[str] = None
+
+
+class AssetRecordUpdateRequest(BaseModel):
+    asset_tag: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    serial_number: Optional[str] = Field(default=None, max_length=200)
+    inventory_number: Optional[str] = Field(default=None, max_length=200)
+    device_type: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    usage_type: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    ownership_type: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    lifecycle_status: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    criticality: Optional[str] = Field(default=None, max_length=64)
+    manufacturer: Optional[str] = Field(default=None, max_length=200)
+    model: Optional[str] = Field(default=None, max_length=200)
+    purchase_date: Optional[str] = Field(default=None, max_length=32)
+    warranty_end_date: Optional[str] = Field(default=None, max_length=32)
+    org_node_id: Optional[int] = None
+    location_node_id: Optional[int] = None
+    cost_center_id: Optional[int] = None
+    primary_person_id: Optional[int] = None
+    owner_person_id: Optional[int] = None
+    support_team: Optional[str] = Field(default=None, max_length=200)
+    is_active: Optional[bool] = None
+    notes: Optional[str] = None
+
+
+class AssetRecordResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    asset_tag: str
+    serial_number: Optional[str] = None
+    inventory_number: Optional[str] = None
+    device_type: str
+    usage_type: str
+    ownership_type: str
+    lifecycle_status: str
+    criticality: Optional[str] = None
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    purchase_date: Optional[str] = None
+    warranty_end_date: Optional[str] = None
+    org_node_id: int
+    org_path: Optional[str] = None
+    location_node_id: int
+    location_path: Optional[str] = None
+    cost_center_id: Optional[int] = None
+    cost_center_name: Optional[str] = None
+    primary_person_id: Optional[int] = None
+    primary_person_name: Optional[str] = None
+    owner_person_id: Optional[int] = None
+    owner_person_name: Optional[str] = None
+    support_team: Optional[str] = None
+    is_active: bool
+    notes: Optional[str] = None
+    last_verified_at: Optional[datetime] = None
+    last_verified_by: Optional[int] = None
+    linked_agent_uuid: Optional[str] = None
+    linked_agent_hostname: Optional[str] = None
+    linked_agent_status: Optional[str] = None
+    linked_agent_ip: Optional[str] = None
+    linked_agent_last_seen: Optional[datetime] = None
+    match_source: Optional[str] = None
+    confidence_score: Optional[int] = None
+    linked_at: Optional[datetime] = None
+    data_quality_score: int = 100
+    issue_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+class AssetRecordListResponse(BaseModel):
+    items: list[AssetRecordResponse]
+    total: int
+
+
+class AssetAgentLinkRequest(BaseModel):
+    asset_id: int
+    agent_uuid: str
+    match_source: Optional[str] = Field(default="manual", max_length=64)
+    confidence_score: Optional[int] = Field(default=None, ge=0, le=100)
+    is_primary: bool = True
+    unlink_reason: Optional[str] = None
+
+
+class AssetMatchingCandidateResponse(BaseModel):
+    asset_id: Optional[int] = None
+    asset_tag: Optional[str] = None
+    agent_uuid: Optional[str] = None
+    hostname: Optional[str] = None
+    serial_hint: Optional[str] = None
+    org_hint: Optional[str] = None
+    location_hint: Optional[str] = None
+    confidence: int = 0
+    reasons: list[str] = Field(default_factory=list)
+    candidate_type: str
+    candidate_key: Optional[str] = None
+
+
+class AssetMatchingCandidateListResponse(BaseModel):
+    items: list[AssetMatchingCandidateResponse]
+    total: int
+
+
+class AssetDataQualityIssueResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    asset_id: int
+    asset_tag: Optional[str] = None
+    issue_type: str
+    severity: str
+    status: str
+    summary: str
+    details_json: Optional[str] = None
+    detected_at: datetime
+    resolved_at: Optional[datetime] = None
+    resolved_by: Optional[int] = None
+
+
+class AssetDataQualityIssueListResponse(BaseModel):
+    items: list[AssetDataQualityIssueResponse]
+    total: int
+
+
+class AssetDataQualityBulkUpdateRequest(BaseModel):
+    asset_ids: list[int] = Field(default_factory=list)
+    owner_person_id: Optional[int] = None
+    primary_person_id: Optional[int] = None
+    org_node_id: Optional[int] = None
+    location_node_id: Optional[int] = None
+    cost_center_id: Optional[int] = None
+    support_team: Optional[str] = Field(default=None, max_length=200)
+    recompute_only: bool = False
+
+
+class AssetDictionaryUpdateRequest(BaseModel):
+    device_types: Optional[list[str]] = None
+    usage_types: Optional[list[str]] = None
+    ownership_types: Optional[list[str]] = None
+    lifecycle_statuses: Optional[list[str]] = None
+
+
+class AssetNodeTypeLabelUpdateItem(BaseModel):
+    code: str = Field(min_length=1, max_length=64)
+    display_name: str = Field(min_length=1, max_length=120)
+
+
+class AssetNodeLabelUpdateRequest(BaseModel):
+    organization_node_types: list[AssetNodeTypeLabelUpdateItem] = Field(default_factory=list)
+    location_node_types: list[AssetNodeTypeLabelUpdateItem] = Field(default_factory=list)
+
+
+class AssetMatchingDecisionRequest(BaseModel):
+    candidate_key: str = Field(min_length=1, max_length=255)
+    decision: Literal["rejected", "suppressed"] = "rejected"
+    asset_id: Optional[int] = None
+    agent_uuid: Optional[str] = Field(default=None, max_length=255)
+    reason: Optional[str] = None
+
+
+class AssetChangeLogResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    asset_id: int
+    change_type: str
+    field_name: Optional[str] = None
+    old_value: Optional[str] = None
+    new_value: Optional[str] = None
+    changed_by: Optional[int] = None
+    changed_at: datetime
+
+
+class AssetChangeLogListResponse(BaseModel):
+    items: list[AssetChangeLogResponse]
+    total: int
+
+
+class AssetRecordDetailResponse(AssetRecordResponse):
+    issues: list[AssetDataQualityIssueResponse] = Field(default_factory=list)
+    history: list[AssetChangeLogResponse] = Field(default_factory=list)
+
+
+class AssetAgentSummaryResponse(BaseModel):
+    asset_id: int
+    asset_tag: str
+    device_type: str
+    lifecycle_status: str
+    org_path: Optional[str] = None
+    location_path: Optional[str] = None
+    primary_person_name: Optional[str] = None
+    owner_person_name: Optional[str] = None
+    support_team: Optional[str] = None
+    data_quality_score: int = 100
+    issue_count: int = 0
+    match_source: Optional[str] = None
+    confidence_score: Optional[int] = None
+    linked_at: Optional[datetime] = None
+    last_verified_at: Optional[datetime] = None
+    notes: Optional[str] = None
+
+
+class AssetOverviewResponse(BaseModel):
+    total_assets: int
+    matched_assets: int
+    unmatched_assets: int
+    unmatched_agents: int
+    owner_missing_count: int
+    location_missing_count: int
+    organization_distribution: list[dict]
+    location_distribution: list[dict]
+    asset_created_trend: list[dict] = Field(default_factory=list)
+    match_created_trend: list[dict] = Field(default_factory=list)
+    issue_detected_trend: list[dict] = Field(default_factory=list)
+    organization_risk: list[dict] = Field(default_factory=list)
+    location_risk: list[dict] = Field(default_factory=list)
+
+
+class AssetReportBucketResponse(BaseModel):
+    label: str
+    value: int
+
+
+class AssetReportListResponse(BaseModel):
+    items: list[AssetReportBucketResponse]
+    total: int

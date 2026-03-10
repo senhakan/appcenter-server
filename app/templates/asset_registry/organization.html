@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% block title %}Asset Registry Organizasyon{% endblock %}
+{% block page_title %}Organizasyon{% endblock %}
+{% block content %}
+{% include "asset_registry/_subnav.html" %}
+<style>
+  .ar-org-toolbar {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr 1fr auto;
+    gap: 0.75rem;
+  }
+  @media (max-width: 991.98px) {
+    .ar-org-toolbar {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  @media (max-width: 575.98px) {
+    .ar-org-toolbar {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><h3 id="org-form-title" class="card-title">Yeni Dugum</h3></div>
+      <div class="card-body">
+        <form id="org-form" class="d-flex flex-column gap-2">
+          <input id="org-edit-id" type="hidden" />
+          <select id="org-node-type" class="form-select" required></select>
+          <select id="org-parent-id" class="form-select"><option value="">Parent yok</option></select>
+          <input id="org-name" class="form-control" placeholder="Ad" required />
+          <input id="org-code" class="form-control" placeholder="Kod" />
+          <textarea id="org-notes" class="form-control" rows="3" placeholder="Not"></textarea>
+          <div class="d-flex gap-2 justify-content-end">
+            <button id="org-form-reset" class="btn btn-outline-secondary" type="button">Temizle</button>
+            <button class="btn btn-primary" type="submit">Kaydet</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header border-0 pb-0">
+        <div class="w-100">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+            <div>
+              <h3 class="card-title mb-1">Organizasyon Agaci</h3>
+              <div class="text-secondary small">Dugumleri filtrele, duzenle veya pasife al.</div>
+            </div>
+            <button id="org-filter-reset" class="btn btn-outline-secondary btn-sm" type="button">Filtreleri Temizle</button>
+          </div>
+          <div class="ar-org-toolbar">
+            <input id="org-filter-q" class="form-control" placeholder="Ad, kod veya path ara" />
+            <select id="org-filter-type" class="form-select"><option value="">Tum tipler</option></select>
+            <select id="org-filter-status" class="form-select"><option value="">Tum durumlar</option><option value="active">Aktif</option><option value="inactive">Pasif</option></select>
+            <div class="d-flex align-items-center text-secondary small px-2">Gorunen: <span id="org-filtered-count" class="ms-1 fw-bold">0</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th>Tip</th><th>Ad</th><th>Path</th><th>Asset</th><th>Durum</th><th></th></tr></thead><tbody id="org-table"></tbody></table></div>
+    </div>
+    <div class="card mt-3">
+      <div class="card-header"><h3 class="card-title">Cost Centers</h3></div>
+      <div class="card-body border-bottom">
+        <form id="cc-form" class="row g-2">
+          <input id="cc-edit-id" type="hidden" />
+          <div class="col-md-4"><input id="cc-code" class="form-control" placeholder="Code" required /></div>
+          <div class="col-md-4"><input id="cc-name" class="form-control" placeholder="Name" required /></div>
+          <div class="col-md-4"><select id="cc-org-id" class="form-select"><option value="">Organization yok</option></select></div>
+          <div class="col-12 d-flex gap-2">
+            <button id="cc-form-reset" class="btn btn-outline-secondary" type="button">Temizle</button>
+            <button class="btn btn-outline-primary" type="submit">Cost Center Kaydet</button>
+          </div>
+        </form>
+      </div>
+      <div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th>Code</th><th>Name</th><th>Organization</th><th>Durum</th><th></th></tr></thead><tbody id="cc-table"></tbody></table></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let allOrgNodes = [];
+let allOrgTypes = [];
+let allCostCenters = [];
+
+function escHtml(value) {
+  return (value || "").toString()
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function resetOrgForm() {
+  document.getElementById("org-edit-id").value = "";
+  document.getElementById("org-form-title").textContent = "Yeni Dugum";
+  document.getElementById("org-form").reset();
+}
+
+function resetCcForm() {
+  document.getElementById("cc-edit-id").value = "";
+  document.getElementById("cc-form").reset();
+}
+
+function fillOrgForm(item) {
+  document.getElementById("org-edit-id").value = item.id;
+  document.getElementById("org-form-title").textContent = "Dugum Duzenle";
+  document.getElementById("org-node-type").value = item.node_type || "";
+  document.getElementById("org-parent-id").value = item.parent_id || "";
+  document.getElementById("org-name").value = item.name || "";
+  document.getElementById("org-code").value = item.code || "";
+  document.getElementById("org-notes").value = item.notes || "";
+}
+
+function renderOrgTable(items) {
+  document.getElementById("org-filtered-count").textContent = String(items.length);
+  document.getElementById("org-table").innerHTML = (items || []).map((x) => `<tr>
+    <td><span class="badge bg-blue-lt text-blue">${escHtml(x.node_type)}</span></td>
+    <td>${escHtml(x.name)}</td>
+    <td>${escHtml(x.path)}</td>
+    <td>${x.asset_count}</td>
+    <td>${x.is_active ? '<span class="badge bg-green-lt text-green">Aktif</span>' : '<span class="badge bg-secondary-lt text-secondary">Pasif</span>'}</td>
+    <td class="text-nowrap">
+      <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="editOrgNode(${x.id})">Duzenle</button>
+      ${x.is_active ? `<button class="btn btn-sm btn-outline-danger" type="button" onclick="deactivateOrgNode(${x.id})">Pasife Al</button>` : ''}
+    </td>
+  </tr>`).join("") || `<tr><td colspan="6" class="text-secondary">Kayit yok</td></tr>`;
+}
+
+function applyOrgFilters() {
+  const q = (document.getElementById("org-filter-q").value || "").trim().toLowerCase();
+  const type = document.getElementById("org-filter-type").value;
+  const status = document.getElementById("org-filter-status").value;
+  const filtered = allOrgNodes.filter((item) => {
+    if (q) {
+      const hay = [item.name, item.code, item.path].filter(Boolean).join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (type && item.node_type !== type) return false;
+    if (status === "active" && !item.is_active) return false;
+    if (status === "inactive" && item.is_active) return false;
+    return true;
+  });
+  renderOrgTable(filtered);
+}
+
+async function loadOrgPage() {
+  const dicts = await AppCenterApi.req("/asset-registry/dictionaries");
+  allOrgTypes = dicts.organization_node_types || [];
+  document.getElementById("org-node-type").innerHTML = allOrgTypes.map(x => `<option value="${x.code}">${escHtml(x.display_name)}</option>`).join("");
+  document.getElementById("org-filter-type").innerHTML = `<option value="">Tum tipler</option>` + allOrgTypes.map(x => `<option value="${x.code}">${escHtml(x.display_name)}</option>`).join("");
+  const list = await AppCenterApi.req("/asset-registry/organization?include_inactive=true");
+  allOrgNodes = list.items || [];
+  document.getElementById("org-parent-id").innerHTML = `<option value="">Parent yok</option>` + allOrgNodes.map(x => `<option value="${x.id}">${escHtml(x.path)}</option>`).join("");
+  document.getElementById("cc-org-id").innerHTML = `<option value="">Organization yok</option>` + allOrgNodes.map(x => `<option value="${x.id}">${escHtml(x.path)}</option>`).join("");
+  applyOrgFilters();
+  const cc = await AppCenterApi.req("/asset-registry/cost-centers?include_inactive=true");
+  allCostCenters = cc.items || [];
+  document.getElementById("cc-table").innerHTML = allCostCenters.map(x => `<tr><td>${escHtml(x.code)}</td><td>${escHtml(x.name)}</td><td>${escHtml(x.org_path || "-")}</td><td>${x.is_active ? "Aktif" : "Pasif"}</td><td class="text-nowrap"><button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="editCostCenter(${x.id})">Duzenle</button>${x.is_active ? `<button class="btn btn-sm btn-outline-danger" type="button" onclick="deactivateCostCenter(${x.id})">Pasife Al</button>` : ''}</td></tr>`).join("") || `<tr><td colspan="5" class="text-secondary">Kayit yok</td></tr>`;
+}
+
+async function editOrgNode(nodeId) {
+  const item = allOrgNodes.find((node) => Number(node.id) === Number(nodeId));
+  if (!item) return;
+  fillOrgForm(item);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+async function deactivateOrgNode(nodeId) {
+  const ok = await AppCenterApi.confirm("Bu organizasyon dugumu pasife alinsin mi?");
+  if (!ok) return;
+  await AppCenterApi.req(`/asset-registry/organization/${nodeId}/deactivate`, { method: "POST" });
+  AppCenterApi.toast("Organizasyon dugumu pasife alindi", "success");
+  await loadOrgPage();
+}
+
+function editCostCenter(costCenterId) {
+  const item = allCostCenters.find((cc) => Number(cc.id) === Number(costCenterId));
+  if (!item) return;
+  document.getElementById("cc-edit-id").value = item.id;
+  document.getElementById("cc-code").value = item.code || "";
+  document.getElementById("cc-name").value = item.name || "";
+  document.getElementById("cc-org-id").value = item.org_node_id || "";
+}
+
+async function deactivateCostCenter(costCenterId) {
+  const ok = await AppCenterApi.confirm("Bu cost center pasife alinsin mi?");
+  if (!ok) return;
+  await AppCenterApi.req(`/asset-registry/cost-centers/${costCenterId}/deactivate`, { method: "POST" });
+  AppCenterApi.toast("Cost center pasife alindi", "success");
+  await loadOrgPage();
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  await AppCenterApi.protectPage();
+  await loadOrgPage();
+  ["org-filter-q", "org-filter-type", "org-filter-status"].forEach((id) => {
+    document.getElementById(id).addEventListener("input", applyOrgFilters);
+    document.getElementById(id).addEventListener("change", applyOrgFilters);
+  });
+  document.getElementById("org-form-reset").addEventListener("click", resetOrgForm);
+  document.getElementById("cc-form-reset").addEventListener("click", resetCcForm);
+  document.getElementById("org-filter-reset").addEventListener("click", () => {
+    ["org-filter-q", "org-filter-type", "org-filter-status"].forEach((id) => { document.getElementById(id).value = ""; });
+    applyOrgFilters();
+  });
+  document.getElementById("org-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const editId = document.getElementById("org-edit-id").value;
+    const payload = {
+      node_type: document.getElementById("org-node-type").value,
+      parent_id: document.getElementById("org-parent-id").value ? Number(document.getElementById("org-parent-id").value) : null,
+      name: document.getElementById("org-name").value,
+      code: document.getElementById("org-code").value || null,
+      notes: document.getElementById("org-notes").value || null,
+      is_active: true,
+      sort_order: 0
+    };
+    if (editId) {
+      await AppCenterApi.req(`/asset-registry/organization/${editId}`, {method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload)});
+      AppCenterApi.toast("Organizasyon dugumu guncellendi", "success");
+    } else {
+      await AppCenterApi.req("/asset-registry/organization", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload)});
+      AppCenterApi.toast("Organizasyon dugumu olusturuldu", "success");
+    }
+    resetOrgForm();
+    await loadOrgPage();
+  });
+  document.getElementById("cc-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const editId = document.getElementById("cc-edit-id").value;
+    const payload = {
+      code: document.getElementById("cc-code").value,
+      name: document.getElementById("cc-name").value,
+      org_node_id: document.getElementById("cc-org-id").value ? Number(document.getElementById("cc-org-id").value) : null,
+      is_active: true
+    };
+    if (editId) {
+      await AppCenterApi.req(`/asset-registry/cost-centers/${editId}`, {method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload)});
+      AppCenterApi.toast("Cost center guncellendi", "success");
+    } else {
+      await AppCenterApi.req("/asset-registry/cost-centers", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload)});
+      AppCenterApi.toast("Cost center olusturuldu", "success");
+    }
+    resetCcForm();
+    await loadOrgPage();
+  });
+});
+</script>
+{% endblock %}

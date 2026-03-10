@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block title %}Asset Registry Lokasyonlar{% endblock %}
+{% block page_title %}Lokasyonlar{% endblock %}
+{% block content %}
+{% include "asset_registry/_subnav.html" %}
+<style>
+  .ar-location-toolbar {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 0.75rem;
+  }
+  @media (max-width: 991.98px) {
+    .ar-location-toolbar {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  @media (max-width: 575.98px) {
+    .ar-location-toolbar {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><h3 id="loc-form-title" class="card-title">Yeni Lokasyon</h3></div>
+      <div class="card-body">
+        <form id="loc-form" class="d-flex flex-column gap-2">
+          <input id="loc-edit-id" type="hidden" />
+          <select id="loc-type" class="form-select" required></select>
+          <select id="loc-parent-id" class="form-select"><option value="">Parent yok</option></select>
+          <select id="loc-org-id" class="form-select"><option value="">Organizasyon yok</option></select>
+          <input id="loc-name" class="form-control" placeholder="Ad" required />
+          <input id="loc-code" class="form-control" placeholder="Kod" />
+          <textarea id="loc-address" class="form-control" rows="2" placeholder="Adres"></textarea>
+          <div class="d-flex gap-2 justify-content-end">
+            <button id="loc-form-reset" class="btn btn-outline-secondary" type="button">Temizle</button>
+            <button class="btn btn-primary" type="submit">Kaydet</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header border-0 pb-0">
+        <div class="w-100">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+            <div>
+              <h3 class="card-title mb-1">Lokasyon Agaci</h3>
+              <div class="text-secondary small">Fiziksel hiyerarsiyi filtrele, duzenle veya pasife al.</div>
+            </div>
+            <button id="loc-reset-filters" class="btn btn-outline-secondary btn-sm" type="button">Filtreleri Temizle</button>
+          </div>
+          <div class="ar-location-toolbar">
+            <input id="loc-filter-q" class="form-control" placeholder="Ad, kod veya path ara" />
+            <select id="loc-filter-type" class="form-select"><option value="">Tum tipler</option></select>
+            <select id="loc-filter-org" class="form-select"><option value="">Tum organizasyonlar</option></select>
+            <div class="d-flex align-items-center text-secondary small px-2">Gorunen: <span id="loc-filtered-count" class="ms-1 fw-bold">0</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th>Tip</th><th>Ad</th><th>Path</th><th>Asset</th><th></th></tr></thead><tbody id="loc-table"></tbody></table></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let allLocations = [];
+let allLocationTypes = [];
+let allOrgNodes = [];
+
+function escHtml(value) {
+  return (value || "").toString()
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function resetLocationForm() {
+  document.getElementById("loc-edit-id").value = "";
+  document.getElementById("loc-form-title").textContent = "Yeni Lokasyon";
+  document.getElementById("loc-form").reset();
+}
+
+function fillLocationForm(item) {
+  document.getElementById("loc-edit-id").value = item.id;
+  document.getElementById("loc-form-title").textContent = "Lokasyon Duzenle";
+  document.getElementById("loc-type").value = item.location_type || "";
+  document.getElementById("loc-parent-id").value = item.parent_id || "";
+  document.getElementById("loc-org-id").value = item.org_node_id || "";
+  document.getElementById("loc-name").value = item.name || "";
+  document.getElementById("loc-code").value = item.code || "";
+  document.getElementById("loc-address").value = item.address_text || "";
+}
+
+function renderLocations(items) {
+  document.getElementById("loc-filtered-count").textContent = String(items.length);
+  document.getElementById("loc-table").innerHTML = (items || []).map((x) => `
+    <tr>
+      <td><span class="badge bg-azure-lt text-azure">${escHtml(x.location_type)}</span></td>
+      <td>${escHtml(x.name)}</td>
+      <td>${escHtml(x.path)}</td>
+      <td>${x.asset_count}</td>
+      <td class="text-nowrap">
+        <button class="btn btn-sm btn-outline-primary me-1" type="button" onclick="editLocationNode(${x.id})">Duzenle</button>
+        ${x.is_active ? `<button class="btn btn-sm btn-outline-danger" type="button" onclick="deactivateLocationNode(${x.id})">Pasife Al</button>` : ''}
+      </td>
+    </tr>
+  `).join("") || `<tr><td colspan="5" class="text-secondary">Kayit yok</td></tr>`;
+}
+
+function applyLocationFilters() {
+  const q = (document.getElementById("loc-filter-q").value || "").trim().toLowerCase();
+  const type = document.getElementById("loc-filter-type").value;
+  const orgId = document.getElementById("loc-filter-org").value;
+  const filtered = allLocations.filter((item) => {
+    if (q) {
+      const hay = [item.name, item.code, item.path].filter(Boolean).join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (type && item.location_type !== type) return false;
+    if (orgId && String(item.org_node_id || "") !== String(orgId)) return false;
+    return true;
+  });
+  renderLocations(filtered);
+}
+
+async function loadLocationPage() {
+  const dicts = await AppCenterApi.req("/asset-registry/dictionaries");
+  allLocationTypes = dicts.location_node_types || [];
+  document.getElementById("loc-type").innerHTML = allLocationTypes.map(x => `<option value="${x.code}">${escHtml(x.display_name)}</option>`).join("");
+  document.getElementById("loc-filter-type").innerHTML = `<option value="">Tum tipler</option>` + allLocationTypes.map(x => `<option value="${x.code}">${escHtml(x.display_name)}</option>`).join("");
+  const orgs = await AppCenterApi.req("/asset-registry/organization?include_inactive=true");
+  allOrgNodes = orgs.items || [];
+  document.getElementById("loc-org-id").innerHTML = `<option value="">Organizasyon yok</option>` + allOrgNodes.map(x => `<option value="${x.id}">${escHtml(x.path)}</option>`).join("");
+  document.getElementById("loc-filter-org").innerHTML = `<option value="">Tum organizasyonlar</option>` + allOrgNodes.map(x => `<option value="${x.id}">${escHtml(x.path)}</option>`).join("");
+  const list = await AppCenterApi.req("/asset-registry/locations?include_inactive=true");
+  allLocations = list.items || [];
+  document.getElementById("loc-parent-id").innerHTML = `<option value="">Parent yok</option>` + allLocations.map(x => `<option value="${x.id}">${escHtml(x.path)}</option>`).join("");
+  applyLocationFilters();
+}
+
+async function editLocationNode(nodeId) {
+  const item = allLocations.find((node) => Number(node.id) === Number(nodeId));
+  if (!item) return;
+  fillLocationForm(item);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+async function deactivateLocationNode(nodeId) {
+  const ok = await AppCenterApi.confirm("Bu lokasyon dugumu pasife alinsin mi?");
+  if (!ok) return;
+  await AppCenterApi.req(`/asset-registry/locations/${nodeId}/deactivate`, { method: "POST" });
+  AppCenterApi.toast("Lokasyon dugumu pasife alindi", "success");
+  await loadLocationPage();
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  await AppCenterApi.protectPage();
+  await loadLocationPage();
+  ["loc-filter-q", "loc-filter-type", "loc-filter-org"].forEach((id) => {
+    document.getElementById(id).addEventListener("input", applyLocationFilters);
+    document.getElementById(id).addEventListener("change", applyLocationFilters);
+  });
+  document.getElementById("loc-form-reset").addEventListener("click", resetLocationForm);
+  document.getElementById("loc-reset-filters").addEventListener("click", () => {
+    ["loc-filter-q", "loc-filter-type", "loc-filter-org"].forEach((id) => { document.getElementById(id).value = ""; });
+    applyLocationFilters();
+  });
+  document.getElementById("loc-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const editId = document.getElementById("loc-edit-id").value;
+    const payload = {
+      location_type: document.getElementById("loc-type").value,
+      parent_id: document.getElementById("loc-parent-id").value ? Number(document.getElementById("loc-parent-id").value) : null,
+      org_node_id: document.getElementById("loc-org-id").value ? Number(document.getElementById("loc-org-id").value) : null,
+      name: document.getElementById("loc-name").value,
+      code: document.getElementById("loc-code").value || null,
+      address_text: document.getElementById("loc-address").value || null,
+      is_active: true
+    };
+    if (editId) {
+      await AppCenterApi.req(`/asset-registry/locations/${editId}`, {method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload)});
+      AppCenterApi.toast("Lokasyon guncellendi", "success");
+    } else {
+      await AppCenterApi.req("/asset-registry/locations", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload)});
+      AppCenterApi.toast("Lokasyon olusturuldu", "success");
+    }
+    resetLocationForm();
+    await loadLocationPage();
+  });
+});
+</script>
+{% endblock %}

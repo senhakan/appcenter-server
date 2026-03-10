@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}Asset Registry Veri Kalitesi{% endblock %}
+{% block page_title %}Veri Kalitesi{% endblock %}
+{% block content %}
+{% include "asset_registry/_subnav.html" %}
+<style>
+  .ar-dq-toolbar {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr auto;
+    gap: 0.75rem;
+  }
+  .ar-dq-bulk {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto auto;
+    gap: 0.75rem;
+  }
+  .ar-dq-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  @media (max-width: 991.98px) {
+    .ar-dq-toolbar,
+    .ar-dq-bulk,
+    .ar-dq-kpis {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  @media (max-width: 575.98px) {
+    .ar-dq-toolbar,
+    .ar-dq-bulk,
+    .ar-dq-kpis {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+<div class="ar-dq-kpis mb-3">
+  <div class="card"><div class="card-body"><div class="subheader">Acik Issue</div><div id="dq-kpi-total" class="h2 m-0">0</div></div></div>
+  <div class="card"><div class="card-body"><div class="subheader">Secili Asset</div><div id="dq-kpi-selected" class="h2 m-0">0</div></div></div>
+  <div class="card"><div class="card-body"><div class="subheader">Yuksek Severity</div><div id="dq-kpi-high" class="h2 m-0">0</div></div></div>
+  <div class="card"><div class="card-body"><div class="subheader">Asset Etkisi</div><div id="dq-kpi-assets" class="h2 m-0">0</div></div></div>
+</div>
+<div class="card mb-3">
+  <div class="card-header"><h3 class="card-title">Toplu Duzeltme</h3></div>
+  <div class="card-body">
+    <form id="dq-bulk-form" class="ar-dq-bulk">
+      <input id="dq-asset-ids" class="form-control" placeholder="Asset ID'ler (opsiyonel, 1,2,3)" />
+      <select id="dq-owner-person" class="form-select"><option value="">Owner sec</option></select>
+      <select id="dq-primary-person" class="form-select"><option value="">Primary sec</option></select>
+      <button id="dq-recompute-btn" class="btn btn-outline-secondary" type="button">Sadece Yeniden Hesapla</button>
+      <button class="btn btn-primary" type="submit">Uygula</button>
+    </form>
+  </div>
+</div>
+<div class="card">
+  <div class="card-header border-0 pb-0">
+    <div class="w-100">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <div>
+          <h3 class="card-title mb-1">Acik Issue'lar</h3>
+          <div class="text-secondary small">Issue tipine gore filtrele, secili asset’ler uzerinden toplu aksiyon uygula.</div>
+        </div>
+        <button id="dq-filter-reset" class="btn btn-outline-secondary btn-sm" type="button">Filtreleri Temizle</button>
+      </div>
+      <div class="ar-dq-toolbar">
+        <input id="dq-filter-q" class="form-control" placeholder="Asset veya issue ara" />
+        <select id="dq-filter-severity" class="form-select"><option value="">Tum severity seviyeleri</option><option value="high">high</option><option value="medium">medium</option><option value="low">low</option></select>
+        <div class="d-flex align-items-center text-secondary small px-2">Gorunen: <span id="dq-filtered-count" class="ms-1 fw-bold">0</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th><input id="dq-select-all" type="checkbox" /></th><th>Asset</th><th>Issue</th><th>Severity</th><th>Tespit</th></tr></thead><tbody id="dq-body"></tbody></table></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let allIssues = [];
+
+function escHtml(value) {
+  return (value || "").toString()
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function selectedAssetIds() {
+  return Array.from(document.querySelectorAll(".dq-row-check:checked")).map(x => Number(x.value)).filter(Boolean);
+}
+
+function drawDqKpis(items) {
+  const uniqueAssets = new Set(items.map((item) => item.asset_id)).size;
+  const high = items.filter((item) => String(item.severity) === "high").length;
+  document.getElementById("dq-kpi-total").textContent = String(items.length);
+  document.getElementById("dq-kpi-selected").textContent = String(selectedAssetIds().length);
+  document.getElementById("dq-kpi-high").textContent = String(high);
+  document.getElementById("dq-kpi-assets").textContent = String(uniqueAssets);
+}
+
+function renderIssues(items) {
+  drawDqKpis(items);
+  document.getElementById("dq-filtered-count").textContent = String(items.length);
+  document.getElementById("dq-body").innerHTML = (items || []).map((x) => `<tr><td><input class="dq-row-check" type="checkbox" value="${x.asset_id}" /></td><td><a href="/asset-registry/assets/${x.asset_id}">${escHtml(x.asset_tag || x.asset_id)}</a></td><td>${escHtml(x.summary)}</td><td><span class="badge bg-yellow-lt text-yellow">${escHtml(x.severity)}</span></td><td>${AppCenterApi.formatDate(x.detected_at)}</td></tr>`).join("") || `<tr><td colspan="5" class="text-secondary">Issue yok</td></tr>`;
+  document.querySelectorAll(".dq-row-check").forEach((el) => el.addEventListener("change", () => drawDqKpis(items)));
+}
+
+function applyDqFilters() {
+  const q = (document.getElementById("dq-filter-q").value || "").trim().toLowerCase();
+  const severity = document.getElementById("dq-filter-severity").value;
+  const filtered = allIssues.filter((item) => {
+    if (q) {
+      const hay = [item.asset_tag, item.summary, item.issue_type].filter(Boolean).join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (severity && item.severity !== severity) return false;
+    return true;
+  });
+  renderIssues(filtered);
+}
+
+async function loadDqPage() {
+  const people = await AppCenterApi.req("/asset-registry/people");
+  document.getElementById("dq-owner-person").innerHTML = `<option value="">Owner sec</option>` + (people.items || []).map(x => `<option value="${x.id}">${escHtml(x.full_name)}</option>`).join("");
+  document.getElementById("dq-primary-person").innerHTML = `<option value="">Primary sec</option>` + (people.items || []).map(x => `<option value="${x.id}">${escHtml(x.full_name)}</option>`).join("");
+  const data = await AppCenterApi.req("/asset-registry/data-quality");
+  allIssues = data.items || [];
+  applyDqFilters();
+}
+
+async function submitBulk(recomputeOnly) {
+  const typedIds = document.getElementById("dq-asset-ids").value.split(",").map(x => Number(x.trim())).filter(Boolean);
+  const ids = typedIds.length ? typedIds : selectedAssetIds();
+  if (!ids.length) {
+    AppCenterApi.toast("Toplu islem icin en az bir asset sec", "error");
+    return;
+  }
+  await AppCenterApi.req("/asset-registry/data-quality/bulk-update", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({
+    asset_ids: ids,
+    owner_person_id: document.getElementById("dq-owner-person").value ? Number(document.getElementById("dq-owner-person").value) : null,
+    primary_person_id: document.getElementById("dq-primary-person").value ? Number(document.getElementById("dq-primary-person").value) : null,
+    recompute_only: !!recomputeOnly
+  })});
+  AppCenterApi.toast(recomputeOnly ? "Veri kalitesi yeniden hesaplandi" : "Toplu duzeltme uygulandi", "success");
+  await loadDqPage();
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  await AppCenterApi.protectPage();
+  await loadDqPage();
+  document.getElementById("dq-select-all").addEventListener("change", (e) => {
+    document.querySelectorAll(".dq-row-check").forEach(el => { el.checked = e.target.checked; });
+    drawDqKpis(allIssues);
+  });
+  ["dq-filter-q", "dq-filter-severity"].forEach((id) => {
+    document.getElementById(id).addEventListener("input", applyDqFilters);
+    document.getElementById(id).addEventListener("change", applyDqFilters);
+  });
+  document.getElementById("dq-filter-reset").addEventListener("click", () => {
+    document.getElementById("dq-filter-q").value = "";
+    document.getElementById("dq-filter-severity").value = "";
+    applyDqFilters();
+  });
+  document.getElementById("dq-recompute-btn").addEventListener("click", () => submitBulk(true));
+  document.getElementById("dq-bulk-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await submitBulk(false);
+  });
+});
+</script>
+{% endblock %}

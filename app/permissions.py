@@ -16,6 +16,7 @@ PERMISSION_CATALOG: list[dict[str, Any]] = [
             ("ui.menu.dashboard", "Dashboard menusu"),
             ("ui.menu.agents", "Ajanlar menusu"),
             ("ui.menu.remote_support", "Destek Merkezi menusu"),
+            ("ui.menu.asset_management", "Asset Management menusu"),
             ("ui.menu.groups", "Gruplar menusu"),
             ("ui.menu.applications", "Uygulamalar menusu"),
             ("ui.menu.deployments", "Dagitimlar menusu"),
@@ -29,6 +30,7 @@ PERMISSION_CATALOG: list[dict[str, Any]] = [
             ("ui.menu.audit", "Audit Log menusu"),
             ("ui.menu.infra_recordings", "Session Recordings menusu"),
             ("ui.menu.announcements", "Duyurular menusu"),
+            ("ui.menu.asset_registry", "Asset Registry menusu"),
         ],
     },
     {
@@ -49,6 +51,7 @@ PERMISSION_CATALOG: list[dict[str, Any]] = [
             ("ui.page.audit", "Audit sayfasi"),
             ("ui.page.infra_recordings", "Session Recordings sayfasi"),
             ("ui.page.announcements", "Duyurular sayfasi"),
+            ("ui.page.asset_registry", "Asset Registry sayfalari"),
         ],
     },
     {
@@ -78,6 +81,10 @@ PERMISSION_CATALOG: list[dict[str, Any]] = [
             ("audit.view", "Audit log goruntuleme"),
             ("announcements.view", "Duyurulari goruntuleme"),
             ("announcements.manage", "Duyurulari yonetme"),
+            ("asset_registry.view", "Asset Registry modulu goruntuleme"),
+            ("asset_registry.manage", "Asset Registry kayitlarini yonetme"),
+            ("asset_registry.reports.view", "Asset Registry raporlarini goruntuleme"),
+            ("asset_registry.settings.manage", "Asset Registry ayarlarini yonetme"),
         ],
     },
 ]
@@ -99,6 +106,7 @@ VIEWER_DEFAULT_PERMISSIONS: set[str] = {
     "ui.menu.dashboard",
     "ui.menu.agents",
     "ui.menu.remote_support",
+    "ui.menu.asset_management",
     "ui.menu.groups",
     "ui.menu.applications",
     "ui.menu.deployments",
@@ -106,6 +114,7 @@ VIEWER_DEFAULT_PERMISSIONS: set[str] = {
     "ui.menu.licenses",
     "ui.menu.agent_deploy",
     "ui.menu.announcements",
+    "ui.menu.asset_registry",
     "ui.page.dashboard",
     "ui.page.agents",
     "ui.page.remote_support",
@@ -116,6 +125,7 @@ VIEWER_DEFAULT_PERMISSIONS: set[str] = {
     "ui.page.licenses",
     "ui.page.agent_deploy",
     "ui.page.announcements",
+    "ui.page.asset_registry",
     "dashboard.view",
     "agents.view",
     "groups.view",
@@ -127,6 +137,8 @@ VIEWER_DEFAULT_PERMISSIONS: set[str] = {
     "remote_support.session.view",
     "remote_support.recordings.view",
     "announcements.view",
+    "asset_registry.view",
+    "asset_registry.reports.view",
 }
 
 OPERATOR_DEFAULT_PERMISSIONS: set[str] = set(VIEWER_DEFAULT_PERMISSIONS) | {
@@ -139,6 +151,8 @@ OPERATOR_DEFAULT_PERMISSIONS: set[str] = set(VIEWER_DEFAULT_PERMISSIONS) | {
     "remote_support.session.manage",
     "remote_support.recordings.manage",
     "announcements.manage",
+    "asset_registry.manage",
+    "asset_registry.settings.manage",
 }
 
 ADMIN_DEFAULT_PERMISSIONS: set[str] = {"*"}

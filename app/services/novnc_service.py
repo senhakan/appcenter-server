@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.config import get_settings
+from app.database import SessionLocal
+from app.services import runtime_config_service as runtime_config
 
 settings = get_settings()
 _INTERNAL_TICKET_TTL_SEC = 120
@@ -60,7 +62,12 @@ def build_ticket(agent_ip: str, vnc_port: int = 5900) -> tuple[str, str]:
     Create a one-time ticket for remote support WebSocket bridge.
     Returns (token, ws_path).
     """
-    if settings.remote_support_ws_mode == "internal":
+    db = SessionLocal()
+    try:
+        runtime = runtime_config.get_remote_support_runtime(db)
+    finally:
+        db.close()
+    if runtime.ws_mode == "internal":
         return _build_internal_ticket(agent_ip, vnc_port)
     return _build_external_ticket(agent_ip, vnc_port)
 
@@ -89,7 +96,12 @@ def cleanup_old_tokens(max_age_hours: int = 12, max_lines: int = 5000) -> None:
     Best-effort compaction to keep token file from unbounded growth.
     TokenFile format has no expiry metadata, so we retain latest N lines.
     """
-    if settings.remote_support_ws_mode == "internal":
+    db = SessionLocal()
+    try:
+        runtime = runtime_config.get_remote_support_runtime(db)
+    finally:
+        db.close()
+    if runtime.ws_mode == "internal":
         with _internal_lock:
             _cleanup_internal_tickets(time.monotonic())
         return

@@ -18,7 +18,7 @@ from app.permissions import (
 settings = get_settings()
 
 if settings.database_url.startswith("sqlite"):
-    raise RuntimeError("SQLite is no longer supported. Configure DATABASE_URL for PostgreSQL.")
+    raise RuntimeError("SQLite is no longer supported. Configure database_url in server/config/server.ini for PostgreSQL.")
 
 engine = create_engine(
     settings.database_url,
@@ -54,7 +54,15 @@ DEFAULT_SETTINGS = {
     "session_timeout_minutes": ("60", "Web session timeout (minutes)"),
     "inventory_scan_interval_min": ("10", "Agent envanter tarama araligi (dakika)"),
     "service_monitoring_enabled": ("true", "Ajan servis izleme (Windows+Linux) global ac/kapat"),
+    "remote_support_enabled": ("true", "Destek Merkezi modulu global olarak aktif/pasif"),
     "remote_support_approval_required": ("true", "Uzak destek baglantilarinda son kullanici onayi zorunlulugu"),
+    "remote_support_approval_timeout_sec": ("30", "Uzak destek onay penceresi timeout suresi (saniye)"),
+    "remote_support_default_max_duration_min": ("60", "Yeni uzak destek oturumlarinda UI varsayilan maksimum sure (dakika)"),
+    "remote_support_max_duration_min": ("480", "Uzak destek oturumu icin izin verilen ust sure limiti (dakika)"),
+    "remote_support_novnc_mode": ("embedded", "Viewer modu: embedded veya iframe"),
+    "remote_support_ws_mode": ("internal", "Viewer websocket bridge modu: internal veya external"),
+    "remote_support_control_bar_mode": ("embedded", "Session sayfasinda kontrol bari yeri: embedded veya topbar"),
+    "remote_support_log_screen_enabled": ("true", "Session sayfasinda baglanti log ekrani gorunsun"),
     "inventory_history_retention_days": ("90", "Yazilim degisim gecmisi saklama suresi (gun)"),
     "system_history_retention_days": ("360", "Sistem profili degisim gecmisi saklama suresi (gun)"),
     "runtime_update_interval_min": ("60", "Agent runtime update kontrol araligi (dakika)"),
@@ -117,6 +125,32 @@ DEFAULT_GROUPS = {
     "Satis": "Satis departmani",
 }
 
+DEFAULT_ASSET_ORG_NODE_TYPES = [
+    ("company", "Company", 10),
+    ("legal_entity", "Legal Entity", 20),
+    ("region", "Region", 30),
+    ("directorate", "Directorate", 40),
+    ("department", "Department", 50),
+    ("team", "Team", 60),
+    ("unit", "Unit", 70),
+]
+
+DEFAULT_ASSET_LOCATION_NODE_TYPES = [
+    ("campus", "Campus", 10),
+    ("building", "Building", 20),
+    ("block", "Block", 30),
+    ("floor", "Floor", 40),
+    ("area", "Area", 50),
+    ("room", "Room", 60),
+]
+
+DEFAULT_ASSET_DICTIONARIES = {
+    "device_types": ["desktop", "laptop", "tablet", "thin_client", "workstation", "kiosk", "shared_terminal", "meeting_room_terminal", "field_device"],
+    "usage_types": ["personal", "shared", "kiosk", "field", "meeting_room", "admin"],
+    "ownership_types": ["company", "leased", "partner", "personal"],
+    "lifecycle_statuses": ["planned", "active", "in_stock", "in_repair", "retired", "lost", "awaiting_match"],
+}
+
 DEFAULT_ADMIN_USERNAME = "admin"
 DEFAULT_ADMIN_PASSWORD_HASH = "$2b$12$KGitLdPDMejjrOvs7C4H2utSydHbNH75jwmelpwpJ5ezfkh.QEd3u"
 
@@ -149,6 +183,7 @@ def _run_startup_migrations() -> None:
     _migrate_agent_update_platform_settings()
     _migrate_sam_advanced_tables()
     _migrate_inventory_perf_indexes()
+    _migrate_asset_registry_tables()
 
 
 def _migrate_role_profiles_table() -> None:
@@ -465,6 +500,19 @@ def _migrate_sam_advanced_tables() -> None:
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sam_cost_platform ON sam_cost_profiles(platform)"))
 
 
+def _migrate_asset_registry_tables() -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_asset_agent_links_primary_active_agent
+                ON asset_agent_links(agent_uuid)
+                WHERE is_primary = TRUE AND link_status = 'active'
+                """
+            )
+        )
+
+
 def seed_initial_data() -> None:
     from app import models  # pylint: disable=import-outside-toplevel
 
@@ -509,6 +557,52 @@ def seed_initial_data() -> None:
             exists = db.query(models.Group).filter(models.Group.name == group_name).first()
             if not exists:
                 db.add(models.Group(name=group_name, description=description))
+
+        for code, display_name, sort_order in DEFAULT_ASSET_ORG_NODE_TYPES:
+            existing = db.query(models.AssetOrganizationNodeType).filter(models.AssetOrganizationNodeType.code == code).first()
+            if not existing:
+                db.add(
+                    models.AssetOrganizationNodeType(
+                        code=code,
+                        display_name=display_name,
+                        sort_order=sort_order,
+                        is_active=True,
+                    )
+                )
+            else:
+                existing.display_name = display_name
+                existing.sort_order = sort_order
+                existing.is_active = True
+                db.add(existing)
+
+        for code, display_name, sort_order in DEFAULT_ASSET_LOCATION_NODE_TYPES:
+            existing = db.query(models.AssetLocationNodeType).filter(models.AssetLocationNodeType.code == code).first()
+            if not existing:
+                db.add(
+                    models.AssetLocationNodeType(
+                        code=code,
+                        display_name=display_name,
+                        sort_order=sort_order,
+                        is_active=True,
+                    )
+                )
+            else:
+                existing.display_name = display_name
+                existing.sort_order = sort_order
+                existing.is_active = True
+                db.add(existing)
+
+        for key, values in DEFAULT_ASSET_DICTIONARIES.items():
+            existing = db.query(models.Setting).filter(models.Setting.key == f"asset_registry_{key}").first()
+            if not existing:
+                db.add(
+                    models.Setting(
+                        key=f"asset_registry_{key}",
+                        value=json.dumps(values, ensure_ascii=True),
+                        description=f"Asset Registry dictionary for {key}",
+                        updated_at=datetime.now(timezone.utc),
+                    )
+                )
 
         admin_exists = db.query(models.User).filter(models.User.username == DEFAULT_ADMIN_USERNAME).first()
         if not admin_exists:

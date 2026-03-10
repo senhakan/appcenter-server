@@ -21,8 +21,8 @@ Bu dokuman production ortami icin deploy, smoke ve rollback adimlarini tanimlar.
 
 ### 1.3 noVNC Calisma Durumu (2026-02-23)
 
-- Viewer modu: `REMOTE_SUPPORT_NOVNC_MODE=embedded`
-- WS bridge modu: `REMOTE_SUPPORT_WS_MODE=internal`
+- Viewer modu: DB `settings.remote_support_novnc_mode=embedded`
+- WS bridge modu: DB `settings.remote_support_ws_mode=internal`
 - `/novnc-ws` endpoint'i FastAPI uygulamasi icinde calisir (`:8000`).
 - Harici noVNC/websockify servisleri varsayilan olarak kapali tutulur:
   - `appcenter-novnc-ws` -> disabled/inactive
@@ -125,7 +125,7 @@ Bu dokuman production ortami icin deploy, smoke ve rollback adimlarini tanimlar.
   - Cluster: `12/main`
   - Dinleme: sadece local (`127.0.0.1:5432`)
 - Uygulama baglantisi:
-  - `.env` icinde `DATABASE_URL=postgresql+psycopg2://...@127.0.0.1:5432/appcenter`
+  - `config/server.ini` icinde `database_url = postgresql+psycopg2://...@127.0.0.1:5432/appcenter`
   - Uygulama venv icinde `psycopg2-binary` kurulu olmalidir.
 - DB ve kullanici:
   - DB adi: `appcenter`
@@ -136,7 +136,7 @@ Bu dokuman production ortami icin deploy, smoke ve rollback adimlarini tanimlar.
   - Tasima sonrasi tablo satir sayilari kaynak->PostgreSQL dogrulanmistir.
 - Not:
   - Sunucu PostgreSQL-only calisir.
-  - `.env` icinde PostgreSQL disi `DATABASE_URL` ile uygulama baslatilmaz.
+  - `config/server.ini` icinde PostgreSQL disi `database_url` ile uygulama baslatilmaz.
 
 ### 1.9 PostgreSQL Performans/Bakim Ayarlari (2026-03-02)
 
@@ -148,6 +148,20 @@ Bu dokuman production ortami icin deploy, smoke ve rollback adimlarini tanimlar.
   - `effective_cache_size=8GB`
   - `work_mem=16MB`
   - `maintenance_work_mem=512MB`
+
+### 1.10 UI CSS Koruma Kurali (2026-03-10)
+
+- `app/static/css/app.css` legacy/non-Tabler katmandir.
+- `app-shell` altinda acilan sayfalarda global legacy selector sizmasi yasandigi icin su kural zorunludur:
+  - `card`, `btn`, `input`, `select`, `textarea`, `label`, `table`, `th`, `td` gibi genel kurallar
+    yalnizca `body:not(.app-shell)` scope'u ile yazilir.
+- Tabler sayfa duzenleri icin:
+  - ortak override -> `app/static/css/app-overrides.css`
+  - sayfa ozel duzeltme -> template icinde scope'lu selector
+- Belirti:
+  - radio/checkbox yatayda uzar
+  - `form-select` / `form-control` Tabler gorunumunden cikar
+  - kart padding/border/radius degerleri beklenmedik olur
   - `wal_compression=on`
   - `max_wal_size=4GB`
   - `min_wal_size=1GB`
@@ -269,7 +283,7 @@ Bu dokuman production ortami icin deploy, smoke ve rollback adimlarini tanimlar.
 - Kaynak repo dizini: `/root/appcenter/server`
 - Calisan uygulama dizini: `/opt/appcenter/server`
 - Virtual env: `/opt/appcenter/server/venv`
-- Environment file: `/opt/appcenter/server/.env`
+- Bootstrap config: `/opt/appcenter/server/config/server.ini`
 - Uvicorn bind: `0.0.0.0:8000` (nginx upstream `127.0.0.1:8000`)
 - systemd unit: `/etc/systemd/system/appcenter.service`
 - nginx conf: `/etc/nginx/custom-conf/appcenter.akgun.com.tr.conf`
@@ -293,8 +307,7 @@ sudo systemctl status appcenter --no-pager
 ```
 
 Not:
-- `rsync --delete` ile deploy yapiliyorsa `.env` dosyasi korunmalidir.
-- Ornek: `--exclude '.env'`
+- `config/server.ini` deploy edilen dosyanin bir parcasidir; hedefte guncel kalmali.
 - `venv` kopyalama/overwrite, `uvicorn` shebang'lerini bozup systemd `203/EXEC` hatasi uretebilir. Bu nedenle `venv` dizinlerini deploy kapsamindan cikarin.
 
 ### 2.2 Bu Sunucuda Kullanilan Rsync Deploy Akisi
@@ -313,25 +326,24 @@ rsync -av --delete \
   --exclude '.git' \
   --exclude 'venv' \
   --exclude 'venv39' \
-  --exclude '.env' \
   /root/appcenter/server/ /opt/appcenter/server/
 
 sudo systemctl restart appcenter
 sudo systemctl is-active appcenter
 ```
 
-### 2.3 .env Kritik Notlari
+### 2.3 Config Kritik Notlari
 
-- `CORS_ORIGINS` degeri JSON list formatinda olmali:
-  - dogru: `CORS_ORIGINS=["*"]`
-  - yanlis: `CORS_ORIGINS=*`
-- `rsync --delete` `.env` dosyasini silebilir; mutlaka exclude edin.
-- noVNC calisma modu:
-  - `REMOTE_SUPPORT_NOVNC_MODE=embedded` -> noVNC iframe yerine session sayfasinda dogrudan RFB (embed)
-  - `REMOTE_SUPPORT_NOVNC_MODE=iframe` -> onceki stabil iframe akisi (hizli fallback)
-- WS bridge modu:
-  - `REMOTE_SUPPORT_WS_MODE=internal` -> `/novnc-ws` FastAPI icinde calisir (ayri websockify servisi gerekmez)
-  - `REMOTE_SUPPORT_WS_MODE=external` -> harici websockify (6082) akisi
+- `config/server.ini` icindeki `cors_origins` JSON list formatinda olmali:
+  - dogru: `cors_origins=["*"]`
+  - yanlis: `cors_origins=*`
+- noVNC calisma modu DB `settings` tablosundan yonetilir:
+  - `remote_support_novnc_mode=embedded` -> noVNC iframe yerine session sayfasinda dogrudan RFB (embed)
+  - `remote_support_novnc_mode=iframe` -> legacy iframe akisi
+- WS bridge modu DB `settings` tablosundan yonetilir:
+  - `remote_support_ws_mode=internal` -> `/novnc-ws` FastAPI icinde calisir
+  - `remote_support_ws_mode=external` -> harici websockify akisi
+- `remote_support_enabled`, timeout ve max duration gibi davranis ayarlari `/settings` ekranindan degistirilir.
 
 ### 2.4 Agent Update Publish (Zorunlu Standart)
 
@@ -455,14 +467,13 @@ PGPASSWORD='***' psql -h 127.0.0.1 -U appcenter -d appcenter -c "SELECT 1;"
 - API regression (izole test DB):
   - `appcenter_test` PostgreSQL veritabani olusturulup testler bu DB'de kosuldu.
   - Komut:
-    - `DATABASE_URL=postgresql+psycopg2://appcenter:***@127.0.0.1:5432/appcenter_test python -m pytest -q tests --ignore=tests/test_signal_db_status.py`
+    - `config/server.ini` icindeki `database_url` gecici olarak `appcenter_test` DB'sine point edecek sekilde degistirilip `python -m pytest -q tests --ignore=tests/test_signal_db_status.py` kosuldu.
   - Sonuc: `46 passed`.
   - Not: `tests/test_signal_db_status.py` eski signal helper fonksiyon adlarini import ettigi icin collect asamasinda ayri takip edilmelidir.
 - Canli smoke API kontrolleri:
   - `/health`, `/api/v1/dashboard/stats`, `/api/v1/settings`, `/api/v1/groups`, `/api/v1/agents`, `/api/v1/inventory/dashboard`, `/api/v1/remote-support/sessions`, `/api/v1/audit/logs`, `/api/v1/agents/{uuid}/timeline` endpointleri `200` dondu.
 - PostgreSQL dosya isimleri devre-disi:
-  - `/var/lib/appcenter/appcenter.db` -> `/var/lib/appcenter/appcenter_postgresql_disabled_20260304_185317.db`
-  - `/opt/appcenter/server/appcenter.db` -> `/opt/appcenter/server/appcenter_postgresql_disabled_20260304_185317.db`
+  - Eski yerel veritabani artefaktlari kaldirildi; canli sistem yalnizca PostgreSQL kullanir.
   - Bu adim sonrasi servis restart + health kontrolu basarili.
 
 ## 4.3 Agent Status Flapping (signal_disconnect) Sorun Giderme
@@ -517,7 +528,7 @@ sudo systemctl restart appcenter
 
 - Server runtime snapshot:
   - `/opt/appcenter/server/.backup_remote_support_runtime_20260220_194350`
-  - Icerik: `app/models.py`, `app/schemas.py`, `app/database.py`, `app/services/heartbeat_service.py`, `app/templates/agents/detail.html`, `.env`, `appcenter.db`
+  - Icerik: `app/models.py`, `app/schemas.py`, `app/database.py`, `app/services/heartbeat_service.py`, `app/templates/agents/detail.html`, `config/server.ini`
 - Agent runtime snapshot (Windows test host `10.6.20.172`):
   - `C:\\Temp\\appcenter-backup-20260220_224401`
   - Icerik: `appcenter-service.exe`, `acremote-helper.exe`, `config.yaml`

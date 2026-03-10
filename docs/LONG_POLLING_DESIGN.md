@@ -1042,12 +1042,12 @@ asyncio.run(main())
 
 ## 11. Konfigürasyon
 
-### Server (.env)
+### Server Bootstrap Config (`config/server.ini`)
 
 ```bash
-# Mevcut — degisiklik yok
-# Opsiyonel eklenti (varsayilan 55sn, genelde degistirilmez):
-# SIGNAL_POLL_MAX_TIMEOUT_SEC=55
+# Mevcut bootstrap model:
+# database_url, secret_key, upload_dir, log_file vb. server.ini icinde tutulur
+# Runtime davranis ayarlari DB/settings tablosundan yonetilir
 ```
 
 ### Agent (config.yaml)

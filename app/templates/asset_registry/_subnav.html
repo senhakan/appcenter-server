@@ -1,0 +1,17 @@
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <ul class="nav nav-pills nav-pills-sm gap-2">
+      {% set p = request.url.path %}
+      <li class="nav-item"><a class="nav-link{% if p == '/asset-registry' %} active{% endif %}" href="/asset-registry">Genel Bakis</a></li>
+      <li class="nav-item"><a class="nav-link{% if p.startswith('/asset-registry/organization') %} active{% endif %}" href="/asset-registry/organization">Organizasyon</a></li>
+      <li class="nav-item"><a class="nav-link{% if p.startswith('/asset-registry/locations') %} active{% endif %}" href="/asset-registry/locations">Lokasyonlar</a></li>
+      <li class="nav-item"><a class="nav-link{% if p.startswith('/asset-registry/people') %} active{% endif %}" href="/asset-registry/people">Kisiler</a></li>
+      <li class="nav-item"><a class="nav-link{% if p.startswith('/asset-registry/assets') %} active{% endif %}" href="/asset-registry/assets">Assetler</a></li>
+      <li class="nav-item"><a class="nav-link{% if p.startswith('/asset-registry/matching') %} active{% endif %}" href="/asset-registry/matching">Eslestirme</a></li>
+      <li class="nav-item"><a class="nav-link{% if p.startswith('/asset-registry/data-quality') %} active{% endif %}" href="/asset-registry/data-quality">Veri Kalitesi</a></li>
+      <li class="nav-item"><a class="nav-link{% if p.startswith('/asset-registry/reports') %} active{% endif %}" href="/asset-registry/reports">Raporlar</a></li>
+      <li class="nav-item"><a class="nav-link{% if p.startswith('/asset-registry/settings') %} active{% endif %}" href="/asset-registry/settings">Ayarlar</a></li>
+      <li class="nav-item"><a class="nav-link{% if p.startswith('/asset-registry/help') %} active{% endif %}" href="/asset-registry/help">Yardim</a></li>
+    </ul>
+  </div>
+</div>

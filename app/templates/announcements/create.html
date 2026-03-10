@@ -2,115 +2,548 @@
 {% block title %}Duyuru Olustur{% endblock %}
 {% block page_title %}Duyuru Olustur{% endblock %}
 {% block page_actions %}
-<a class="btn btn-outline-primary btn-sm" href="/announcements"><i class="ti ti-list me-1"></i>Liste</a>
+<div class="btn-list">
+  <a class="btn btn-outline-primary btn-sm" href="/announcements"><i class="ti ti-list me-1"></i>Liste</a>
+</div>
 {% endblock %}
 {% block content %}
-<div class="row justify-content-center">
-  <div class="col-12 col-lg-10 col-xl-9">
-    <div class="card">
-      <div class="card-body">
-        <div id="ann-form-errors" class="alert alert-danger d-none" role="alert"></div>
-        <form id="ann-form" class="row g-3" novalidate>
-          <div class="col-12">
-            <label class="form-label" for="ann-title">Baslik</label>
-            <input id="ann-title" class="form-control" type="text" maxlength="200" required />
-          </div>
+<style>
+  .ann-create-page .card {
+    height: 100%;
+  }
 
-          <div class="col-12">
-            <label class="form-label" for="ann-message">Mesaj</label>
-            <textarea id="ann-message" class="form-control" rows="4" maxlength="5000" required></textarea>
-          </div>
+  .ann-create-page .card-header {
+    padding-bottom: 0;
+  }
 
-          <div class="col-12">
-            <label class="form-label d-block">Oncelik</label>
-            <label class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="priority" value="normal" checked />
-              <span class="form-check-label">Normal</span>
-            </label>
-            <label class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="priority" value="important" />
-              <span class="form-check-label">Onemli</span>
-            </label>
-            <label class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="priority" value="critical" />
-              <span class="form-check-label">Kritik</span>
-            </label>
-          </div>
+  .ann-create-page .eyebrow {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--tblr-primary, #066fd1);
+  }
 
-          <div class="col-12">
-            <label class="form-label d-block">Hedef Tipi</label>
-            <label class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="target_type" value="All" checked />
-              <span class="form-check-label">Tumune</span>
-            </label>
-            <label class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="target_type" value="Group" />
-              <span class="form-check-label">Grup</span>
-            </label>
-            <label class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="target_type" value="Agent" />
-              <span class="form-check-label">Agent</span>
-            </label>
-          </div>
+  .ann-create-page .hero-title {
+    margin: 0;
+    font-size: clamp(1.4rem, 2vw, 1.9rem);
+    font-weight: 700;
+    color: var(--tblr-body-color, #182433);
+  }
 
-          <div class="col-12 col-md-6 d-none" id="target-group-wrap">
-            <label class="form-label" for="target-group-id">Grup</label>
-            <select id="target-group-id" class="form-select"></select>
-          </div>
+  .ann-create-page .hero-copy {
+    margin: 0.35rem 0 0;
+    color: var(--tblr-secondary-color, #626976);
+    max-width: 62ch;
+  }
 
-          <div class="col-12 d-none" id="target-agent-wrap">
-            <label class="form-label" for="target-agent-search">Agent Ara</label>
-            <input id="target-agent-search" class="form-control mb-2" placeholder="Hostname / UUID ile ara" />
-            <select id="target-agent-id" class="form-select" size="8"></select>
-          </div>
+  .ann-create-page .hero-card {
+    background:
+      radial-gradient(circle at top left, rgba(15, 98, 254, 0.1), transparent 34%),
+      linear-gradient(135deg, rgba(15, 98, 254, 0.04), rgba(15, 98, 254, 0.01));
+  }
 
-          <div class="col-12">
-            <label class="form-label d-block">Iletim Zamani</label>
-            <label class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="schedule_mode" value="now" checked />
-              <span class="form-check-label">Hemen</span>
-            </label>
-            <label class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="schedule_mode" value="scheduled" />
-              <span class="form-check-label">Tarih-Saat Belirt</span>
-            </label>
-          </div>
+  .ann-create-page .hero-icon {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 98, 254, 0.12);
+    color: var(--tblr-primary, #066fd1);
+    font-size: 1.35rem;
+  }
 
-          <div class="col-12 col-md-6 d-none" id="scheduled-at-wrap">
-            <label class="form-label" for="scheduled-at">Iletim Tarih-Saati</label>
-            <input id="scheduled-at" class="form-control" type="datetime-local" />
-          </div>
+  .ann-create-page label.form-label,
+  .ann-create-page .form-check-label,
+  .ann-create-page .form-label {
+    display: block;
+    margin-bottom: 0.45rem;
+    color: var(--tblr-body-color, #182433);
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
 
-          <div class="col-12">
-            <label class="form-label d-block">Iletim Sekli</label>
-            <label class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="delivery_mode" value="online_only" checked />
-              <span class="form-check-label">Sadece Online</span>
-            </label>
-            <label class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="delivery_mode" value="include_offline" />
-              <span class="form-check-label">Offline Dahil</span>
-            </label>
-          </div>
+  .ann-create-page .form-control,
+  .ann-create-page .form-select {
+    width: 100%;
+    border: 1px solid var(--tblr-border-color, #dce1e7);
+    border-radius: var(--tblr-border-radius, 8px);
+    padding: 0.625rem 0.875rem;
+    background: #fff;
+    color: var(--tblr-body-color, #182433);
+    box-shadow: none;
+  }
 
-          <div class="col-12">
-            <label class="form-check">
-              <input id="expires-enabled" class="form-check-input" type="checkbox" />
-              <span class="form-check-label">Sona Erme</span>
-            </label>
-          </div>
+  .ann-create-page textarea.form-control {
+    min-height: 360px;
+    resize: vertical;
+    line-height: 1.55;
+  }
 
-          <div class="col-12 col-md-6 d-none" id="expires-at-wrap">
-            <label class="form-label" for="expires-at">Sona Erme Tarih-Saati</label>
-            <input id="expires-at" class="form-control" type="datetime-local" />
-          </div>
+  .ann-create-page .form-control:focus,
+  .ann-create-page .form-select:focus {
+    border-color: rgba(var(--tblr-primary-rgb, 15, 98, 254), 0.55);
+    box-shadow: 0 0 0 0.2rem rgba(var(--tblr-primary-rgb, 15, 98, 254), 0.15);
+  }
 
-          <div class="col-12 d-flex justify-content-end">
-            <button id="ann-submit" class="btn btn-primary" type="submit">
-              <i class="ti ti-send me-1"></i><span id="ann-submit-text">Yayinla</span>
-            </button>
+  .ann-create-page .control-card .card-body {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .ann-create-page .control-group {
+    display: grid;
+    gap: 0.65rem;
+  }
+
+  .ann-create-page .control-group + .control-group {
+    padding-top: 0.95rem;
+    border-top: 1px solid var(--tblr-border-color, #e6e7e9);
+  }
+
+  .ann-create-page .choice-grid {
+    display: grid;
+    gap: 0.55rem;
+  }
+
+  .ann-create-page .choice-option {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    align-items: start;
+    gap: 0.65rem;
+    border: 1px solid var(--tblr-border-color, #dce1e7);
+    border-radius: 12px;
+    padding: 0.8rem 0.9rem;
+    background: #fff;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  }
+
+  .ann-create-page .choice-option:hover {
+    border-color: rgba(var(--tblr-primary-rgb, 15, 98, 254), 0.4);
+    background: rgba(15, 98, 254, 0.02);
+  }
+
+  .ann-create-page .choice-option input {
+    width: 1rem;
+    min-width: 1rem;
+    height: 1rem;
+    margin: 0.15rem 0 0;
+    flex: 0 0 auto;
+  }
+
+  .ann-create-page .form-check-input,
+  .ann-create-page input[type="radio"].form-check-input,
+  .ann-create-page input[type="checkbox"].form-check-input {
+    width: 1rem !important;
+    min-width: 1rem !important;
+    max-width: 1rem !important;
+    height: 1rem !important;
+    padding: 0 !important;
+    flex: 0 0 auto;
+  }
+
+  .ann-create-page input[type="radio"].form-check-input {
+    border-radius: 50% !important;
+  }
+
+  .ann-create-page .choice-option-title {
+    display: block;
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--tblr-body-color, #182433);
+  }
+
+  .ann-create-page .choice-option-icon {
+    width: 2rem;
+    height: 2rem;
+    margin-top: -0.05rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    color: var(--tblr-primary, #066fd1);
+    background: rgba(var(--tblr-primary-rgb, 15, 98, 254), 0.1);
+  }
+
+  .ann-create-page .choice-option-icon.is-normal {
+    color: #0f766e;
+    background: rgba(15, 118, 110, 0.12);
+  }
+
+  .ann-create-page .choice-option-icon.is-important {
+    color: #b45309;
+    background: rgba(245, 158, 11, 0.16);
+  }
+
+  .ann-create-page .choice-option-icon.is-critical {
+    color: #b91c1c;
+    background: rgba(220, 38, 38, 0.12);
+  }
+
+  .ann-create-page .priority-group {
+    display: grid;
+    gap: 0;
+    border: 1px solid var(--tblr-border-color, #dce1e7);
+    border-radius: 14px;
+    overflow: hidden;
+    background: #fff;
+  }
+
+  .ann-create-page .priority-option {
+    position: relative;
+    margin: 0;
+    cursor: pointer;
+  }
+
+  .ann-create-page .priority-option + .priority-option {
+    border-top: 1px solid var(--tblr-border-color, #e6e7e9);
+  }
+
+  .ann-create-page .priority-option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .ann-create-page .priority-option-body {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem 0.95rem;
+    background: #fff;
+    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .ann-create-page .priority-option:hover .priority-option-body {
+    background: rgba(15, 98, 254, 0.03);
+  }
+
+  .ann-create-page .priority-option-copy {
+    min-width: 0;
+  }
+
+  .ann-create-page .priority-option-title {
+    display: block;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--tblr-body-color, #182433);
+  }
+
+  .ann-create-page .priority-option-hint {
+    display: block;
+    margin-top: 0.1rem;
+    font-size: 0.8rem;
+    color: var(--tblr-secondary-color, #626976);
+  }
+
+  .ann-create-page .priority-option input:checked + .priority-option-body {
+    background: rgba(15, 98, 254, 0.06);
+    box-shadow: inset 3px 0 0 var(--tblr-primary, #066fd1);
+  }
+
+  .ann-create-page .priority-option input:checked + .priority-option-body .priority-option-title {
+    color: var(--tblr-primary, #066fd1);
+  }
+
+  .ann-create-page .priority-option input:checked + .priority-option-body .choice-option-icon.is-normal {
+    background: rgba(15, 118, 110, 0.18);
+  }
+
+  .ann-create-page .priority-option input:checked + .priority-option-body .choice-option-icon.is-important {
+    background: rgba(245, 158, 11, 0.24);
+  }
+
+  .ann-create-page .priority-option input:checked + .priority-option-body .choice-option-icon.is-critical {
+    background: rgba(220, 38, 38, 0.18);
+  }
+
+  .ann-create-page .choice-option-hint {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.8rem;
+    color: var(--tblr-secondary-color, #626976);
+  }
+
+  .ann-create-page .hint-list {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .ann-create-page .hint-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.65rem;
+    align-items: start;
+  }
+
+  .ann-create-page .hint-item i {
+    margin-top: 0.1rem;
+    color: var(--tblr-primary, #066fd1);
+  }
+
+  .ann-create-page .ann-agent-select {
+    min-height: 240px;
+    padding: 0.35rem;
+  }
+
+  .ann-create-page .sticky-col {
+    position: sticky;
+    top: 1rem;
+  }
+
+  @media (max-width: 991.98px) {
+    .ann-create-page textarea.form-control {
+      min-height: 240px;
+    }
+
+    .ann-create-page .sticky-col {
+      position: static;
+      top: auto;
+    }
+  }
+</style>
+
+<div class="ann-create-page">
+  <div class="row row-cards g-4">
+    <div class="col-12">
+      <div class="card hero-card">
+        <div class="card-body d-flex flex-column flex-lg-row align-items-start align-items-lg-center justify-content-between gap-3">
+          <div class="d-flex align-items-start gap-3">
+            <span class="hero-icon"><i class="ti ti-speakerphone"></i></span>
+            <div>
+              <div class="eyebrow">Duyuru Merkezi</div>
+              <h2 class="hero-title">Duyuruyu hazirla ve hedefini sag taraftan belirle</h2>
+              <p class="hero-copy">Baslik ve mesaj icerigi solda kalir. Dagitim, zamanlama ve teslim sekli kontrolleri sagdaki panelden yonetilir.</p>
+            </div>
           </div>
-        </form>
+          <div class="text-secondary small">
+            Taslakta karakter siniri:
+            <strong class="text-body">Baslik 200</strong>,
+            <strong class="text-body">Mesaj 5000</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-8">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="eyebrow">Icerik</div>
+            <h3 class="card-title mb-0">Duyuru metni</h3>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="ann-form-errors" class="alert alert-danger d-none mb-4" role="alert"></div>
+          <form id="ann-form" class="row g-4" novalidate>
+            <div class="col-12">
+              <label class="form-label" for="ann-title">Baslik</label>
+              <input id="ann-title" class="form-control" type="text" maxlength="200" placeholder="Ornek: Planli bakim bilgilendirmesi" required />
+              <div class="form-hint">Liste ekraninda ve agent popup basliginda gorunen kisa metin.</div>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label" for="ann-message">Mesaj</label>
+              <textarea id="ann-message" class="form-control" maxlength="5000" placeholder="Kullanicinin gormesi gereken aciklama metnini yazin." required></textarea>
+              <div class="form-hint">Uzun metin, satir kirilimi ve detayli aciklama burada tutulur.</div>
+            </div>
+
+            <div class="col-12 d-none" id="target-agent-wrap">
+              <div class="row g-3">
+                <div class="col-12">
+                  <label class="form-label" for="target-agent-search">Agent Ara</label>
+                  <input id="target-agent-search" class="form-control" placeholder="Hostname / UUID ile ara" />
+                </div>
+                <div class="col-12">
+                  <label class="form-label" for="target-agent-id">Agent Secimi</label>
+                  <select id="target-agent-id" class="form-select ann-agent-select" size="8"></select>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 d-flex justify-content-end">
+              <button id="ann-submit" class="btn btn-primary" type="submit">
+                <i class="ti ti-send me-1"></i><span id="ann-submit-text">Yayinla</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-4">
+      <div class="sticky-col d-grid gap-4">
+        <div class="card control-card">
+          <div class="card-header">
+            <div>
+              <div class="eyebrow">Dagitim</div>
+              <h3 class="card-title mb-0">Teslim ayarlari</h3>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="control-group">
+              <div class="form-label mb-0">Oncelik</div>
+              <div class="priority-group" role="radiogroup" aria-label="Oncelik secimi">
+                <label class="priority-option">
+                  <input class="form-check-input" type="radio" name="priority" value="normal" checked />
+                  <span class="priority-option-body">
+                    <span class="choice-option-icon is-normal"><i class="ti ti-info-circle"></i></span>
+                    <span class="priority-option-copy">
+                      <span class="priority-option-title">Normal</span>
+                      <span class="priority-option-hint">Standart bilgilendirme akisi.</span>
+                    </span>
+                  </span>
+                </label>
+                <label class="priority-option">
+                  <input class="form-check-input" type="radio" name="priority" value="important" />
+                  <span class="priority-option-body">
+                    <span class="choice-option-icon is-important"><i class="ti ti-alert-circle"></i></span>
+                    <span class="priority-option-copy">
+                      <span class="priority-option-title">Onemli</span>
+                      <span class="priority-option-hint">Kullanicinin dikkatini daha fazla ceker.</span>
+                    </span>
+                  </span>
+                </label>
+                <label class="priority-option">
+                  <input class="form-check-input" type="radio" name="priority" value="critical" />
+                  <span class="priority-option-body">
+                    <span class="choice-option-icon is-critical"><i class="ti ti-alert-octagon"></i></span>
+                    <span class="priority-option-copy">
+                      <span class="priority-option-title">Kritik</span>
+                      <span class="priority-option-hint">Kesinti, guvenlik veya acil aksiyon gerektiren durumlar.</span>
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <div class="form-label mb-0">Hedef tipi</div>
+              <div class="choice-grid">
+                <label class="choice-option">
+                  <input class="form-check-input" type="radio" name="target_type" value="All" checked />
+                  <span>
+                    <span class="choice-option-title">Tum ajanlar</span>
+                    <span class="choice-option-hint">Sistemdeki tum hedeflere gonderilir.</span>
+                  </span>
+                </label>
+                <label class="choice-option">
+                  <input class="form-check-input" type="radio" name="target_type" value="Group" />
+                  <span>
+                    <span class="choice-option-title">Belirli grup</span>
+                    <span class="choice-option-hint">Secilen gruba uye ajanlar hedeflenir.</span>
+                  </span>
+                </label>
+                <label class="choice-option">
+                  <input class="form-check-input" type="radio" name="target_type" value="Agent" />
+                  <span>
+                    <span class="choice-option-title">Tek ajan</span>
+                    <span class="choice-option-hint">Arama ile belirli bir client secilir.</span>
+                  </span>
+                </label>
+              </div>
+
+              <div class="d-none" id="target-group-wrap">
+                <label class="form-label" for="target-group-id">Grup</label>
+                <select id="target-group-id" class="form-select"></select>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <div class="form-label mb-0">Iletim zamani</div>
+              <div class="choice-grid">
+                <label class="choice-option">
+                  <input class="form-check-input" type="radio" name="schedule_mode" value="now" checked />
+                  <span>
+                    <span class="choice-option-title">Hemen</span>
+                    <span class="choice-option-hint">Kayit sonrasi dagitim kuyruguna aninda girer.</span>
+                  </span>
+                </label>
+                <label class="choice-option">
+                  <input class="form-check-input" type="radio" name="schedule_mode" value="scheduled" />
+                  <span>
+                    <span class="choice-option-title">Planli yayin</span>
+                    <span class="choice-option-hint">Belirli tarih ve saatte otomatik baslar.</span>
+                  </span>
+                </label>
+              </div>
+
+              <div class="d-none" id="scheduled-at-wrap">
+                <label class="form-label" for="scheduled-at">Iletim tarih-saati</label>
+                <input id="scheduled-at" class="form-control" type="datetime-local" />
+              </div>
+            </div>
+
+            <div class="control-group">
+              <div class="form-label mb-0">Iletim sekli</div>
+              <div class="choice-grid">
+                <label class="choice-option">
+                  <input class="form-check-input" type="radio" name="delivery_mode" value="online_only" checked />
+                  <span>
+                    <span class="choice-option-title">Sadece online</span>
+                    <span class="choice-option-hint">O anda bagli ajanlara gonderilir.</span>
+                  </span>
+                </label>
+                <label class="choice-option">
+                  <input class="form-check-input" type="radio" name="delivery_mode" value="include_offline" />
+                  <span>
+                    <span class="choice-option-title">Offline dahil</span>
+                    <span class="choice-option-hint">Offline cihazlar online olunca da teslim edilir.</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <label class="choice-option">
+                <input id="expires-enabled" class="form-check-input" type="checkbox" />
+                <span>
+                  <span class="choice-option-title">Sona erme kullan</span>
+                  <span class="choice-option-hint">Belirlenen tarihten sonra teslim edilmeyecek.</span>
+                </span>
+              </label>
+              <div class="d-none" id="expires-at-wrap">
+                <label class="form-label" for="expires-at">Sona erme tarih-saati</label>
+                <input id="expires-at" class="form-control" type="datetime-local" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title mb-0">Hazirlama Notlari</h3>
+          </div>
+          <div class="card-body">
+            <div class="hint-list">
+              <div class="hint-item">
+                <i class="ti ti-checklist"></i>
+                <div>
+                  <div class="fw-semibold">Baslik kisa olmali</div>
+                  <div class="text-secondary small">Popup ve liste ekraninda ilk gorunen alan budur.</div>
+                </div>
+              </div>
+              <div class="hint-item">
+                <i class="ti ti-clock-hour-4"></i>
+                <div>
+                  <div class="fw-semibold">Planli yayin</div>
+                  <div class="text-secondary small">Saat secildiginde sunucu UTC olarak saklar, UI yerel saat gostermeye devam eder.</div>
+                </div>
+              </div>
+              <div class="hint-item">
+                <i class="ti ti-users-group"></i>
+                <div>
+                  <div class="fw-semibold">Hedef kontrolu</div>
+                  <div class="text-secondary small">Tek ajan seciliyken arama kutusundaki filtre secili listeyi aninda daraltir.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -258,67 +691,56 @@
   }
 
   function buildPayload() {
-    const errors = [];
     const title = (document.getElementById('ann-title').value || '').trim();
     const message = (document.getElementById('ann-message').value || '').trim();
-    const priority = parseRadio('priority');
-    const targetType = parseRadio('target_type');
-    const scheduleMode = parseRadio('schedule_mode');
-    const deliveryMode = parseRadio('delivery_mode');
-
-    if (!title) errors.push('Baslik zorunludur.');
-    if (!message) errors.push('Mesaj zorunludur.');
+    const priority = parseRadio('priority') || 'normal';
+    const targetType = parseRadio('target_type') || 'All';
+    const scheduleMode = parseRadio('schedule_mode') || 'now';
+    const deliveryMode = parseRadio('delivery_mode') || 'online_only';
+    const expiresEnabled = document.getElementById('expires-enabled').checked;
 
     let targetId = null;
     if (targetType === 'Group') {
-      targetId = (document.getElementById('target-group-id').value || '').trim() || null;
-      if (!targetId) errors.push('Grup secimi zorunludur.');
+      targetId = Number(document.getElementById('target-group-id').value || 0) || null;
     } else if (targetType === 'Agent') {
       targetId = (document.getElementById('target-agent-id').value || '').trim() || null;
-      if (!targetId) errors.push('Agent secimi zorunludur.');
-    }
-
-    let scheduledAt = null;
-    if (scheduleMode === 'scheduled') {
-      scheduledAt = toUtcIso(document.getElementById('scheduled-at').value || '');
-      if (!scheduledAt) errors.push('Gecerli bir iletim tarih-saati giriniz.');
-    }
-
-    let expiresAt = null;
-    if (document.getElementById('expires-enabled').checked) {
-      expiresAt = toUtcIso(document.getElementById('expires-at').value || '');
-      if (!expiresAt) errors.push('Gecerli bir sona erme tarih-saati giriniz.');
     }
 
     return {
-      errors,
-      payload: {
-        title,
-        message,
-        priority,
-        target_type: targetType,
-        target_id: targetId,
-        delivery_mode: deliveryMode,
-        scheduled_at: scheduledAt,
-        expires_at: expiresAt,
-      },
+      title,
+      message,
+      priority,
+      target_type: targetType,
+      target_id: targetId,
+      scheduled_at: scheduleMode === 'scheduled' ? toUtcIso(document.getElementById('scheduled-at').value) : null,
+      delivery_mode: deliveryMode,
+      expires_at: expiresEnabled ? toUtcIso(document.getElementById('expires-at').value) : null,
     };
+  }
+
+  function validatePayload(payload) {
+    const errors = [];
+    if (!payload.title || payload.title.length < 3) errors.push('Baslik en az 3 karakter olmalidir.');
+    if (!payload.message || payload.message.length < 3) errors.push('Mesaj en az 3 karakter olmalidir.');
+    if (payload.target_type === 'Group' && !payload.target_id) errors.push('Grup hedefi secilmelidir.');
+    if (payload.target_type === 'Agent' && !payload.target_id) errors.push('Agent hedefi secilmelidir.');
+    if (parseRadio('schedule_mode') === 'scheduled' && !payload.scheduled_at) errors.push('Planli yayin icin tarih-saat girilmelidir.');
+    if (document.getElementById('expires-enabled').checked && !payload.expires_at) errors.push('Sona erme aciksa tarih-saat girilmelidir.');
+    return errors;
   }
 
   document.querySelectorAll('input[name="target_type"]').forEach((el) => el.addEventListener('change', syncTargetType));
   document.querySelectorAll('input[name="schedule_mode"]').forEach((el) => el.addEventListener('change', syncScheduleMode));
   document.getElementById('expires-enabled').addEventListener('change', syncExpireMode);
-  document.getElementById('target-agent-search').addEventListener('input', (e) => {
-    renderAgentOptions(e.target.value || '');
-  });
+  document.getElementById('target-agent-search').addEventListener('input', (evt) => renderAgentOptions(evt.target.value || ''));
 
-  document.getElementById('ann-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
+  document.getElementById('ann-form').addEventListener('submit', async (evt) => {
+    evt.preventDefault();
     renderErrors([]);
-
-    const built = buildPayload();
-    if (built.errors.length) {
-      renderErrors(built.errors);
+    const payload = buildPayload();
+    const errors = validatePayload(payload);
+    if (errors.length) {
+      renderErrors(errors);
       return;
     }
 
@@ -329,19 +751,19 @@
         await AppCenterApi.req(`/announcements/${editAnnouncementId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(built.payload),
+          body: JSON.stringify(payload),
         });
       } else {
         await AppCenterApi.req('/announcements', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(built.payload),
+          body: JSON.stringify(payload),
         });
       }
-      AppCenterApi.toast('Duyuru kaydedildi');
+      AppCenterApi.toast(editAnnouncementId ? 'Duyuru guncellendi' : 'Duyuru olusturuldu');
       setTimeout(() => { location.href = '/announcements'; }, 500);
     } catch (err) {
-      renderErrors(err.message || 'Kayit islemi basarisiz');
+      renderErrors(err.message || 'Duyuru kaydedilemedi');
     } finally {
       submitBtn.disabled = false;
     }
@@ -355,7 +777,7 @@
       syncExpireMode();
       await loadEditData();
     } catch (err) {
-      renderErrors(err.message || 'Form verileri yuklenemedi');
+      renderErrors(err.message || 'Duyuru formu yuklenemedi');
     }
   })();
 </script>

@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Asset Registry Kisiler{% endblock %}
+{% block page_title %}Kisiler{% endblock %}
+{% block content %}
+{% include "asset_registry/_subnav.html" %}
+<style>
+  .ar-people-toolbar {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr 1fr 1fr auto;
+    gap: 0.75rem;
+  }
+  @media (max-width: 991.98px) {
+    .ar-people-toolbar {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  @media (max-width: 575.98px) {
+    .ar-people-toolbar {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Yeni Kisi</h3></div>
+      <div class="card-body">
+        <form id="people-form" class="d-flex flex-column gap-2">
+          <input id="person-full-name" class="form-control" placeholder="Ad Soyad" required />
+          <input id="person-username" class="form-control" placeholder="Kullanici adi" />
+          <input id="person-email" class="form-control" placeholder="E-posta" />
+          <input id="person-phone" class="form-control" placeholder="Telefon" />
+          <input id="person-title" class="form-control" placeholder="Unvan" />
+          <select id="person-org-id" class="form-select"><option value="">Organizasyon yok</option></select>
+          <button class="btn btn-primary" type="submit">Kaydet</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header border-0 pb-0">
+        <div class="w-100">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+            <div>
+              <h3 class="card-title mb-1">Kisi Listesi</h3>
+              <div class="text-secondary small">Primary user ve owner havuzunu filtreleyerek yonet.</div>
+            </div>
+            <button id="people-reset-filters" class="btn btn-outline-secondary btn-sm" type="button">Filtreleri Temizle</button>
+          </div>
+          <div class="ar-people-toolbar">
+            <input id="people-filter-q" class="form-control" placeholder="Ad, kullanici, e-posta ara" />
+            <select id="people-filter-org" class="form-select"><option value="">Tum organizasyonlar</option></select>
+            <select id="people-filter-status" class="form-select">
+              <option value="">Tum durumlar</option>
+              <option value="active">Aktif</option>
+              <option value="inactive">Pasif</option>
+            </select>
+            <select id="people-filter-assets" class="form-select">
+              <option value="">Asset baglantisi</option>
+              <option value="has_assets">Asset bagli</option>
+              <option value="no_assets">Asset bagli degil</option>
+            </select>
+            <div class="d-flex align-items-center text-secondary small px-2">Gorunen: <span id="people-filtered-count" class="ms-1 fw-bold">0</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th>Ad</th><th>Kullanici</th><th>Organizasyon</th><th>Asset</th><th>Durum</th></tr></thead><tbody id="people-table"></tbody></table></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let allPeople = [];
+let allOrgs = [];
+
+function escHtml(value) {
+  return (value || "").toString()
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function renderPeople(items) {
+  document.getElementById("people-filtered-count").textContent = String(items.length);
+  document.getElementById("people-table").innerHTML = (items || []).map((x) => `
+    <tr>
+      <td><a href="/asset-registry/people/${x.id}">${escHtml(x.full_name)}</a></td>
+      <td>${escHtml(x.username || "-")}</td>
+      <td>${escHtml(x.org_path || "-")}</td>
+      <td>${x.asset_count}</td>
+      <td>${x.is_active ? '<span class="badge bg-green-lt text-green">Aktif</span>' : '<span class="badge bg-secondary-lt text-secondary">Pasif</span>'}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="5" class="text-secondary">Kayit yok</td></tr>`;
+}
+
+function applyPeopleFilters() {
+  const q = (document.getElementById("people-filter-q").value || "").trim().toLowerCase();
+  const orgId = document.getElementById("people-filter-org").value;
+  const status = document.getElementById("people-filter-status").value;
+  const assets = document.getElementById("people-filter-assets").value;
+  const filtered = allPeople.filter((item) => {
+    if (q) {
+      const hay = [item.full_name, item.username, item.email].filter(Boolean).join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (orgId && String(item.org_node_id || "") !== String(orgId)) return false;
+    if (status === "active" && !item.is_active) return false;
+    if (status === "inactive" && item.is_active) return false;
+    if (assets === "has_assets" && Number(item.asset_count || 0) <= 0) return false;
+    if (assets === "no_assets" && Number(item.asset_count || 0) > 0) return false;
+    return true;
+  });
+  renderPeople(filtered);
+}
+
+async function loadPeoplePage() {
+  const orgs = await AppCenterApi.req("/asset-registry/organization?include_inactive=true");
+  allOrgs = orgs.items || [];
+  document.getElementById("person-org-id").innerHTML = `<option value="">Organizasyon yok</option>` + allOrgs.map((x) => `<option value="${x.id}">${escHtml(x.path)}</option>`).join("");
+  document.getElementById("people-filter-org").innerHTML = `<option value="">Tum organizasyonlar</option>` + allOrgs.map((x) => `<option value="${x.id}">${escHtml(x.path)}</option>`).join("");
+  const list = await AppCenterApi.req("/asset-registry/people?include_inactive=true");
+  allPeople = list.items || [];
+  applyPeopleFilters();
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  await AppCenterApi.protectPage();
+  await loadPeoplePage();
+  ["people-filter-q", "people-filter-org", "people-filter-status", "people-filter-assets"].forEach((id) => {
+    document.getElementById(id).addEventListener("input", applyPeopleFilters);
+    document.getElementById(id).addEventListener("change", applyPeopleFilters);
+  });
+  document.getElementById("people-reset-filters").addEventListener("click", () => {
+    ["people-filter-q", "people-filter-org", "people-filter-status", "people-filter-assets"].forEach((id) => {
+      document.getElementById(id).value = "";
+    });
+    applyPeopleFilters();
+  });
+  document.getElementById("people-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await AppCenterApi.req("/asset-registry/people", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({
+      full_name: document.getElementById("person-full-name").value,
+      username: document.getElementById("person-username").value || null,
+      email: document.getElementById("person-email").value || null,
+      phone: document.getElementById("person-phone").value || null,
+      title: document.getElementById("person-title").value || null,
+      org_node_id: document.getElementById("person-org-id").value ? Number(document.getElementById("person-org-id").value) : null,
+      source_type: "manual",
+      is_active: true
+    })});
+    AppCenterApi.toast("Kisi olusturuldu", "success");
+    e.target.reset();
+    await loadPeoplePage();
+  });
+});
+</script>
+{% endblock %}

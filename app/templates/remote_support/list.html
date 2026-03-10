@@ -1,11 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}Destek Merkezi{% endblock %}
 {% block page_title %}Destek Merkezi{% endblock %}
-{% block page_actions %}
-<button class="btn btn-outline-primary btn-sm" type="button" onclick="loadAgents()">
-  <i class="ti ti-refresh me-1"></i>Yenile
-</button>
-{% endblock %}
 {% block content %}
 <style>
   .agent-host-wrap {
@@ -522,10 +517,19 @@
     const allowed = isRemoteSupportAllowed(agent);
     const online = (agent && (agent.status || '').toLowerCase() === 'online');
     const enabled = allowed && online;
+    const remoteState = (agent && agent.remote_support_state ? String(agent.remote_support_state) : '').toLowerCase();
+    const hasActiveSession = ['approved', 'connecting', 'active'].includes(remoteState) && Number((agent && agent.remote_support_session_id) || 0) > 0;
     let title = '';
     if (!allowed) title = 'Bu ajan Remote Support grubunda degil';
     else if (!online) title = 'Baglanti istegi icin ajan cevrimici olmali';
-    return { enabled, title };
+    return {
+      enabled,
+      title,
+      hasActiveSession,
+      className: hasActiveSession
+        ? 'btn btn-green btn-sm btn-animate-icon btn-animate-icon-shake'
+        : (enabled ? 'btn btn-primary btn-sm btn-animate-icon btn-animate-icon-shake' : 'btn btn-outline-secondary btn-sm btn-animate-icon btn-animate-icon-shake'),
+    };
   }
 
   function getAgentByUUID(agentUUID) {
@@ -554,6 +558,13 @@
     const sid = Number(sessionId || 0);
     if (!sid) return;
     window.open(`/remote-support/sessions/${encodeURIComponent(String(sid))}`, '_blank');
+  }
+
+  function hasExistingRemoteSession(agent) {
+    const state = (agent && agent.remote_support_state ? String(agent.remote_support_state) : '').toLowerCase();
+    const sid = Number((agent && agent.remote_support_session_id) || 0);
+    if (!sid) return false;
+    return ['approved', 'connecting', 'active'].includes(state);
   }
 
   function renderPage() {
@@ -601,7 +612,7 @@
         <td>
           <div class="btn-list flex-nowrap">
             ${canRemote ? `<button
-              class="${connectState.enabled ? 'btn btn-primary btn-sm btn-animate-icon btn-animate-icon-shake' : 'btn btn-outline-secondary btn-sm btn-animate-icon btn-animate-icon-shake'} js-connect-remote"
+              class="${connectState.className} js-connect-remote"
               type="button"
               data-agent-uuid="${esc(agent.uuid || '')}"
               data-agent-hostname="${esc(agent.hostname || '')}"
@@ -693,7 +704,7 @@
       const btn = row.querySelector('.js-connect-remote');
       if (btn) {
         const connectState = connectButtonState(agent);
-        btn.className = `${connectState.enabled ? 'btn btn-primary btn-sm btn-animate-icon btn-animate-icon-shake' : 'btn btn-outline-secondary btn-sm btn-animate-icon btn-animate-icon-shake'} js-connect-remote`;
+        btn.className = `${connectState.className} js-connect-remote`;
         btn.setAttribute('data-agent-status', agent.status || '');
         btn.setAttribute('data-connect-enabled', connectState.enabled ? '1' : '0');
         if (connectState.title) btn.setAttribute('title', connectState.title);
@@ -720,7 +731,6 @@
       const payload = {
         agent_uuid: agentUUID,
         reason,
-        max_duration_min: 60,
       };
       const data = await AppCenterApi.req('/remote-support/sessions', {
         method: 'POST',
@@ -808,6 +818,10 @@
       if ((btn.getAttribute('data-connect-enabled') || '0') !== '1') return;
       const agentUUID = btn.getAttribute('data-agent-uuid') || '';
       const agent = getAgentByUUID(agentUUID);
+      if (hasExistingRemoteSession(agent)) {
+        AppCenterApi.toast('Bu ajanda zaten aktif bir destek oturumu var.');
+        return;
+      }
       const rsState = (agent && agent.remote_support_state ? String(agent.remote_support_state) : '').toLowerCase();
       const rsSessionId = Number((agent && agent.remote_support_session_id) || 0);
       if (rsState === 'pending_approval' && rsSessionId > 0) {

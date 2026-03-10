@@ -105,6 +105,10 @@ MAX_SESSION_TIMEOUT_MINUTES = 1440
 MIN_RECORDING_FPS = 1
 MAX_RECORDING_FPS = 30
 MIN_DYNAMIC_GROUP_SYNC_INTERVAL_SEC = 30
+MIN_REMOTE_SUPPORT_APPROVAL_TIMEOUT_SEC = 30
+MAX_REMOTE_SUPPORT_APPROVAL_TIMEOUT_SEC = 3600
+MIN_REMOTE_SUPPORT_DURATION_MIN = 1
+MAX_REMOTE_SUPPORT_DURATION_MIN = 480
 MAX_SCRIPT_PREVIEW_BYTES = 256 * 1024
 SCRIPT_PREVIEW_FILE_TYPES = {"ps1", "sh"}
 
@@ -325,7 +329,7 @@ def agents_delete(
     if not agent:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
 
-    # Explicit cleanup keeps delete stable across SQLite/ORM cascade differences.
+    # Explicit cleanup keeps delete order predictable across ORM cascade paths.
     db.query(AgentApplication).filter(AgentApplication.agent_uuid == agent_uuid).delete(synchronize_session=False)
     db.query(AgentGroup).filter(AgentGroup.agent_uuid == agent_uuid).delete(synchronize_session=False)
     db.query(AgentSoftwareInventory).filter(AgentSoftwareInventory.agent_uuid == agent_uuid).delete(
@@ -1532,12 +1536,75 @@ def settings_update(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"dynamic_group_sync_interval_sec must be >= {MIN_DYNAMIC_GROUP_SYNC_INTERVAL_SEC}",
                 )
+        if key == "remote_support_approval_timeout_sec":
+            try:
+                num = int((value or "").strip())
+            except Exception:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid remote_support_approval_timeout_sec",
+                )
+            if num < MIN_REMOTE_SUPPORT_APPROVAL_TIMEOUT_SEC or num > MAX_REMOTE_SUPPORT_APPROVAL_TIMEOUT_SEC:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        "remote_support_approval_timeout_sec must be between "
+                        f"{MIN_REMOTE_SUPPORT_APPROVAL_TIMEOUT_SEC} and {MAX_REMOTE_SUPPORT_APPROVAL_TIMEOUT_SEC}"
+                    ),
+                )
+        if key in {"remote_support_default_max_duration_min", "remote_support_max_duration_min"}:
+            try:
+                num = int((value or "").strip())
+            except Exception:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid {key}",
+                )
+            if num < MIN_REMOTE_SUPPORT_DURATION_MIN or num > MAX_REMOTE_SUPPORT_DURATION_MIN:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"{key} must be between {MIN_REMOTE_SUPPORT_DURATION_MIN} "
+                        f"and {MAX_REMOTE_SUPPORT_DURATION_MIN}"
+                    ),
+                )
+        if key == "remote_support_novnc_mode":
+            mode = (value or "").strip().lower()
+            if mode not in {"iframe", "embedded"}:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid remote_support_novnc_mode")
+        if key == "remote_support_ws_mode":
+            mode = (value or "").strip().lower()
+            if mode not in {"external", "internal"}:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid remote_support_ws_mode")
+        if key == "remote_support_control_bar_mode":
+            mode = (value or "").strip().lower()
+            if mode not in {"embedded", "topbar"}:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid remote_support_control_bar_mode")
         item = db.query(Setting).filter(Setting.key == key).first()
         if key == "remote_support_approval_required":
             old_value = item.value if item else None
             remote_approval_old = _is_truthy(old_value, default=True)
             remote_approval_new = _is_truthy(value, default=True)
             remote_approval_changed = remote_approval_old != remote_approval_new
+        if key == "remote_support_default_max_duration_min":
+            try:
+                default_duration = int((value or "").strip())
+                max_duration_raw = payload.values.get("remote_support_max_duration_min")
+                current_max_item = db.query(Setting).filter(Setting.key == "remote_support_max_duration_min").first()
+                current_max = max_duration_raw if max_duration_raw is not None else (
+                    current_max_item.value if current_max_item else "480"
+                )
+                max_duration = int(str(current_max).strip())
+            except Exception:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid remote support duration values",
+                )
+            if default_duration > max_duration:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="remote_support_default_max_duration_min cannot be greater than remote_support_max_duration_min",
+                )
         if not item:
             item = Setting(key=key, value=value, description="Updated via API", updated_at=now)
         else:

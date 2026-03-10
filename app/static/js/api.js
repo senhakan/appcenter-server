@@ -96,7 +96,7 @@
     if (typeof value === "number") return new Date(value);
     const s0 = value.toString().trim();
     if (!s0) return null;
-    // Handle sqlite-style "YYYY-MM-DD HH:MM:SS" (treat as UTC)
+    // Handle naive server timestamps like "YYYY-MM-DD HH:MM:SS" as UTC.
     let s = s0;
     if (s.includes(" ") && !s.includes("T")) s = s.replace(" ", "T");
     const hasTz =

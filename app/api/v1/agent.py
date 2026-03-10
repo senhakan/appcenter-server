@@ -16,6 +16,7 @@ from app.services import agent_signal
 from app.services import announcement_service
 from app.models import Agent, AgentApplication, AgentSoftwareInventory, AgentStatusHistory, Application, Setting, TaskHistory
 from app.services.heartbeat_service import process_heartbeat
+from app.services import runtime_config_service as runtime_config
 from app.schemas import (
     AnnouncementAckRequest,
     AgentConfig,
@@ -277,7 +278,7 @@ def heartbeat(
 
     remote_req: RemoteSupportRequest | None = None
     remote_end: RemoteSupportEnd | None = None
-    remote_support_allowed = settings.remote_support_enabled and bool(getattr(config, "remote_support_enabled", False))
+    remote_support_allowed = runtime_config.is_remote_support_enabled(db) and bool(getattr(config, "remote_support_enabled", False))
     if remote_support_allowed:
         pending = rs.get_pending_for_agent(db, x_agent_uuid)
         if pending:

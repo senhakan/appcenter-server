@@ -6,7 +6,7 @@
 :root {
   --tblr-primary: #0f62fe;
   --tblr-primary-rgb: 15, 98, 254;
-  --tblr-font-sans-serif: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --tblr-font-sans-serif: "Inter Var", Inter, -apple-system, BlinkMacSystemFont, "San Francisco", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
 }
 
 .navbar-brand-autodark .navbar-brand-image {
@@ -24,6 +24,35 @@
 
 body.app-shell {
   background: var(--tblr-bg-surface-secondary, #f4f6fa);
+  font-family: var(--tblr-body-font-family);
+  font-size: var(--tblr-body-font-size);
+  font-weight: var(--tblr-body-font-weight);
+  line-height: var(--tblr-body-line-height);
+}
+
+.app-shell h1,
+.app-shell h2,
+.app-shell h3,
+.app-shell h4,
+.app-shell h5,
+.app-shell h6,
+.app-shell .h1,
+.app-shell .h2,
+.app-shell .h3,
+.app-shell .h4,
+.app-shell .h5,
+.app-shell .h6,
+.app-shell .page-title,
+.app-shell .page-pretitle,
+.app-shell .card-title,
+.app-shell .form-label,
+.app-shell .form-select,
+.app-shell .form-control,
+.app-shell .dropdown-item,
+.app-shell .table,
+.app-shell .btn,
+.app-shell .badge {
+  font-family: inherit;
 }
 
 .app-shell .page {
@@ -88,8 +117,81 @@ body.app-shell {
   font-weight: 600;
 }
 
+/* Match the horizontal navigation typography with the stock Tabler demo. */
+.app-main-navbar,
+.app-sub-navbar,
+.app-main-navbar .nav-link,
+.app-sub-navbar .nav-link,
+.app-sub-navbar .dropdown-item,
+.app-main-navbar .dropdown-item,
+.app-main-navbar .navbar-brand,
+.app-sub-navbar .nav-link-title {
+  font-family: "Inter Var", Inter, -apple-system, BlinkMacSystemFont, "San Francisco", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  font-size: var(--tblr-body-font-size, 0.875rem);
+  font-weight: var(--tblr-body-font-weight, 400);
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.app-main-navbar .navbar-brand {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
 .app-sub-navbar .dropdown-menu {
   min-width: 220px;
+}
+
+.app-sub-navbar .asset-management-menu {
+  min-width: 36rem;
+  padding: 0.5rem;
+}
+
+.app-sub-navbar .asset-management-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.app-sub-navbar .asset-management-column {
+  min-width: 0;
+}
+
+.app-sub-navbar .asset-management-group {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.625rem 0.35rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--tblr-secondary-color);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: transparent;
+  opacity: 1;
+}
+
+.app-sub-navbar .asset-management-link {
+  border-radius: var(--tblr-border-radius);
+  padding: 0.625rem 0.75rem;
+}
+
+.app-sub-navbar .asset-management-link + .asset-management-link {
+  margin-top: 0.125rem;
+}
+
+.app-sub-navbar .asset-management-link.active {
+  background: var(--tblr-primary-lt, rgba(var(--tblr-primary-rgb), 0.12));
+}
+
+@media (max-width: 767.98px) {
+  .app-sub-navbar .asset-management-menu {
+    min-width: 20rem;
+  }
+
+  .app-sub-navbar .asset-management-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .app-sub-navbar .dropdown-menu {

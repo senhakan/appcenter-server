@@ -100,7 +100,7 @@ class Agent(Base):
     inventory_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     software_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-    # Stored as JSON text to keep SQLite migration lightweight.
+    # Stored as JSON text for schema portability and simpler model serialization.
     logged_in_sessions_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     logged_in_sessions_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -827,3 +827,242 @@ Index("idx_announcement_created_by", Announcement.created_by)
 Index("idx_ann_delivery_announcement", AnnouncementDelivery.announcement_id)
 Index("idx_ann_delivery_agent", AnnouncementDelivery.agent_uuid)
 Index("idx_ann_delivery_status", AnnouncementDelivery.status)
+
+
+class AssetOrganizationNodeType(Base):
+    __tablename__ = "asset_organization_node_types"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    display_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+
+class AssetLocationNodeType(Base):
+    __tablename__ = "asset_location_node_types"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    display_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+
+class AssetOrganizationNode(Base):
+    __tablename__ = "asset_org_nodes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("asset_org_nodes.id", ondelete="SET NULL"), nullable=True)
+    node_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    code: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+    parent: Mapped[Optional["AssetOrganizationNode"]] = relationship(remote_side="AssetOrganizationNode.id")
+
+
+class AssetLocationNode(Base):
+    __tablename__ = "asset_location_nodes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("asset_location_nodes.id", ondelete="SET NULL"), nullable=True)
+    location_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    org_node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("asset_org_nodes.id", ondelete="SET NULL"), nullable=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    code: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    address_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+    parent: Mapped[Optional["AssetLocationNode"]] = relationship(remote_side="AssetLocationNode.id")
+    org_node: Mapped[Optional[AssetOrganizationNode]] = relationship()
+
+
+class AssetCostCenter(Base):
+    __tablename__ = "asset_cost_centers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("asset_cost_centers.id", ondelete="SET NULL"), nullable=True)
+    code: Mapped[str] = mapped_column(String(120), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    org_node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("asset_org_nodes.id", ondelete="SET NULL"), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+    parent: Mapped[Optional["AssetCostCenter"]] = relationship(remote_side="AssetCostCenter.id")
+    org_node: Mapped[Optional[AssetOrganizationNode]] = relationship()
+
+
+class AssetPerson(Base):
+    __tablename__ = "asset_people"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    person_code: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    username: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    full_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    email: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    title: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    org_node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("asset_org_nodes.id", ondelete="SET NULL"), nullable=True)
+    cost_center_id: Mapped[Optional[int]] = mapped_column(ForeignKey("asset_cost_centers.id", ondelete="SET NULL"), nullable=True)
+    source_type: Mapped[str] = mapped_column(String(30), default="manual", nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+    org_node: Mapped[Optional[AssetOrganizationNode]] = relationship()
+    cost_center: Mapped[Optional[AssetCostCenter]] = relationship()
+
+
+class AssetRecord(Base):
+    __tablename__ = "assets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    asset_tag: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    serial_number: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    inventory_number: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    device_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    usage_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    ownership_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    lifecycle_status: Mapped[str] = mapped_column(String(64), nullable=False)
+    criticality: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    manufacturer: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    model: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    purchase_date: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    warranty_end_date: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    org_node_id: Mapped[int] = mapped_column(ForeignKey("asset_org_nodes.id", ondelete="RESTRICT"), nullable=False)
+    location_node_id: Mapped[int] = mapped_column(ForeignKey("asset_location_nodes.id", ondelete="RESTRICT"), nullable=False)
+    cost_center_id: Mapped[Optional[int]] = mapped_column(ForeignKey("asset_cost_centers.id", ondelete="SET NULL"), nullable=True)
+    primary_person_id: Mapped[Optional[int]] = mapped_column(ForeignKey("asset_people.id", ondelete="SET NULL"), nullable=True)
+    owner_person_id: Mapped[Optional[int]] = mapped_column(ForeignKey("asset_people.id", ondelete="SET NULL"), nullable=True)
+    support_team: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    last_verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_verified_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+    org_node: Mapped[AssetOrganizationNode] = relationship(foreign_keys=[org_node_id])
+    location_node: Mapped[AssetLocationNode] = relationship(foreign_keys=[location_node_id])
+    cost_center: Mapped[Optional[AssetCostCenter]] = relationship(foreign_keys=[cost_center_id])
+    primary_person: Mapped[Optional[AssetPerson]] = relationship(foreign_keys=[primary_person_id])
+    owner_person: Mapped[Optional[AssetPerson]] = relationship(foreign_keys=[owner_person_id])
+
+
+class AssetAgentLink(Base):
+    __tablename__ = "asset_agent_links"
+    __table_args__ = (
+        CheckConstraint("link_status IN ('active', 'inactive', 'rejected')", name="ck_asset_agent_link_status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    asset_id: Mapped[int] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"), nullable=False)
+    agent_uuid: Mapped[str] = mapped_column(ForeignKey("agents.uuid", ondelete="CASCADE"), nullable=False)
+    link_status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    match_source: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    confidence_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    linked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    linked_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    unlinked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    unlink_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    asset: Mapped[AssetRecord] = relationship()
+    agent: Mapped[Agent] = relationship()
+
+
+class AssetDataQualityIssue(Base):
+    __tablename__ = "asset_data_quality_issues"
+    __table_args__ = (
+        CheckConstraint("severity IN ('low', 'medium', 'high')", name="ck_asset_dq_severity"),
+        CheckConstraint("status IN ('open', 'resolved')", name="ck_asset_dq_status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    asset_id: Mapped[int] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"), nullable=False)
+    issue_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), default="medium", nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="open", nullable=False)
+    summary: Mapped[str] = mapped_column(String(255), nullable=False)
+    details_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolved_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    asset: Mapped[AssetRecord] = relationship()
+
+
+class AssetChangeLog(Base):
+    __tablename__ = "asset_change_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    asset_id: Mapped[int] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"), nullable=False)
+    change_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    field_name: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    old_value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    new_value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    changed_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    asset: Mapped[AssetRecord] = relationship()
+
+
+class AssetMatchingDecision(Base):
+    __tablename__ = "asset_matching_decisions"
+    __table_args__ = (
+        CheckConstraint("decision IN ('rejected', 'suppressed')", name="ck_asset_matching_decision"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    candidate_key: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    asset_id: Mapped[Optional[int]] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"), nullable=True)
+    agent_uuid: Mapped[Optional[str]] = mapped_column(ForeignKey("agents.uuid", ondelete="CASCADE"), nullable=True)
+    decision: Mapped[str] = mapped_column(String(20), nullable=False)
+    reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    decided_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    asset: Mapped[Optional[AssetRecord]] = relationship()
+    agent: Mapped[Optional[Agent]] = relationship()
+
+
+Index("idx_asset_org_type", AssetOrganizationNode.node_type)
+Index("idx_asset_org_parent", AssetOrganizationNode.parent_id)
+Index("idx_asset_org_name", AssetOrganizationNode.name)
+Index("idx_asset_loc_type", AssetLocationNode.location_type)
+Index("idx_asset_loc_parent", AssetLocationNode.parent_id)
+Index("idx_asset_loc_org", AssetLocationNode.org_node_id)
+Index("idx_asset_cc_org", AssetCostCenter.org_node_id)
+Index("idx_asset_person_username", AssetPerson.username)
+Index("idx_asset_person_email", AssetPerson.email)
+Index("idx_asset_person_org", AssetPerson.org_node_id)
+Index("idx_asset_record_org", AssetRecord.org_node_id)
+Index("idx_asset_record_loc", AssetRecord.location_node_id)
+Index("idx_asset_record_cc", AssetRecord.cost_center_id)
+Index("idx_asset_record_primary_person", AssetRecord.primary_person_id)
+Index("idx_asset_record_owner_person", AssetRecord.owner_person_id)
+Index("idx_asset_record_status", AssetRecord.lifecycle_status)
+Index("idx_asset_record_serial", AssetRecord.serial_number)
+Index("idx_asset_link_asset", AssetAgentLink.asset_id)
+Index("idx_asset_link_agent", AssetAgentLink.agent_uuid)
+Index("idx_asset_link_status", AssetAgentLink.link_status)
+Index("idx_asset_dq_asset", AssetDataQualityIssue.asset_id)
+Index("idx_asset_dq_type", AssetDataQualityIssue.issue_type)
+Index("idx_asset_dq_status", AssetDataQualityIssue.status)
+Index("idx_asset_change_asset", AssetChangeLog.asset_id)
+Index("idx_asset_change_changed", AssetChangeLog.changed_at)
+Index("idx_asset_matching_decision_asset", AssetMatchingDecision.asset_id)
+Index("idx_asset_matching_decision_agent", AssetMatchingDecision.agent_uuid)

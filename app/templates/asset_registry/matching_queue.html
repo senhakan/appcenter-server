@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% block title %}Asset Registry Eslestirme{% endblock %}
+{% block page_title %}Eslestirme Kuyrugu{% endblock %}
+{% block content %}
+{% include "asset_registry/_subnav.html" %}
+<style>
+  .ar-matching-toolbar {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr 1fr auto;
+    gap: 0.75rem;
+  }
+  .ar-create-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  .ar-signal-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+  @media (max-width: 991.98px) {
+    .ar-matching-toolbar,
+    .ar-create-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+<div class="card mb-3">
+  <div class="card-header border-0 pb-0">
+    <div class="w-100">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <div>
+          <h3 class="card-title mb-1">Adaylar</h3>
+          <div class="text-secondary small">Eslesme adaylarini filtrele, onayla veya ajan icin yeni asset olustur.</div>
+        </div>
+        <button id="matching-filter-reset" class="btn btn-outline-secondary btn-sm" type="button">Filtreleri Temizle</button>
+      </div>
+      <div class="ar-matching-toolbar">
+        <input id="matching-filter-q" class="form-control" placeholder="Hostname, asset tag veya neden ara" />
+        <select id="matching-filter-type" class="form-select">
+          <option value="">Tum aday tipleri</option>
+          <option value="agent_to_asset">Agent -> Asset</option>
+          <option value="agent_without_asset">Agent -> Asset yok</option>
+          <option value="asset_without_agent">Asset -> Agent yok</option>
+        </select>
+        <select id="matching-filter-confidence" class="form-select">
+          <option value="">Tum confidence seviyeleri</option>
+          <option value="high">Yuksek (70+)</option>
+          <option value="medium">Orta (30-69)</option>
+          <option value="low">Dusuk (0-29)</option>
+        </select>
+        <div class="d-flex align-items-center text-secondary small px-2">Gorunen: <span id="matching-filtered-count" class="ms-1 fw-bold">0</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th>Tip</th><th>Agent</th><th>Asset</th><th>Confidence</th><th>Neden</th><th></th></tr></thead><tbody id="matching-body"></tbody></table></div>
+</div>
+
+<div class="card d-none" id="matching-create-card">
+  <div class="card-header">
+    <div>
+      <h3 class="card-title mb-1">Ajan Icin Yeni Asset Olustur</h3>
+      <div id="matching-create-subtitle" class="text-secondary small"></div>
+    </div>
+    <button id="matching-create-cancel" class="btn btn-outline-secondary btn-sm" type="button">Kapat</button>
+  </div>
+  <div class="card-body">
+    <form id="matching-create-form" class="d-flex flex-column gap-3">
+      <div class="ar-create-grid">
+        <input id="matching-create-asset-tag" class="form-control" placeholder="Asset Tag" required />
+        <input id="matching-create-serial" class="form-control" placeholder="Seri No" />
+        <select id="matching-create-device-type" class="form-select" required></select>
+        <select id="matching-create-usage-type" class="form-select" required></select>
+        <select id="matching-create-ownership-type" class="form-select" required></select>
+        <select id="matching-create-lifecycle-status" class="form-select" required></select>
+        <select id="matching-create-org-node" class="form-select" required></select>
+        <select id="matching-create-location-node" class="form-select" required></select>
+        <select id="matching-create-primary-person" class="form-select"><option value="">Primary user yok</option></select>
+        <select id="matching-create-owner-person" class="form-select"><option value="">Owner yok</option></select>
+      </div>
+      <div class="d-flex justify-content-end gap-2">
+        <button class="btn btn-outline-secondary" id="matching-create-close2" type="button">Vazgec</button>
+        <button class="btn btn-primary" type="submit">Asset Olustur ve Bagla</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let allCandidates = [];
+let matchingDependencies = null;
+let currentCreateContext = null;
+
+function escHtml(value) {
+  return (value || "").toString()
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function setOptions(id, items, valueKey, labelKey, empty) {
+  const el = document.getElementById(id);
+  el.innerHTML = (empty ? `<option value="">${empty}</option>` : "") + (items || []).map(x => `<option value="${x[valueKey]}">${escHtml(x[labelKey])}</option>`).join("");
+}
+
+function confidenceTier(value) {
+  const num = Number(value || 0);
+  if (num >= 70) return "high";
+  if (num >= 30) return "medium";
+  return "low";
+}
+
+function filteredCandidates() {
+  const q = (document.getElementById("matching-filter-q").value || "").trim().toLowerCase();
+  const type = document.getElementById("matching-filter-type").value;
+  const tier = document.getElementById("matching-filter-confidence").value;
+  return allCandidates.filter((item) => {
+    if (q) {
+      const hay = [item.hostname, item.agent_uuid, item.asset_tag, (item.reasons || []).join(" ")].filter(Boolean).join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (type && item.candidate_type !== type) return false;
+    if (tier && confidenceTier(item.confidence) !== tier) return false;
+    return true;
+  });
+}
+
+function renderMatchingTable(items) {
+  document.getElementById("matching-filtered-count").textContent = String(items.length);
+  document.getElementById("matching-body").innerHTML = (items || []).map((x) => `<tr>
+    <td>${escHtml(x.candidate_type)}</td>
+    <td>${escHtml(x.hostname || x.agent_uuid || "-")}</td>
+    <td>${escHtml(x.asset_tag || "-")}</td>
+    <td><span class="badge ${x.confidence >= 70 ? 'bg-green-lt text-green' : x.confidence >= 30 ? 'bg-yellow-lt text-yellow' : 'bg-secondary-lt text-secondary'}">${x.confidence}</span></td>
+    <td><div class="ar-signal-badges">${(x.reasons || []).map((reason) => signalBadge(reason)).join("") || '<span class="text-secondary">-</span>'}</div></td>
+    <td class="text-nowrap">
+      ${x.asset_id && x.agent_uuid ? `<button class="btn btn-sm btn-primary me-1" onclick="approveLink(${x.asset_id}, '${x.agent_uuid}')">Onayla</button>` : ''}
+      ${x.agent_uuid && !x.asset_id ? `<button class="btn btn-sm btn-outline-primary me-1" onclick="openCreateAsset('${x.agent_uuid}', '${escHtml(x.hostname || "")}')">Yeni Asset</button>` : ''}
+      ${x.candidate_key ? `<button class="btn btn-sm btn-outline-warning me-1" onclick="rejectCandidate('${x.candidate_key}', ${x.asset_id || 'null'}, ${x.agent_uuid ? `'${x.agent_uuid}'` : 'null'}, 'rejected')">Reddet</button>` : ''}
+      ${x.candidate_key ? `<button class="btn btn-sm btn-outline-secondary" onclick="rejectCandidate('${x.candidate_key}', ${x.asset_id || 'null'}, ${x.agent_uuid ? `'${x.agent_uuid}'` : 'null'}, 'suppressed')">Gizle</button>` : ''}
+    </td>
+  </tr>`).join("") || `<tr><td colspan="6" class="text-secondary">Aday yok</td></tr>`;
+}
+
+function signalBadge(reason) {
+  const text = (reason || "").toString();
+  let klass = "bg-secondary-lt text-secondary";
+  if (text.includes("asset tag")) klass = "bg-blue-lt text-blue";
+  else if (text.includes("inventory")) klass = "bg-azure-lt text-azure";
+  else if (text.includes("serial")) klass = "bg-purple-lt text-purple";
+  else if (text.includes("primary person")) klass = "bg-green-lt text-green";
+  else if (text.includes("owner person")) klass = "bg-yellow-lt text-yellow";
+  else if (text.includes("no active")) klass = "bg-secondary-lt text-secondary";
+  return `<span class="badge ${klass}">${escHtml(text)}</span>`;
+}
+
+function applyMatchingFilters() {
+  renderMatchingTable(filteredCandidates());
+}
+
+async function loadMatchingDependencies() {
+  const dicts = await AppCenterApi.req("/asset-registry/dictionaries");
+  const orgs = await AppCenterApi.req("/asset-registry/organization");
+  const locs = await AppCenterApi.req("/asset-registry/locations");
+  const people = await AppCenterApi.req("/asset-registry/people");
+  matchingDependencies = { dicts, orgs: orgs.items || [], locs: locs.items || [], people: people.items || [] };
+  setOptions("matching-create-device-type", dicts.device_types.map(x => ({v:x,l:x})), "v", "l");
+  setOptions("matching-create-usage-type", dicts.usage_types.map(x => ({v:x,l:x})), "v", "l");
+  setOptions("matching-create-ownership-type", dicts.ownership_types.map(x => ({v:x,l:x})), "v", "l");
+  setOptions("matching-create-lifecycle-status", dicts.lifecycle_statuses.map(x => ({v:x,l:x})), "v", "l");
+  setOptions("matching-create-org-node", matchingDependencies.orgs, "id", "path");
+  setOptions("matching-create-location-node", matchingDependencies.locs, "id", "path");
+  setOptions("matching-create-primary-person", matchingDependencies.people, "id", "full_name", "Primary user yok");
+  setOptions("matching-create-owner-person", matchingDependencies.people, "id", "full_name", "Owner yok");
+}
+
+async function loadMatching() {
+  const data = await AppCenterApi.req("/asset-registry/matching/candidates");
+  allCandidates = data.items || [];
+  applyMatchingFilters();
+}
+
+async function approveLink(assetId, agentUuid) {
+  await AppCenterApi.req("/asset-registry/matching/link", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({asset_id: assetId, agent_uuid: agentUuid, match_source: "rule", confidence_score: 80, is_primary: true})});
+  AppCenterApi.toast("Eslestirme onaylandi", "success");
+  await loadMatching();
+}
+
+async function rejectCandidate(candidateKey, assetId, agentUuid, decision) {
+  await AppCenterApi.req("/asset-registry/matching/reject", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({candidate_key: candidateKey, asset_id: assetId, agent_uuid: agentUuid, decision})});
+  AppCenterApi.toast("Matching karari kaydedildi", "success");
+  await loadMatching();
+}
+
+function closeCreateAsset() {
+  currentCreateContext = null;
+  document.getElementById("matching-create-card").classList.add("d-none");
+  document.getElementById("matching-create-form").reset();
+}
+
+function openCreateAsset(agentUuid, hostname) {
+  currentCreateContext = { agentUuid, hostname };
+  document.getElementById("matching-create-card").classList.remove("d-none");
+  document.getElementById("matching-create-subtitle").textContent = `${hostname || agentUuid} icin yeni asset ac ve aninda primary link kur.`;
+  document.getElementById("matching-create-asset-tag").value = hostname || "";
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  await AppCenterApi.protectPage();
+  await loadMatchingDependencies();
+  await loadMatching();
+  ["matching-filter-q", "matching-filter-type", "matching-filter-confidence"].forEach((id) => {
+    document.getElementById(id).addEventListener("input", applyMatchingFilters);
+    document.getElementById(id).addEventListener("change", applyMatchingFilters);
+  });
+  document.getElementById("matching-filter-reset").addEventListener("click", () => {
+    ["matching-filter-q", "matching-filter-type", "matching-filter-confidence"].forEach((id) => {
+      document.getElementById(id).value = "";
+    });
+    applyMatchingFilters();
+  });
+  document.getElementById("matching-create-cancel").addEventListener("click", closeCreateAsset);
+  document.getElementById("matching-create-close2").addEventListener("click", closeCreateAsset);
+  document.getElementById("matching-create-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!currentCreateContext) return;
+    const created = await AppCenterApi.req("/asset-registry/assets", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({
+      asset_tag: document.getElementById("matching-create-asset-tag").value,
+      serial_number: document.getElementById("matching-create-serial").value || null,
+      device_type: document.getElementById("matching-create-device-type").value,
+      usage_type: document.getElementById("matching-create-usage-type").value,
+      ownership_type: document.getElementById("matching-create-ownership-type").value,
+      lifecycle_status: document.getElementById("matching-create-lifecycle-status").value,
+      org_node_id: Number(document.getElementById("matching-create-org-node").value),
+      location_node_id: Number(document.getElementById("matching-create-location-node").value),
+      primary_person_id: document.getElementById("matching-create-primary-person").value ? Number(document.getElementById("matching-create-primary-person").value) : null,
+      owner_person_id: document.getElementById("matching-create-owner-person").value ? Number(document.getElementById("matching-create-owner-person").value) : null
+    })});
+    await AppCenterApi.req("/asset-registry/matching/link", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({
+      asset_id: created.id,
+      agent_uuid: currentCreateContext.agentUuid,
+      match_source: "manual_create",
+      confidence_score: 95,
+      is_primary: true
+    })});
+    AppCenterApi.toast("Yeni asset olusturuldu ve ajana baglandi", "success");
+    closeCreateAsset();
+    await loadMatching();
+  });
+});
+</script>
+{% endblock %}

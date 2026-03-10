@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block title %}Asset Registry{% endblock %}
+{% block page_title %}Asset Registry{% endblock %}
+{% block content %}
+{% include "asset_registry/_subnav.html" %}
+<style>
+  .ar-overview-hero {
+    display: grid;
+    grid-template-columns: 1.3fr repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  @media (max-width: 1199.98px) {
+    .ar-overview-hero {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (max-width: 575.98px) {
+    .ar-overview-hero {
+      grid-template-columns: 1fr;
+    }
+  }
+  .ar-trend-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  .ar-spark {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.35rem;
+    align-items: end;
+    min-height: 10rem;
+  }
+  .ar-spark-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: end;
+    gap: 0.35rem;
+    min-height: 100%;
+  }
+  .ar-spark-bar {
+    width: 100%;
+    min-height: 0.5rem;
+    border-radius: 999px;
+    background: var(--tblr-blue);
+    opacity: 0.9;
+  }
+  .ar-spark-bar.success { background: var(--tblr-green); }
+  .ar-spark-bar.warning { background: var(--tblr-yellow); }
+  .ar-spark-label,
+  .ar-spark-value {
+    font-size: 0.6875rem;
+    color: var(--tblr-secondary-color);
+  }
+  @media (max-width: 991.98px) {
+    .ar-trend-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  .ar-risk-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  @media (max-width: 991.98px) {
+    .ar-risk-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+<div class="ar-overview-hero mb-3">
+  <div class="card">
+    <div class="card-body">
+      <div class="subheader">Asset Registry Command Deck</div>
+      <div class="h2 mt-2 mb-2">Kurumsal baglam, eslestirme ve veri kalitesi ayni akista yonetilir.</div>
+      <div class="text-secondary small">Bu ekran envanterin ne kadarinin kurumsal kimlik kazandigini, nerede veri borcu biriktigini ve eslestirme kuyrugunun nerede yogunlastigini gosterir.</div>
+    </div>
+  </div>
+  <div class="card"><div class="card-body"><div class="text-secondary small">Toplam Asset</div><div id="ov-total-assets" class="h1 mb-0">-</div></div></div>
+  <div class="card"><div class="card-body"><div class="text-secondary small">Eslesmis Asset</div><div id="ov-matched-assets" class="h1 mb-0">-</div></div></div>
+  <div class="card"><div class="card-body"><div class="text-secondary small">Eslesmemis Agent</div><div id="ov-unmatched-agents" class="h1 mb-0">-</div></div></div>
+  <div class="card"><div class="card-body"><div class="text-secondary small">Owner Eksik</div><div id="ov-owner-missing" class="h1 mb-0">-</div></div></div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header"><h3 class="card-title">Organizasyon Dagilimi</h3></div>
+      <div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th>Etiket</th><th>Deger</th></tr></thead><tbody id="ov-org-body"></tbody></table></div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header"><h3 class="card-title">Lokasyon Dagilimi</h3></div>
+      <div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th>Etiket</th><th>Deger</th></tr></thead><tbody id="ov-loc-body"></tbody></table></div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header"><h3 class="card-title">Risk Ozetleri</h3></div>
+      <div class="card-body">
+        <div class="datagrid">
+          <div class="datagrid-item"><div class="datagrid-title">Eslesmemis Asset</div><div id="ov-unmatched-assets" class="datagrid-content">-</div></div>
+          <div class="datagrid-item"><div class="datagrid-title">Lokasyon Eksik</div><div id="ov-location-missing" class="datagrid-content">-</div></div>
+          <div class="datagrid-item"><div class="datagrid-title">Matching Kapsami</div><div id="ov-match-ratio" class="datagrid-content">-</div></div>
+          <div class="datagrid-item"><div class="datagrid-title">Owner Kapsami</div><div id="ov-owner-ratio" class="datagrid-content">-</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header"><h3 class="card-title">Hizli Gecisler</h3></div>
+      <div class="card-body d-flex flex-column gap-2">
+        <a class="btn btn-outline-primary justify-content-start" href="/asset-registry/matching">Eslestirme Kuyruguna Git</a>
+        <a class="btn btn-outline-primary justify-content-start" href="/asset-registry/data-quality">Veri Kalitesine Git</a>
+        <a class="btn btn-outline-primary justify-content-start" href="/asset-registry/assets">Asset Listesine Git</a>
+        <a class="btn btn-outline-primary justify-content-start" href="/asset-registry/reports">Raporlari Ac</a>
+        <a class="btn btn-outline-secondary justify-content-start" href="/asset-registry/help">Kullanim Yardimini Ac</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-12">
+    <div class="card h-100">
+      <div class="card-header"><h3 class="card-title">Son 7 Gun Hareket</h3></div>
+      <div class="card-body">
+        <div class="ar-trend-grid">
+          <div>
+            <div class="text-secondary small mb-2">Yeni Asset</div>
+            <div id="ov-trend-assets" class="ar-spark"></div>
+          </div>
+          <div>
+            <div class="text-secondary small mb-2">Yeni Eslesme</div>
+            <div id="ov-trend-matches" class="ar-spark"></div>
+          </div>
+          <div>
+            <div class="text-secondary small mb-2">Yeni Issue</div>
+            <div id="ov-trend-issues" class="ar-spark"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-12">
+    <div class="card h-100">
+      <div class="card-header"><h3 class="card-title">Veri Kalitesi Breakdown</h3></div>
+      <div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th>Issue Type</th><th>Adet</th></tr></thead><tbody id="ov-dq-body"></tbody></table></div>
+    </div>
+  </div>
+  <div class="col-lg-12">
+    <div class="card h-100">
+      <div class="card-header"><h3 class="card-title">Action Required</h3></div>
+      <div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th>Kaynak</th><th>Baslik</th><th>Baglam</th></tr></thead><tbody id="ov-watch-body"></tbody></table></div>
+    </div>
+  </div>
+  <div class="col-lg-12">
+    <div class="ar-risk-grid">
+      <div class="card h-100">
+        <div class="card-header"><h3 class="card-title">Risk Yogunlugu: Organizasyon</h3></div>
+        <div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th>Organizasyon</th><th>Acik Issue</th></tr></thead><tbody id="ov-org-risk-body"></tbody></table></div>
+      </div>
+      <div class="card h-100">
+        <div class="card-header"><h3 class="card-title">Risk Yogunlugu: Lokasyon</h3></div>
+        <div class="table-responsive"><table class="table table-vcenter card-table"><thead><tr><th>Lokasyon</th><th>Acik Issue</th></tr></thead><tbody id="ov-loc-risk-body"></tbody></table></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/asset-registry.js?v={{ ASSET_VERSION }}"></script>
+<script>
+function drawRows(id, items) {
+  AssetRegistryUI.drawKeyValueRows(id, items, "Kayit yok", 2);
+}
+
+function drawIssueBreakdown(items) {
+  const counts = {};
+  (items || []).forEach((item) => {
+    const key = item.issue_type || "unknown";
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value }));
+  drawRows("ov-dq-body", rows);
+}
+
+function drawWatchlist(matchingItems, dqItems) {
+  const rows = [];
+  (matchingItems || []).slice(0, 5).forEach((item) => {
+    rows.push({
+      source: "Matching",
+      title: item.hostname || item.agent_uuid || item.asset_tag || "-",
+      context: (item.reasons || []).join(", ") || item.candidate_type || "-",
+    });
+  });
+  (dqItems || []).slice(0, 5).forEach((item) => {
+    rows.push({
+      source: "Data Quality",
+      title: item.asset_tag || String(item.asset_id || "-"),
+      context: item.summary || item.issue_type || "-",
+    });
+  });
+  document.getElementById("ov-watch-body").innerHTML = rows.map((row) => `<tr><td>${AssetRegistryUI.escHtml(row.source)}</td><td>${AssetRegistryUI.escHtml(row.title)}</td><td>${AssetRegistryUI.escHtml(row.context)}</td></tr>`).join("") || `<tr><td colspan="3" class="text-secondary">Aksiyon gerektiren kayit yok</td></tr>`;
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  await AppCenterApi.protectPage();
+  const [data, dq, matching] = await Promise.all([
+    AppCenterApi.req("/asset-registry/overview"),
+    AppCenterApi.req("/asset-registry/data-quality"),
+    AppCenterApi.req("/asset-registry/matching/candidates"),
+  ]);
+  document.getElementById("ov-total-assets").textContent = data.total_assets;
+  document.getElementById("ov-matched-assets").textContent = data.matched_assets;
+  document.getElementById("ov-unmatched-agents").textContent = data.unmatched_agents;
+  document.getElementById("ov-owner-missing").textContent = data.owner_missing_count;
+  document.getElementById("ov-unmatched-assets").textContent = data.unmatched_assets;
+  document.getElementById("ov-location-missing").textContent = data.location_missing_count;
+  document.getElementById("ov-match-ratio").textContent = data.total_assets ? `${Math.round((data.matched_assets / data.total_assets) * 100)}%` : "-";
+  document.getElementById("ov-owner-ratio").textContent = data.total_assets ? `${Math.max(0, 100 - Math.round((data.owner_missing_count / data.total_assets) * 100))}%` : "-";
+  drawRows("ov-org-body", data.organization_distribution || []);
+  drawRows("ov-loc-body", data.location_distribution || []);
+  drawRows("ov-org-risk-body", data.organization_risk || []);
+  drawRows("ov-loc-risk-body", data.location_risk || []);
+  drawIssueBreakdown(dq.items || []);
+  drawWatchlist(matching.items || [], dq.items || []);
+  document.getElementById("ov-trend-assets").innerHTML = AssetRegistryUI.sparkBars(data.asset_created_trend || [], "");
+  document.getElementById("ov-trend-matches").innerHTML = AssetRegistryUI.sparkBars(data.match_created_trend || [], "success");
+  document.getElementById("ov-trend-issues").innerHTML = AssetRegistryUI.sparkBars(data.issue_detected_trend || [], "warning");
+});
+</script>
+{% endblock %}

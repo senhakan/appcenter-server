@@ -104,46 +104,70 @@
                     {% if item.key == 'management' %}<i class="ti ti-settings icon"></i>
                     {% elif item.key == 'infrastructure' %}<i class="ti ti-building icon"></i>
                     {% elif item.key == 'inventory' %}<i class="ti ti-list-details icon"></i>
+                    {% elif item.key == 'asset_management' %}<i class="ti ti-box-seam icon"></i>
                     {% else %}<i class="ti ti-folder icon"></i>{% endif %}
                   </span>
                   <span class="nav-link-title">{{ item.title }}</span>
                 </a>
-                <div class="dropdown-menu">
-                  {% for child in item.children %}
-                    {% if child.path %}
-                      <a class="dropdown-item{% if active_page in child.active_pages %} active{% endif %}" href="{{ child.path }}" data-nav-item data-roles="{{ (child.roles or [])|join(',') }}" data-permissions="{{ child.permission|default('') }}">
-                        {% if item.key != 'inventory' %}
-                          <span class="me-1">
-                            {% if child.key == 'settings' %}<i class="ti ti-adjustments"></i>
-                            {% elif child.key == 'agent_deploy' %}<i class="ti ti-download"></i>
-                            {% elif child.key == 'users' %}<i class="ti ti-users"></i>
-                            {% elif child.key == 'roles' %}<i class="ti ti-shield-cog"></i>
-                            {% elif child.key == 'infra_audit' %}<i class="ti ti-file-search"></i>
-                            {% else %}<i class="ti ti-point"></i>{% endif %}
-                          </span>
-                        {% endif %}
-                        {{ child.title }}
-                      </a>
-                    {% else %}
-                      <span class="dropdown-item disabled" data-nav-item data-roles="{{ (child.roles or [])|join(',') }}" data-permissions="{{ child.permission|default('') }}">
-                        {% if item.key != 'inventory' %}<span class="me-1"><i class="ti ti-point"></i></span>{% endif %}{{ child.title }}
-                      </span>
-                    {% endif %}
-                  {% endfor %}
+                <div class="dropdown-menu{% if item.key == 'asset_management' %} asset-management-menu{% endif %}">
+                  {% if item.key == 'asset_management' %}
+                    <div class="asset-management-grid">
+                      <div class="asset-management-column">
+                        <div class="asset-management-group"><span class="me-1"><i class="ti ti-cpu"></i></span>Hardware</div>
+                        {% for child in item.children %}
+                          {% if child.key == 'asset_registry' and child.path %}
+                            <a class="dropdown-item asset-management-link{% if active_page in child.active_pages %} active{% endif %}" href="{{ child.path }}" data-nav-item data-roles="{{ (child.roles or [])|join(',') }}" data-permissions="{{ child.permission|default('') }}">{{ child.title }}</a>
+                          {% endif %}
+                        {% endfor %}
+                      </div>
+                      <div class="asset-management-column">
+                        <div class="asset-management-group"><span class="me-1"><i class="ti ti-package"></i></span>Software</div>
+                        {% for child in item.children %}
+                          {% if child.path and child.key != 'asset_registry' %}
+                            <a class="dropdown-item asset-management-link{% if active_page in child.active_pages %} active{% endif %}" href="{{ child.path }}" data-nav-item data-roles="{{ (child.roles or [])|join(',') }}" data-permissions="{{ child.permission|default('') }}">{{ child.title }}</a>
+                          {% endif %}
+                        {% endfor %}
+                      </div>
+                    </div>
+                  {% else %}
+                    {% for child in item.children %}
+                      {% if child.path %}
+                        <a class="dropdown-item{% if active_page in child.active_pages %} active{% endif %}" href="{{ child.path }}" data-nav-item data-roles="{{ (child.roles or [])|join(',') }}" data-permissions="{{ child.permission|default('') }}">
+                          {% if item.key not in ['inventory', 'asset_management'] %}
+                            <span class="me-1">
+                              {% if child.key == 'settings' %}<i class="ti ti-adjustments"></i>
+                              {% elif child.key == 'agent_deploy' %}<i class="ti ti-download"></i>
+                              {% elif child.key == 'users' %}<i class="ti ti-users"></i>
+                              {% elif child.key == 'roles' %}<i class="ti ti-shield-cog"></i>
+                              {% elif child.key == 'infra_audit' %}<i class="ti ti-file-search"></i>
+                              {% else %}<i class="ti ti-point"></i>{% endif %}
+                            </span>
+                          {% endif %}
+                          {{ child.title }}
+                        </a>
+                      {% else %}
+                        <span class="dropdown-item disabled" data-nav-item data-roles="{{ (child.roles or [])|join(',') }}" data-permissions="{{ child.permission|default('') }}">
+                          {% if item.key != 'inventory' %}<span class="me-1"><i class="ti ti-point"></i></span>{% endif %}{{ child.title }}
+                        </span>
+                      {% endif %}
+                    {% endfor %}
+                  {% endif %}
                 </div>
               </li>
             {% else %}
               <li class="nav-item{% if active_page in item.active_pages %} active{% endif %}{% if right_aligned %} nav-item-management{% endif %}" data-nav-item data-roles="{{ (item.roles or [])|join(',') }}" data-permissions="{{ item.permission|default('') }}">
                 <a class="nav-link{% if active_page in item.active_pages %} active{% endif %}" href="{{ item.path }}">
                   <span class="nav-link-icon d-md-none d-lg-inline-block">
-                    {% if item.key == 'dashboard' %}<i class="ti ti-dashboard icon"></i>
+                    {% if item.icon %}<i class="{{ item.icon }} icon"></i>
+                    {% elif item.key == 'dashboard' %}<i class="ti ti-dashboard icon"></i>
                     {% elif item.key == 'agents' %}<i class="ti ti-devices icon"></i>
                     {% elif item.key == 'remote_support' %}<i class="ti ti-plug-connected icon"></i>
-                    {% elif item.key == 'announcements' %}<i class="ti ti-megaphone icon"></i>
+                    {% elif item.key == 'announcements' %}<i class="ti ti-speakerphone icon"></i>
                     {% elif item.key == 'groups' %}<i class="ti ti-users-group icon"></i>
                     {% elif item.key == 'applications' %}<i class="ti ti-apps icon"></i>
                     {% elif item.key == 'deployments' %}<i class="ti ti-rocket icon"></i>
                     {% elif item.key == 'inventory' %}<i class="ti ti-list-details icon"></i>
+                    {% elif item.key == 'asset_management' %}<i class="ti ti-box-seam icon"></i>
                     {% elif item.key == 'licenses' %}<i class="ti ti-license icon"></i>
                     {% else %}<i class="ti ti-circle icon"></i>{% endif %}
                   </span>
