@@ -2,6 +2,13 @@
 
 ## 1. Local Test
 
+Komutlar repo icindeki virtualenv ile calistirilir:
+
+```bash
+./venv/bin/python --version
+./venv/bin/python -c "import fastapi; print(fastapi.__version__)"
+```
+
 Ortak PostgreSQL ortami kullaniminda testler stateful olabilir. Deterministik sonuc icin once tablo temizligi yap:
 
 ```bash
@@ -20,6 +27,15 @@ Sonra testleri calistir:
 
 ```bash
 ./venv/bin/python -m pytest -q
+```
+
+Ad-hoc import/smoke komutlari icin de ayni kural gecerli:
+
+```bash
+./venv/bin/python - <<'PY'
+import fastapi
+print(fastapi.__version__)
+PY
 ```
 
 Mevcut test dosyalari:
@@ -53,3 +69,7 @@ CI ozeti:
 
 `httpx` tarafinda TestClient ile ilgili bir deprecation warning gorulebilir.
 Bu warning test sonucunu bozmaz; build basarisizligina sebep olmaz.
+
+Ek not:
+- Bu hostta sistem `python3 -m pip` her zaman guvenilir olmayabilir.
+- Python bagimliliklari icin referans ortam `./venv`'dir.

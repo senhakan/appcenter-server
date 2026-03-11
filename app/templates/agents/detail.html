@@ -567,7 +567,14 @@
       const data = await AppCenterApi.req(`/agents/${agentId}`);
       agentHostname = data.hostname || '';
       const el = document.getElementById('agent-overview');
-      const sessions = (data.logged_in_sessions || []).map(s => `${escHtml(s.username || '-') } (${escHtml(s.session_type || '-')})`);
+      const sessions = (data.logged_in_sessions || []).map((s) => {
+        const username = escHtml(s.username || '-');
+        const sessionType = escHtml(s.session_type || '-');
+        const sessionState = ((s.session_state || '').toString().trim().toLowerCase() === 'disconnected')
+          ? ' - disconnected'
+          : '';
+        return `${username} (${sessionType}${sessionState})`;
+      });
       const sessionsText = sessions.length ? sessions.join('<br/>') : (data.os_user ? escHtml(data.os_user) : '-');
       const primaryUser = sessions.length ? sessions[0] : (data.os_user ? escHtml(data.os_user) : '-');
       const sessionsUpdated = data.logged_in_sessions_updated_at ? AppCenterApi.formatDate(data.logged_in_sessions_updated_at) : '-';

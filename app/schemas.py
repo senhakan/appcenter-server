@@ -73,6 +73,7 @@ class LoggedInSession(BaseModel):
     # Keep this as a string so older/newer agents can extend without breaking,
     # but we currently expect "local" or "rdp".
     session_type: str
+    session_state: Optional[str] = None
     logon_id: Optional[str] = None
 
 

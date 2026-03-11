@@ -81,7 +81,28 @@ Tema kaynaklari:
 - Ana iskelet: `app/templates/base.html`
 - Ust menu/nav: `app/templates/components/topbar.html`
 
-## 4. Ornek Tasarimi Nerede Gorebilirim?
+## 4. Onerilen Ust Menu Kurgusu
+
+Bilgi mimarisi buyuyen kapsam dikkate alinarak gorev odakli olacak sekilde su sekilde gruplanir:
+
+- `Genel Bakis`
+- `Cihazlar`
+  - `Ajanlar`
+  - `Gruplar`
+- `Destek`
+  - `Destek Merkezi`
+  - `Session Recordings`
+  - `Baglanti Gecmisi (yakinda)`
+- `Yazilim`
+  - `Uygulamalar`
+  - `Dagitimlar`
+- `Yonetim`
+
+Not:
+- `Destek Merkezi` ana menu seviyesinde tek basina buyumek yerine `Destek` catisi altinda konumlanir.
+- Uzak destekle ilgili canli oturum, kayit ve gecmis akislarinin ayni zihinsel model altinda toplanmasi hedeflenir.
+
+## 5. Ornek Tasarimi Nerede Gorebilirim?
 
 Calisan sunucuda su ekranlar referans alinabilir:
 - Dashboard: `/dashboard`

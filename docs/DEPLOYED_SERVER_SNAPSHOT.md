@@ -17,6 +17,11 @@ Bu dokuman mevcut production sunucuda uygulanan deployment topolojisini ozetler.
 - Bind: `0.0.0.0:8000` (nginx upstream `127.0.0.1:8000`)
 - systemd service: `appcenter`
 
+Not:
+- Production runtime icin referans Python ortami yalnizca bu `venv`'dir.
+- Hizli import/dogrulama komutlari da `/opt/appcenter/server/venv/bin/python` ile calistirilir.
+- Sistem Python paketleri production dogrulama icin referans kabul edilmez.
+
 Service dosyasi:
 - `/etc/systemd/system/appcenter.service`
 
@@ -51,6 +56,7 @@ sudo systemctl restart appcenter
 Not:
 
 - Server tarafi kod degisiklikleri bu hostta canli servise uygulanir.
+- Varsayilan operasyon kurali: server tarafinda degisiklik yapildiginda deploy icin ayrica kullanici onayi beklenmez; ayni oturumda rsync + restart + temel health/smoke uygulanir.
 - Guncelleme sonrasi dogrulama bu hosttaki servis uzerinde yapilir (`127.0.0.1:8000`).
   - Not: `uvicorn` binary shebang'i baska bir path'e isaret ederse (venv kopyalama/rsync ile), systemd `203/EXEC` hatasi verebilir. Bu nedenle `python -m uvicorn` kullanimi daha dayanıklidir.
 

@@ -102,6 +102,10 @@
                 <a class="nav-link dropdown-toggle{% if ns.has_active_child %} active{% endif %}" href="#nav-{{ item.key }}" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
                   <span class="nav-link-icon d-md-none d-lg-inline-block">
                     {% if item.key == 'management' %}<i class="ti ti-settings icon"></i>
+                    {% elif item.key == 'overview' %}<i class="ti ti-layout-dashboard icon"></i>
+                    {% elif item.key == 'devices' %}<i class="ti ti-devices icon"></i>
+                    {% elif item.key == 'software' %}<i class="ti ti-apps icon"></i>
+                    {% elif item.key == 'support' %}<i class="ti ti-headset icon"></i>
                     {% elif item.key == 'infrastructure' %}<i class="ti ti-building icon"></i>
                     {% elif item.key == 'inventory' %}<i class="ti ti-list-details icon"></i>
                     {% elif item.key == 'asset_management' %}<i class="ti ti-box-seam icon"></i>

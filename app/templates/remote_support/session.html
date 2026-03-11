@@ -1132,7 +1132,9 @@
       const u = (s && s.username ? String(s.username) : '').trim();
       if (!u) return;
       const t = (s && s.session_type ? String(s.session_type) : '').trim();
-      users.push(t ? `${u} (${t})` : u);
+      const st = (s && s.session_state ? String(s.session_state) : '').trim().toLowerCase();
+      const suffix = st === 'disconnected' ? ' - disconnected' : '';
+      users.push(t ? `${u} (${t}${suffix})` : `${u}${suffix}`);
     });
     return users.length ? users.join(', ') : '-';
   }

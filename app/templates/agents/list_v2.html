@@ -643,7 +643,9 @@
       const username = (item && item.username ? String(item.username).trim() : '');
       if (!username) return;
       const kind = (item && item.session_type ? String(item.session_type).trim() : '');
-      out.push(kind ? `${username} (${kind})` : username);
+      const state = (item && item.session_state ? String(item.session_state).trim().toLowerCase() : '');
+      const suffix = state === 'disconnected' ? ' - disconnected' : '';
+      out.push(kind ? `${username} (${kind}${suffix})` : `${username}${suffix}`);
     });
     return [...new Set(out)];
   }

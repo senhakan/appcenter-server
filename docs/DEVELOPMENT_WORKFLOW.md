@@ -10,15 +10,22 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+Not:
+- Bu projede FastAPI dahil tum Python bagimliliklari repo icindeki `venv` uzerinden kullanilir.
+- Ad-hoc script, import, smoke ve debug komutlarinda sistem `python3` yerine `./venv/bin/python` tercih edilir.
+- Bu hostta sistem `pip` zinciri bozuk olabilir; bagimlilik kurulumu/yenilemesi icin `venv` icindeki `pip` kullanilir.
+
 ## 2. Gelistirme Sirasi
 
 - Faz bazli ilerle (1 -> 5).
 - Faz 6 (UI yonetim iyilestirmeleri) aktif olarak faz 5 uzerine iteratif ilerletilir.
 - Bu repoda server degisikligi yapildiginda, degisiklik ayni oturumda canli dizine (`/opt/appcenter/server`) deploy edilmeden is tamamlanmis sayilmaz.
+- Server tarafinda bir degisiklik yapildiysa ayrica kullanici onayi beklenmeden ayni oturumda canli deploy uygulanir; varsayilan davranis budur.
 - Komut kisayolu: Kullanici `+1` yazdiginda o ana kadarki degisiklikler icin sirasiyla `dokuman guncelle -> commit -> push -> canli deploy -> health/smoke` uygulanir.
 - Her faz sonunda:
   - API smoke test
   - `./venv/bin/python -m pytest -q`
+  - gerektiginde ad-hoc dogrulama: `./venv/bin/python - <<'PY' ... PY`
   - Dokuman guncellemesi (`README.md`, gerekirse `CLAUDE.md`).
 
 ## 2.2 Asset Registry Lab Kapsam Kurali

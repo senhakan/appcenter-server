@@ -63,6 +63,9 @@ Her deploy sonrasi minimum kontrol listesi.
     - hostname/IP degisimleri eski → yeni olarak listelenir
     - status degisimleri (online/offline) eski → yeni olarak listelenir
   - "Yuklu Yazilimlar" alaninda sadece arama kutusu bulunur (Store Dahil filtresi yok)
+  - `logged_in_sessions` icinde gelen oturumlar gorunur:
+    - aktif oturumlar `local` / `rdp`
+    - kopuk oturumlar `local - disconnected` / `rdp - disconnected`
 
 ## H. Agent Liste Not Ikonu (Opsiyonel)
 

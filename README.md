@@ -17,7 +17,13 @@
 - Yapilan degisiklikler deploy edilmeden tamamlanmis sayilmaz.
 - Testler ve smoke dogrulamalari bu sunucuda calisan servis uzerinde yapilmalidir.
 - Zorunlu akış: Server tarafinda yapilan her degisiklik ayni oturumda canli ortama uygulanir (`/opt/appcenter/server`), servis restart edilir ve en az health/smoke kontrolu yapilir.
+- Ek kural: Server tarafinda kod/dokuman/konfig degisikligi yapildiginda kullanicidan ayrica "canliya al" onayi beklenmez; ayni oturumda zorunlu olarak canli deploy yapilir ve sonuc raporlanir.
 - Operasyonel kisayol: Kullanici `+1` yazdiginda bu repoda o ana kadarki degisiklikler icin `dokuman guncelle + commit + push + canli deploy + health/smoke` akisi uygulanir.
+- Python komutlari icin referans ortam repo `venv`'sidir:
+  - `./venv/bin/python`
+  - `./venv/bin/python -m pytest -q`
+  - `./venv/bin/python - <<'PY' ... PY`
+- Sistem `python3` / `pip` ad-hoc dogrulama icin varsayilan kabul edilmez.
 
 ## Asset Registry Lab Izolasyon Kurali
 
@@ -172,7 +178,10 @@
 - PostgreSQL startup migration:
 - eski veritabani icin `applications` tablosuna eksik kolonlari idempotent ekleme
 - Agent detail: login session gosterimi:
-  - Agent heartbeat payload'inda `logged_in_sessions` alani (local/RDP) ile gelir
+  - Agent heartbeat payload'inda `logged_in_sessions` alani gelir
+  - Session veri modeli:
+    - `session_type`: `local` | `rdp`
+    - `session_state`: `active` | `disconnected`
   - Server agents tablosuna JSON olarak persist eder ve agent detail ekraninda gosterir
 - Agent system profile + history:
   - Agent periyodik `system_profile` snapshot gonderir (OS/donanim/virtualization/disk)
