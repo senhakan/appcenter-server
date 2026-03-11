@@ -4,6 +4,7 @@
 {% block content %}
 <div class="row row-cards">
   <div class="col-12">
+    <div id="recording-status"></div>
     <div class="card">
       <div class="card-header d-flex align-items-center justify-content-between">
         <h3 class="card-title mb-0">Uzak Destek Kayitlari</h3>
@@ -38,7 +39,11 @@
                 <th>Izle</th>
               </tr>
             </thead>
-            <tbody id="rows"></tbody>
+            <tbody id="rows">
+              <tr>
+                <td colspan="11" class="text-secondary">Kayit listesi yukleniyor...</td>
+              </tr>
+            </tbody>
           </table>
         </div>
       </div>
@@ -50,6 +55,43 @@
 <script>
   AppCenterApi.protectPage();
   let activePlayer = null;
+
+  function renderServiceStatus(service) {
+    const root = document.getElementById('recording-status');
+    if (!root) return;
+    if (!service) {
+      root.innerHTML = '';
+      return;
+    }
+    const enabled = !!service.enabled;
+    const depsOk = !!service.deps_ok;
+    const missing = Array.isArray(service.missing) ? service.missing.filter(Boolean) : [];
+    let klass = 'alert alert-success';
+    let title = 'Recording servisi hazir';
+    let body = `Hedef FPS: ${Number(service.target_fps || 0) || '-'}`
+    if (!enabled) {
+      klass = 'alert alert-warning';
+      title = 'Recording kapali';
+      body = 'Settings > Session Recording altindan etkinlestirilmedigi icin yeni kayit olusmaz.';
+    } else if (!depsOk) {
+      klass = 'alert alert-warning';
+      title = 'Recording bagimliliklari eksik';
+      body = `Servis aktif degil. Eksik bilesenler: ${esc(missing.join(', ') || '-')}`;
+    }
+    root.innerHTML = `
+      <div class="${klass}">
+        <div class="d-flex justify-content-between gap-3 flex-wrap">
+          <div>
+            <strong>${title}</strong>
+            <div class="text-secondary mt-1">${body}</div>
+          </div>
+          <div class="text-secondary">
+            Aktif proses: ${Array.isArray(service.running) ? service.running.length : 0}
+          </div>
+        </div>
+      </div>
+    `;
+  }
 
   function esc(s) {
     return (s || '')
@@ -135,6 +177,8 @@
 
   async function loadRows() {
     try {
+      const statusResp = await AppCenterApi.req('/remote-support/recording/service-status');
+      renderServiceStatus(statusResp && statusResp.service ? statusResp.service : null);
       const q = [];
       const agent = (document.getElementById('f-agent').value || '').trim();
       const sid = (document.getElementById('f-session').value || '').trim();
@@ -145,7 +189,19 @@
       q.push('limit=200');
       const data = await AppCenterApi.req(`/remote-support/recordings?${q.join('&')}`);
       const rows = document.getElementById('rows');
-      rows.innerHTML = (data.items || []).map((r) => `
+      const items = Array.isArray(data.items) ? data.items : [];
+      if (!items.length) {
+        rows.innerHTML = `
+          <tr>
+            <td colspan="11" class="text-secondary">
+              Kayit bulunamadi. Bu ekran yalnizca olusmus remote support recording kayitlarini listeler.
+            </td>
+          </tr>
+        `;
+        closeInlinePlayer();
+        return;
+      }
+      rows.innerHTML = items.map((r) => `
         <tr>
           <td>${r.id}</td>
           <td>#${r.session_id}</td>
@@ -181,6 +237,11 @@
         });
       });
     } catch (err) {
+      document.getElementById('rows').innerHTML = `
+        <tr>
+          <td colspan="11" class="text-danger">Kayit listesi yuklenemedi: ${esc(err.message || 'Bilinmeyen hata')}</td>
+        </tr>
+      `;
       AppCenterApi.toast(err.message || 'Kayit listesi yuklenemedi');
     }
   }

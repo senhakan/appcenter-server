@@ -165,9 +165,13 @@ SYSTEM_ROLE_DEFAULTS: dict[str, set[str]] = {
 
 SUPPORT_CENTER_ONLY_PERMISSIONS: set[str] = {
     "ui.menu.remote_support",
+    "ui.menu.infra_recordings",
     "ui.page.remote_support",
+    "ui.page.infra_recordings",
     "agents.view",
     "remote_support.view",
     "remote_support.session.view",
     "remote_support.session.manage",
+    "remote_support.recordings.view",
+    "remote_support.recordings.manage",
 }

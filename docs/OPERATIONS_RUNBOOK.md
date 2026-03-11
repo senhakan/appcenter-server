@@ -258,6 +258,10 @@ Bu dokuman production ortami icin deploy, smoke ve rollback adimlarini tanimlar.
   - UI yetkileri API yetkilerinden ayridir:
     - `ui.menu.*`: menu gorunurlugu
     - `ui.page.*`: sayfa route erisimi
+  - `support_center_only` preset'i:
+    - `Destek Merkezi`
+    - `Session Recordings`
+    - remote support session/recording view-manage akislarini kapsar
     - API izinleri: `*.view/manage`
   - Varsayilan ozel preset: `support_center_only` (yalnizca Destek Merkezi akislari).
 - Kullanici yonetimi:

@@ -13,17 +13,106 @@
 {% endblock %}
 {% block content %}
 <style>
+  .groups-shell {
+    display: grid;
+    gap: 1rem;
+  }
+  .groups-split {
+    display: grid;
+    grid-template-columns: minmax(340px, 0.95fr) minmax(0, 1.05fr);
+    gap: 1rem;
+    align-items: stretch;
+  }
+  .groups-panel {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  .groups-panel-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 760px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .groups-overview {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  .groups-kpi {
+    border: 1px solid rgba(6, 111, 209, 0.12);
+    background:
+      linear-gradient(180deg, rgba(6, 111, 209, 0.08), rgba(6, 111, 209, 0.02)),
+      var(--tblr-card-bg, #fff);
+    border-radius: 16px;
+    padding: 1rem 1.1rem;
+    min-height: 112px;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+  }
+  .groups-kpi-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--tblr-muted, #667382);
+  }
+  .groups-kpi-value {
+    margin-top: 0.45rem;
+    font-size: 1.7rem;
+    font-weight: 700;
+    color: var(--tblr-body-color, #182433);
+    line-height: 1.1;
+  }
+  .groups-kpi-note {
+    margin-top: 0.35rem;
+    font-size: 0.82rem;
+    color: var(--tblr-muted, #667382);
+  }
+  .groups-kpi-value.is-blue {
+    color: var(--tblr-blue, #066fd1);
+  }
+  .groups-kpi-value.is-azure {
+    color: var(--tblr-azure, #4299e1);
+  }
+  .groups-kpi-value.is-green {
+    color: var(--tblr-green, #2fb344);
+  }
+  .groups-kpi-value.is-yellow {
+    color: var(--tblr-yellow, #f59f00);
+  }
+  .groups-story {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    border: 1px solid rgba(24, 36, 51, 0.08);
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(248, 250, 252, 0.98), rgba(255, 255, 255, 0.96));
+    padding: 1rem 1.1rem;
+  }
+  .groups-story-icon {
+    width: 42px;
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    background: rgba(6, 111, 209, 0.1);
+    color: var(--tblr-blue, #066fd1);
+    font-size: 1.25rem;
+    flex: 0 0 auto;
+  }
   .groups-toolbar .input-icon-addon .icon {
     width: 18px;
     height: 18px;
   }
   .groups-toolbar {
-    display: grid !important;
-    grid-template-columns: minmax(280px, 1.5fr) minmax(170px, 1fr) minmax(210px, 1fr) minmax(1px, 1fr) !important;
-    gap: 0.5rem;
-    width: 100%;
-    min-width: 760px;
+    display: flex !important;
     align-items: center;
+    gap: 0.75rem;
+    width: 100%;
   }
   .groups-toolbar .toolbar-item {
     min-width: 0;
@@ -50,9 +139,90 @@
     color: var(--tblr-yellow, #f59f00);
     font-size: 0.85rem;
   }
-  .groups-table .col-actions {
-    width: 1%;
-    white-space: nowrap;
+  .group-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding-right: 0.25rem;
+  }
+  .group-list-item {
+    border: 1px solid rgba(24, 36, 51, 0.08);
+    border-radius: var(--tblr-border-radius-lg, 14px);
+    background: var(--tblr-card-bg, #fff);
+    transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .group-list-item.is-selected {
+    border-color: rgba(6, 111, 209, 0.3);
+    box-shadow: inset 0 0 0 1px rgba(6, 111, 209, 0.12);
+    background: rgba(6, 111, 209, 0.05);
+  }
+  .group-list-item.is-selected::before {
+    content: "";
+    position: absolute;
+    inset: 8px auto 8px 0;
+    width: 4px;
+    border-radius: 0 999px 999px 0;
+    background: var(--tblr-blue, #066fd1);
+  }
+  .group-list-item-head {
+    display: grid;
+    gap: 0.4rem;
+    padding: 0.55rem 0.7rem;
+  }
+  .group-select-link {
+    display: block;
+    width: 100%;
+    background: transparent;
+    border: 0;
+    border-radius: calc(var(--tblr-border-radius-lg, 14px) - 4px);
+    padding: 0;
+    text-align: left;
+    color: inherit;
+    transition: background-color 140ms ease, color 140ms ease;
+    cursor: pointer;
+  }
+  .group-list-item.is-selected .group-select-link {
+    color: var(--tblr-blue, #066fd1);
+  }
+  .group-list-item.is-selected .group-select-title {
+    font-weight: 700;
+  }
+  .group-select-link:hover {
+    background: transparent;
+  }
+  .group-select-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .group-select-title {
+    font-weight: 600;
+    line-height: 1.25;
+  }
+  .group-list-item-meta,
+  .group-list-item-members {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+  .group-list-item-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .group-item-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 40px;
+  }
+  .group-edit-btn {
+    flex: 0 0 auto;
   }
   .transfer {
     display: grid;
@@ -66,6 +236,66 @@
   }
   .transfer select {
     min-height: 280px;
+  }
+  .transfer-panel {
+    border: 1px solid rgba(24, 36, 51, 0.08);
+    border-radius: 16px;
+    padding: 0.9rem;
+    background: rgba(248, 250, 252, 0.72);
+  }
+  .transfer-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.65rem;
+  }
+  .transfer-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .transfer-search {
+    margin-bottom: 0.65rem;
+  }
+  .group-context {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  .group-context-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  .group-context-heading {
+    min-width: 0;
+  }
+  .group-context-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .group-context-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--tblr-body-color, #182433);
+    line-height: 1.25;
+  }
+  .group-context-description {
+    margin-top: 0.2rem;
+    color: var(--tblr-secondary, #667382);
+    font-size: 0.875rem;
+  }
+  .groups-badge-stack {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
   }
   .group-modal-backdrop {
     position: fixed;
@@ -94,73 +324,145 @@
   .dynamic-rules-grid .dynamic-rules-full {
     grid-column: 1 / -1;
   }
+  @media (max-width: 1199px) {
+    .groups-split,
+    .groups-overview {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (max-width: 991px) {
+    .groups-split {
+      grid-template-columns: 1fr;
+    }
+    .groups-panel-body {
+      height: auto;
+      overflow: visible;
+    }
+    .transfer {
+      grid-template-columns: 1fr;
+    }
+    .transfer-actions {
+      grid-auto-flow: column;
+      justify-content: center;
+    }
+  }
+  @media (max-width: 767px) {
+    .groups-toolbar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .groups-overview {
+      grid-template-columns: 1fr;
+    }
+    .group-context-actions {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .group-context {
+      width: 100%;
+    }
+    .group-item-actions {
+      justify-content: flex-start;
+    }
+    .group-list-item-bottom {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
 </style>
 
-<div class="card">
-  <div class="card-header groups-toolbar-wrap">
-    <div class="groups-toolbar">
-      <div class="toolbar-item toolbar-search">
-        <div class="input-icon">
-          <span class="input-icon-addon"><i class="ti ti-search icon"></i></span>
-          <input id="group-search-input" class="form-control" type="text" placeholder="Grup ara: ad veya aciklama" />
-        </div>
-      </div>
-      <div class="toolbar-item toolbar-active">
-        <select id="group-active-filter" class="form-select">
-          <option value="all">Tum Gruplar</option>
-          <option value="active">Sadece Aktif</option>
-          <option value="inactive">Sadece Pasif</option>
-        </select>
-      </div>
-      <div class="toolbar-item toolbar-sort">
-        <select id="group-sort" class="form-select">
-          <option value="name_asc">Ad (A-Z)</option>
-          <option value="name_desc">Ad (Z-A)</option>
-          <option value="id_desc">ID (Yeni -> Eski)</option>
-          <option value="id_asc">ID (Eski -> Yeni)</option>
-          <option value="count_desc">Ajan Sayisi (Cok -> Az)</option>
-          <option value="count_asc">Ajan Sayisi (Az -> Cok)</option>
-        </select>
-      </div>
-      <div class="toolbar-item toolbar-spacer" aria-hidden="true"></div>
+<div class="groups-shell">
+<div class="groups-overview">
+  <div class="groups-kpi">
+    <div class="groups-kpi-label">Toplam Grup</div>
+    <div class="groups-kpi-value is-blue" id="groups-kpi-total">-</div>
+    <div class="groups-kpi-note" id="groups-kpi-total-note">Yukleniyor...</div>
+  </div>
+  <div class="groups-kpi">
+    <div class="groups-kpi-label">Aktif Grup</div>
+    <div class="groups-kpi-value is-green" id="groups-kpi-active">-</div>
+    <div class="groups-kpi-note" id="groups-kpi-active-note">-</div>
+  </div>
+  <div class="groups-kpi">
+    <div class="groups-kpi-label">Dinamik Grup</div>
+    <div class="groups-kpi-value is-azure" id="groups-kpi-dynamic">-</div>
+    <div class="groups-kpi-note" id="groups-kpi-dynamic-note">-</div>
+  </div>
+  <div class="groups-kpi">
+    <div class="groups-kpi-label">Grup Uyeligi</div>
+    <div class="groups-kpi-value is-yellow" id="groups-kpi-membership">-</div>
+    <div class="groups-kpi-note" id="groups-kpi-membership-note">-</div>
+  </div>
+</div>
+
+<div class="groups-story">
+  <span class="groups-story-icon"><i class="ti ti-users-group"></i></span>
+  <div>
+    <div class="fw-semibold">Gruplar cihaz hedefleme ve operasyonel segmentasyon merkezidir.</div>
+    <div class="text-secondary">
+      Manuel gruplar deployment ve destek hedeflerini hizli yonetmek icin; dinamik gruplar ise hostname ve IP kurallariyla otomatik segmentasyon icin kullanilir.
     </div>
   </div>
-  <div id="group-table-wrap" class="table-responsive">
-    <table class="table card-table table-vcenter groups-table">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Grup Adi</th>
-          <th>Tip</th>
-          <th>Aciklama</th>
-          <th>Ajan Sayisi</th>
-          <th class="col-actions"></th>
-        </tr>
-      </thead>
-      <tbody id="group-rows">
-        <tr><td colspan="6" class="text-secondary">Yukleniyor...</td></tr>
-      </tbody>
-    </table>
+</div>
+
+<div class="groups-split">
+<div class="card groups-panel">
+  <div class="card-header groups-toolbar-wrap">
+    <div class="groups-toolbar">
+      <div class="input-icon">
+        <span class="input-icon-addon"><i class="ti ti-search icon"></i></span>
+        <input id="group-search-input" class="form-control" type="text" placeholder="Grup ara" />
+      </div>
+      <label class="form-check m-0">
+        <input class="form-check-input" type="checkbox" id="group-active-only" checked />
+        <span class="form-check-label">Aktifler</span>
+      </label>
+    </div>
+  </div>
+  <div class="card-body groups-panel-body">
+    <div id="group-list" class="group-list">
+      <div class="text-secondary">Yukleniyor...</div>
+    </div>
   </div>
   <div id="groups-empty-state" class="card-body text-secondary d-none">
     Henuz grup yok, Yeni Grup ile baslayin.
   </div>
 </div>
 
-<div class="card mt-3" data-required-permissions="groups.manage">
+<div class="card groups-panel" data-required-permissions="groups.manage">
   <div class="card-header">
     <h3 class="card-title mb-0">Gruba Ajan Ata</h3>
   </div>
-  <div class="card-body">
+  <div class="card-body groups-panel-body">
     <form id="group-assign-form" class="row g-3">
-      <div class="col-12 col-lg-4">
-        <label class="form-label">Grup</label>
-        <select id="assign-group-id" class="form-select" required></select>
+      <div class="col-12">
+        <div class="group-context-actions">
+          <div class="group-context-heading">
+            <div class="group-context-title-row">
+              <div class="group-context-title" id="assign-group-name">-</div>
+              <div id="assign-group-type">-</div>
+            </div>
+            <div class="group-context-description" id="assign-group-description">-</div>
+          </div>
+          <div class="group-context">
+            <label class="form-check form-switch m-0 d-flex align-items-center gap-2" id="assign-group-toggle-wrap">
+              <input class="form-check-input" type="checkbox" id="assign-group-active-toggle">
+              <span class="form-check-label">Aktif</span>
+            </label>
+            <button class="btn btn-primary btn-sm" type="button" id="assign-group-edit-btn">
+              <i class="ti ti-edit me-1"></i>Duzenle
+            </button>
+          </div>
+        </div>
       </div>
       <div class="col-12">
         <div class="transfer">
-          <div>
-            <label class="form-label">Atanmamis Ajanlar</label>
+          <div class="transfer-panel">
+            <div class="transfer-panel-head">
+              <label class="form-label mb-0">Atanmamis Ajanlar</label>
+              <div class="transfer-meta" id="available-agent-meta"></div>
+            </div>
+            <input id="available-agent-search" class="form-control transfer-search" type="text" placeholder="Hostname veya IP ile filtrele" />
             <select id="available-agent-uuids" class="form-select" multiple></select>
           </div>
           <div class="transfer-actions">
@@ -169,8 +471,12 @@
             <button class="btn btn-outline-secondary btn-sm" type="button" id="move-left" title="Secileni Cikar"><i class="ti ti-chevron-left"></i></button>
             <button class="btn btn-outline-secondary btn-sm" type="button" id="move-left-all" title="Tumunu Cikar"><i class="ti ti-chevrons-left"></i></button>
           </div>
-          <div>
-            <label class="form-label">Gruptaki Ajanlar</label>
+          <div class="transfer-panel">
+            <div class="transfer-panel-head">
+              <label class="form-label mb-0">Gruptaki Ajanlar</label>
+              <div class="transfer-meta" id="assigned-agent-meta"></div>
+            </div>
+            <input id="assigned-agent-search" class="form-control transfer-search" type="text" placeholder="Hostname veya IP ile filtrele" />
             <select id="assigned-agent-uuids" class="form-select" multiple></select>
           </div>
         </div>
@@ -184,6 +490,8 @@
       </div>
     </form>
   </div>
+</div>
+</div>
 </div>
 
 <div id="group-create-modal" class="group-modal-backdrop hidden" aria-live="polite" data-required-permissions="groups.manage">
@@ -334,9 +642,13 @@
   const groupEditModal = document.getElementById('group-edit-modal');
   const groupStatusModal = document.getElementById('group-status-modal');
   let groupSearchQuery = '';
-  let groupActiveFilter = 'all';
-  let groupSortMode = 'name_asc';
   let pendingStatusChange = null;
+  let groupActiveOnly = true;
+  let availableAgentSearch = '';
+  let assignedAgentSearch = '';
+  let currentAssignAvailable = [];
+  let currentAssignAssigned = [];
+  let selectedGroupId = 0;
 
   function parsePatterns(raw) {
     return (raw || '')
@@ -395,40 +707,160 @@
     return Array.from(selectEl.options || []).map((o) => o.value);
   }
 
-  function moveSelected(fromEl, toEl) {
-    const selected = Array.from(fromEl.selectedOptions || []);
-    selected.forEach((opt) => {
-      toEl.appendChild(opt);
-      opt.selected = false;
+  function sortAgentsByLabel(items) {
+    return items.slice().sort((a, b) => (a.hostname || a.uuid || '').localeCompare(b.hostname || b.uuid || ''));
+  }
+
+  function moveSelected(fromEl, fromKey, toKey) {
+    const selectedIds = new Set(Array.from(fromEl.selectedOptions || []).map((opt) => opt.value));
+    if (!selectedIds.size) return;
+    const source = fromKey === 'available' ? currentAssignAvailable : currentAssignAssigned;
+    const target = toKey === 'available' ? currentAssignAvailable : currentAssignAssigned;
+    const keep = [];
+    source.forEach((agent) => {
+      if (selectedIds.has(agent.uuid)) {
+        target.push(agent);
+      } else {
+        keep.push(agent);
+      }
+    });
+    if (fromKey === 'available') currentAssignAvailable = keep;
+    else currentAssignAssigned = keep;
+    if (toKey === 'available') currentAssignAvailable = sortAgentsByLabel(currentAssignAvailable);
+    else currentAssignAssigned = sortAgentsByLabel(currentAssignAssigned);
+    syncSelectedAgentsForCurrentGroup(true);
+  }
+
+  function moveAll(fromKey, toKey) {
+    const source = fromKey === 'available' ? currentAssignAvailable : currentAssignAssigned;
+    if (!source.length) return;
+    if (toKey === 'available') currentAssignAvailable = sortAgentsByLabel(currentAssignAvailable.concat(source));
+    else currentAssignAssigned = sortAgentsByLabel(currentAssignAssigned.concat(source));
+    if (fromKey === 'available') currentAssignAvailable = [];
+    else currentAssignAssigned = [];
+    syncSelectedAgentsForCurrentGroup(true);
+  }
+
+  function getGroupAgents(groupId) {
+    return agents.filter((agent) => {
+      if (Array.isArray(agent.group_ids)) return agent.group_ids.includes(groupId);
+      return Number(agent.group_id || 0) === groupId;
     });
   }
 
-  function moveAll(fromEl, toEl) {
-    const all = Array.from(fromEl.options || []);
-    all.forEach((opt) => {
-      toEl.appendChild(opt);
-      opt.selected = false;
+  function makeMetaBadge(label, value, tone = 'secondary') {
+    return `<span class="badge bg-${tone}-lt text-${tone}">${label}: ${value}</span>`;
+  }
+
+  function renderOverview() {
+    const total = Array.isArray(groups) ? groups.length : 0;
+    const active = groups.filter((group) => !!group.is_active).length;
+    const dynamic = groups.filter((group) => !!group.is_dynamic).length;
+    const uniqueMembershipCount = new Set(
+      agents
+        .filter((agent) => Array.isArray(agent.group_ids) && agent.group_ids.length)
+        .map((agent) => agent.uuid)
+    ).size;
+    const totalMemberships = agents.reduce((sum, agent) => sum + (Array.isArray(agent.group_ids) ? agent.group_ids.length : 0), 0);
+
+    document.getElementById('groups-kpi-total').textContent = String(total);
+    document.getElementById('groups-kpi-total-note').textContent = `${active} aktif, ${Math.max(total - active, 0)} pasif`;
+    document.getElementById('groups-kpi-active').textContent = String(active);
+    document.getElementById('groups-kpi-active-note').textContent = total ? `%${Math.round((active / total) * 100)} operasyonel grup` : 'Henuz veri yok';
+    document.getElementById('groups-kpi-dynamic').textContent = String(dynamic);
+    document.getElementById('groups-kpi-dynamic-note').textContent = dynamic ? `${Math.max(total - dynamic, 0)} manuel grup ile birlikte` : 'Otomatik segment yok';
+    document.getElementById('groups-kpi-membership').textContent = String(totalMemberships);
+    document.getElementById('groups-kpi-membership-note').textContent = `${uniqueMembershipCount} ajan en az bir grupta`;
+  }
+
+  function filterAgentsByQuery(items, query) {
+    const q = (query || '').trim().toLowerCase();
+    if (!q) return items.slice();
+    return items.filter((agent) => {
+      const hostname = (agent.hostname || '').toLowerCase();
+      const ip = (agent.ip_address || '').toLowerCase();
+      const user = (agent.os_user || '').toLowerCase();
+      return hostname.includes(q) || ip.includes(q) || user.includes(q);
     });
+  }
+
+  function syncTransferSearchMeta() {
+    const availableEl = document.getElementById('available-agent-uuids');
+    const assignedEl = document.getElementById('assigned-agent-uuids');
+    const availableMeta = document.getElementById('available-agent-meta');
+    const assignedMeta = document.getElementById('assigned-agent-meta');
+    const availableCount = currentAssignAvailable.length;
+    const assignedCount = currentAssignAssigned.length;
+    const filteredAvailableCount = Array.from(availableEl.options || []).length;
+    const filteredAssignedCount = Array.from(assignedEl.options || []).length;
+    if (availableMeta) {
+      availableMeta.innerHTML = [
+        makeMetaBadge('Toplam', availableCount, 'blue'),
+        makeMetaBadge('Gorunen', filteredAvailableCount, 'secondary'),
+      ].join('');
+    }
+    if (assignedMeta) {
+      const onlineAssigned = currentAssignAssigned.filter((agent) => (agent.status || '').toLowerCase() === 'online').length;
+      assignedMeta.innerHTML = [
+        makeMetaBadge('Toplam', assignedCount, 'green'),
+        makeMetaBadge('Gorunen', filteredAssignedCount, 'secondary'),
+        makeMetaBadge('Online', onlineAssigned, 'azure'),
+      ].join('');
+    }
+  }
+
+  function renderTransferOptions(selectEl, items) {
+    selectEl.innerHTML = '';
+    items.forEach((agent) => {
+      const option = toOption(agent);
+      option.dataset.status = (agent.status || '').toString();
+      selectEl.appendChild(option);
+    });
+  }
+
+  function updateSelectedGroupContext(selectedGroup, members) {
+    const isDynamic = !!(selectedGroup && selectedGroup.is_dynamic);
+    const isActive = !!(selectedGroup && selectedGroup.is_active);
+    const onlineCount = members.filter((agent) => (agent.status || '').toLowerCase() === 'online').length;
+    document.getElementById('assign-group-name').textContent = selectedGroup ? (selectedGroup.name || '-') : '-';
+    document.getElementById('assign-group-description').textContent = selectedGroup ? ((selectedGroup.description || 'Aciklama girilmemis').toString()) : '-';
+    document.getElementById('assign-group-type').innerHTML = selectedGroup
+      ? (isDynamic ? makeMetaBadge('Tip', 'Dinamik', 'azure') : makeMetaBadge('Tip', 'Manuel', 'blue'))
+      : '-';
+    const toggle = document.getElementById('assign-group-active-toggle');
+    const toggleWrap = document.getElementById('assign-group-toggle-wrap');
+    const editBtn = document.getElementById('assign-group-edit-btn');
+    if (toggle) {
+      toggle.checked = isActive;
+      toggle.disabled = !selectedGroup || !!selectedGroup.is_system;
+      toggle.dataset.groupId = selectedGroup ? String(selectedGroup.id || '') : '';
+      toggle.dataset.groupName = selectedGroup ? (selectedGroup.name || '') : '';
+      toggle.dataset.currentActive = isActive ? 'true' : 'false';
+    }
+    if (toggleWrap) {
+      toggleWrap.title = selectedGroup && selectedGroup.is_system ? 'Sistem grubu aktif/pasif degistirilemez' : '';
+    }
+    if (editBtn) {
+      editBtn.disabled = !selectedGroup || !!selectedGroup.is_system;
+      editBtn.dataset.groupId = selectedGroup ? String(selectedGroup.id || '') : '';
+    }
   }
 
   function renderGroupsTable() {
-    const rows = document.getElementById('group-rows');
-    const tableWrap = document.getElementById('group-table-wrap');
+    const list = document.getElementById('group-list');
     const emptyState = document.getElementById('groups-empty-state');
     const canWrite = AppCenterApi.canPermission('groups.manage');
-    rows.innerHTML = '';
+    list.innerHTML = '';
 
     if (!Array.isArray(groups) || groups.length === 0) {
-      if (tableWrap) tableWrap.classList.add('d-none');
       if (emptyState) emptyState.classList.remove('d-none');
       return;
     }
 
-    if (tableWrap) tableWrap.classList.remove('d-none');
     if (emptyState) emptyState.classList.add('d-none');
 
     const q = groupSearchQuery.trim().toLowerCase();
-    let rowsData = groups
+    const rowsData = groups
       .filter((g) => {
         if (!q) return true;
         const name = (g.name || '').toLowerCase();
@@ -436,141 +868,113 @@
         return name.includes(q) || desc.includes(q);
       })
       .filter((g) => {
-        if (groupActiveFilter === 'all') return true;
-        if (groupActiveFilter === 'inactive') return !g.is_active;
+        if (!groupActiveOnly) return true;
         return !!g.is_active;
-      });
-
-    const dir = groupSortMode.endsWith('_desc') ? -1 : 1;
-    rowsData.sort((a, b) => {
-      if (groupSortMode.startsWith('id_')) return ((Number(a.id) || 0) - (Number(b.id) || 0)) * dir;
-      if (groupSortMode.startsWith('count_')) {
-        const aCount = agents.filter((x) => Array.isArray(x.group_ids) && x.group_ids.includes(a.id)).length;
-        const bCount = agents.filter((x) => Array.isArray(x.group_ids) && x.group_ids.includes(b.id)).length;
-        return (aCount - bCount) * dir;
-      }
-      return (a.name || '').localeCompare(b.name || '') * dir;
-    });
+      })
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
     if (!rowsData.length) {
-      rows.innerHTML = '<tr><td colspan="6" class="text-secondary">Filtreye uygun kayit yok</td></tr>';
+      list.innerHTML = '<div class="text-secondary">Filtreye uygun kayit yok</div>';
       return;
     }
 
+    if (!rowsData.some((g) => Number(g.id) === Number(selectedGroupId))) {
+      selectedGroupId = Number(rowsData[0]?.id || 0);
+    }
+
     rowsData.forEach((g) => {
-      const groupAgents = agents.filter((a) => {
-        if (Array.isArray(a.group_ids)) return a.group_ids.includes(g.id);
-        return Number(a.group_id || 0) === g.id;
-      });
+      const groupAgents = getGroupAgents(g.id);
       const count = groupAgents.length;
+      const onlineCount = groupAgents.filter((a) => (a.status || '').toLowerCase() === 'online').length;
       const passiveCount = groupAgents.filter((a) => (a.status || '').toLowerCase() !== 'online').length;
 
-      const tr = document.createElement('tr');
       const isSystem = Boolean(g.is_system);
       const isActive = !!g.is_active;
       const lockIcon = isSystem ? '<span class="group-lock" title="Sistem grubu">&#128274;</span>' : '';
       const typeBadge = g.is_dynamic
         ? '<span class="badge bg-azure-lt text-azure">Dinamik</span>'
         : '<span class="badge bg-blue-lt text-blue">Manuel</span>';
-      const editDisabled = isSystem ? 'disabled title="Sistem grubu duzenlenemez"' : '';
+      const statusBadge = isActive
+        ? '<span class="badge bg-green-lt text-green">Aktif</span>'
+        : '<span class="badge bg-yellow-lt text-yellow">Pasif</span>';
       const toggleDisabled = isSystem ? 'disabled title="Sistem grubu aktif/pasif degistirilemez"' : '';
       const statusLabel = isActive ? 'Aktif' : 'Pasif';
-
-      tr.innerHTML = `
-        <td>${g.id}</td>
-        <td><span class="group-name">${g.name}${lockIcon}</span></td>
-        <td>${typeBadge}</td>
-        <td class="text-secondary">${g.description || '-'}</td>
-        <td>
-          <span class="badge bg-blue text-blue-fg" title="Toplam ajan">${count}</span>
-          <span class="badge bg-red text-red-fg ms-1" title="Pasif ajan">${passiveCount}</span>
-        </td>
-        <td class="col-actions">
-          ${canWrite
-            ? `<div class="btn-list flex-nowrap">
-                 <button class="btn btn-outline-secondary btn-sm" type="button" data-action="edit-group" data-group-id="${g.id}" ${editDisabled}><i class="ti ti-edit me-1"></i>Duzenle</button>
-                 <label class="form-check form-switch m-0 d-flex align-items-center gap-2">
-                   <input class="form-check-input" type="checkbox" data-action="toggle-group-active" data-group-id="${g.id}" data-group-name="${(g.name || '').replace(/"/g, '&quot;')}" ${isActive ? 'checked' : ''} ${toggleDisabled}>
-                   <span class="form-check-label">${statusLabel}</span>
-                 </label>
-               </div>`
-            : '-'}
-        </td>
+      const description = (g.description || '').toString().trim();
+      const card = document.createElement('div');
+      card.className = `group-list-item${Number(selectedGroupId) === Number(g.id) ? ' is-selected' : ''}`;
+      card.innerHTML = `
+        <button
+          class="group-select-link"
+          type="button"
+          data-action="select-group"
+          data-group-id="${g.id}"
+          title="${(description || 'Aciklama yok').replace(/"/g, '&quot;')}"
+          data-bs-toggle="tooltip"
+          data-bs-placement="top"
+        >
+          <div class="group-list-item-head">
+            <div class="group-select-top">
+              <div class="group-select-title">${g.name}${lockIcon}</div>
+              ${statusBadge}
+            </div>
+            <div class="group-list-item-bottom">
+              <div class="group-list-item-meta">
+                ${typeBadge}
+                <div class="group-list-item-members">
+                  <span class="badge bg-blue text-blue-fg" title="Toplam ajan">${count}</span>
+                  <span class="badge bg-azure text-azure-fg" title="Online ajan">${onlineCount}</span>
+                  <span class="badge bg-red text-red-fg" title="Offline ajan">${passiveCount}</span>
+                </div>
+              </div>
+              <div class="group-item-actions"></div>
+            </div>
+          </div>
+        </button>
       `;
-      rows.appendChild(tr);
+      list.appendChild(card);
     });
 
-    rows.querySelectorAll('button[data-action="edit-group"]').forEach((btn) => {
+    list.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
+      if (window.bootstrap && typeof window.bootstrap.Tooltip === 'function') {
+        window.bootstrap.Tooltip.getOrCreateInstance(el);
+      }
+    });
+
+    list.querySelectorAll('button[data-action="select-group"]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const groupId = Number(btn.getAttribute('data-group-id') || '0');
-        const group = groups.find((x) => Number(x.id) === groupId);
-        if (!group) return;
-        openGroupEditModal(group);
+        selectedGroupId = Number(btn.getAttribute('data-group-id') || '0');
+        renderGroupsTable();
+        syncSelectedAgentsForCurrentGroup();
       });
     });
 
-    rows.querySelectorAll('input[data-action="toggle-group-active"]').forEach((inputEl) => {
-      inputEl.addEventListener('change', () => {
-        const groupId = Number(inputEl.getAttribute('data-group-id') || '0');
-        const groupName = inputEl.getAttribute('data-group-name') || `#${groupId}`;
-        const group = groups.find((x) => Number(x.id) === groupId);
-        if (!group) return;
-        const nextActive = !!inputEl.checked;
-        const currentActive = !!group.is_active;
-        if (nextActive === currentActive) return;
-
-        const affectedAgentCount = agents.filter((a) => {
-          if (Array.isArray(a.group_ids)) return a.group_ids.includes(groupId);
-          return Number(a.group_id || 0) === groupId;
-        }).length;
-
-        const message = nextActive
-          ? `'${groupName}' grubu <strong>aktif</strong> yapilacak.<br/>Onayliyor musunuz?`
-          : `'${groupName}' grubu <strong>pasif</strong> yapilacak.<br/>` +
-            `Etkilenecek ajan sayisi: <strong>${affectedAgentCount}</strong><br/>` +
-            `Bu gruptaki ajanlar gruptan cikarilacaktir.`;
-
-        openGroupStatusModal({
-          action: 'toggle',
-          groupId,
-          nextActive,
-          currentActive,
-          checkboxEl: inputEl,
-          message,
-        });
-      });
-    });
   }
 
   function renderSelectors() {
-    const groupSelect = document.getElementById('assign-group-id');
-    const previousSelected = Number(groupSelect.value || 0);
-    groupSelect.innerHTML = '';
-    groups.filter((g) => !!g.is_active).forEach((g) => {
-      const op = document.createElement('option');
-      op.value = String(g.id);
-      op.textContent = `${g.name} (#${g.id})${g.is_dynamic ? ' [Dinamik]' : ''}`;
-      groupSelect.appendChild(op);
-    });
-    if (previousSelected && groups.some((g) => Number(g.id) === previousSelected)) {
-      groupSelect.value = String(previousSelected);
+    const previousSelected = Number(selectedGroupId || 0);
+    if (previousSelected && groups.some((g) => Number(g.id) === previousSelected && !!g.is_active)) {
+      selectedGroupId = previousSelected;
+    } else {
+      selectedGroupId = Number(groups.find((g) => !!g.is_active)?.id || groups[0]?.id || 0);
     }
 
     syncSelectedAgentsForCurrentGroup();
   }
 
-  function syncSelectedAgentsForCurrentGroup() {
-    const groupId = Number(document.getElementById('assign-group-id').value || 0);
+  function syncSelectedAgentsForCurrentGroup(skipRebuild = false) {
+    const groupId = Number(selectedGroupId || 0);
     const selectedGroup = groups.find((g) => Number(g.id) === groupId);
     const isDynamic = !!(selectedGroup && selectedGroup.is_dynamic);
     const availableEl = document.getElementById('available-agent-uuids');
     const assignedEl = document.getElementById('assigned-agent-uuids');
-    const inGroup = agents.filter((a) => Array.isArray(a.group_ids) && a.group_ids.includes(groupId));
-    const outGroup = agents.filter((a) => !Array.isArray(a.group_ids) || !a.group_ids.includes(groupId));
-    availableEl.innerHTML = '';
-    assignedEl.innerHTML = '';
-    outGroup.forEach((a) => availableEl.appendChild(toOption(a)));
-    inGroup.forEach((a) => assignedEl.appendChild(toOption(a)));
+    if (!skipRebuild) {
+      const inGroup = agents.filter((a) => Array.isArray(a.group_ids) && a.group_ids.includes(groupId));
+      const outGroup = agents.filter((a) => !Array.isArray(a.group_ids) || !a.group_ids.includes(groupId));
+      currentAssignAssigned = sortAgentsByLabel(inGroup);
+      currentAssignAvailable = sortAgentsByLabel(outGroup);
+    }
+    renderTransferOptions(availableEl, filterAgentsByQuery(currentAssignAvailable, availableAgentSearch));
+    renderTransferOptions(assignedEl, filterAgentsByQuery(currentAssignAssigned, assignedAgentSearch));
     const summaryEl = document.getElementById('assign-summary');
     const dynamicNote = document.getElementById('assign-dynamic-note');
     const saveBtn = document.getElementById('group-assign-save-btn');
@@ -583,9 +987,11 @@
     if (dynamicNote) dynamicNote.classList.toggle('d-none', !isDynamic);
     if (summaryEl) {
       summaryEl.textContent = isDynamic
-        ? `Dinamik grup: ${inGroup.length} ajan kosula gore otomatik atanmis. Manuel atama kapali.`
-        : `Secili grup icin mevcut atama: ${inGroup.length} ajan | Atanmamis: ${outGroup.length}`;
+        ? `Dinamik grup: ${currentAssignAssigned.length} ajan kosula gore otomatik atanmis. Manuel atama kapali.`
+        : `Secili grup icin mevcut atama: ${currentAssignAssigned.length} ajan | Atanmamis: ${currentAssignAvailable.length}`;
     }
+    updateSelectedGroupContext(selectedGroup, currentAssignAssigned);
+    syncTransferSearchMeta();
   }
 
   async function loadData() {
@@ -595,6 +1001,7 @@
     ]);
     groups = g.items || [];
     agents = a.items || [];
+    renderOverview();
     renderSelectors();
     renderGroupsTable();
   }
@@ -678,6 +1085,43 @@
     openHardDeleteConfirm(groupId, groupName);
   });
   document.getElementById('group-status-modal-cancel-btn').addEventListener('click', () => closeGroupStatusModal(true));
+  document.getElementById('assign-group-edit-btn').addEventListener('click', () => {
+    const btn = document.getElementById('assign-group-edit-btn');
+    const groupId = Number((btn?.dataset.groupId || '0').toString());
+    const group = groups.find((x) => Number(x.id) === groupId);
+    if (!group) return;
+    openGroupEditModal(group);
+  });
+  document.getElementById('assign-group-active-toggle').addEventListener('change', (evt) => {
+    const inputEl = evt.target;
+    const groupId = Number(inputEl.getAttribute('data-group-id') || '0');
+    const groupName = inputEl.getAttribute('data-group-name') || `#${groupId}`;
+    const currentActive = (inputEl.getAttribute('data-current-active') || 'false') === 'true';
+    const nextActive = !!inputEl.checked;
+    const group = groups.find((x) => Number(x.id) === groupId);
+    if (!group) return;
+    if (nextActive === currentActive) return;
+
+    const affectedAgentCount = agents.filter((a) => {
+      if (Array.isArray(a.group_ids)) return a.group_ids.includes(groupId);
+      return Number(a.group_id || 0) === groupId;
+    }).length;
+
+    const message = nextActive
+      ? `'${groupName}' grubu <strong>aktif</strong> yapilacak.<br/>Onayliyor musunuz?`
+      : `'${groupName}' grubu <strong>pasif</strong> yapilacak.<br/>` +
+        `Etkilenecek ajan sayisi: <strong>${affectedAgentCount}</strong><br/>` +
+        `Bu gruptaki ajanlar gruptan cikarilacaktir.`;
+
+    openGroupStatusModal({
+      action: 'toggle',
+      groupId,
+      nextActive,
+      currentActive,
+      checkboxEl: inputEl,
+      message,
+    });
+  });
   document.getElementById('group-status-modal-confirm-btn').addEventListener('click', async () => {
     if (!pendingStatusChange) return;
     const payload = pendingStatusChange;
@@ -710,13 +1154,17 @@
     groupSearchQuery = (evt.target.value || '').toString();
     renderGroupsTable();
   });
-  document.getElementById('group-active-filter').addEventListener('change', (evt) => {
-    groupActiveFilter = (evt.target.value || 'all').toString();
+  document.getElementById('group-active-only').addEventListener('change', (evt) => {
+    groupActiveOnly = !!evt.target.checked;
     renderGroupsTable();
   });
-  document.getElementById('group-sort').addEventListener('change', (evt) => {
-    groupSortMode = (evt.target.value || 'name_asc').toString();
-    renderGroupsTable();
+  document.getElementById('available-agent-search').addEventListener('input', (evt) => {
+    availableAgentSearch = (evt.target.value || '').toString();
+    syncSelectedAgentsForCurrentGroup();
+  });
+  document.getElementById('assigned-agent-search').addEventListener('input', (evt) => {
+    assignedAgentSearch = (evt.target.value || '').toString();
+    syncSelectedAgentsForCurrentGroup();
   });
   groupCreateModal.addEventListener('click', (evt) => {
     if (evt.target === groupCreateModal) closeGroupCreateModal();
@@ -802,28 +1250,27 @@
     }
   });
 
-  document.getElementById('assign-group-id').addEventListener('change', syncSelectedAgentsForCurrentGroup);
   document.getElementById('move-right').addEventListener('click', () => {
-    moveSelected(document.getElementById('available-agent-uuids'), document.getElementById('assigned-agent-uuids'));
+    moveSelected(document.getElementById('available-agent-uuids'), 'available', 'assigned');
   });
   document.getElementById('move-left').addEventListener('click', () => {
-    moveSelected(document.getElementById('assigned-agent-uuids'), document.getElementById('available-agent-uuids'));
+    moveSelected(document.getElementById('assigned-agent-uuids'), 'assigned', 'available');
   });
   document.getElementById('move-right-all').addEventListener('click', () => {
-    moveAll(document.getElementById('available-agent-uuids'), document.getElementById('assigned-agent-uuids'));
+    moveAll('available', 'assigned');
   });
   document.getElementById('move-left-all').addEventListener('click', () => {
-    moveAll(document.getElementById('assigned-agent-uuids'), document.getElementById('available-agent-uuids'));
+    moveAll('assigned', 'available');
   });
 
   document.getElementById('group-assign-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const groupId = Number(document.getElementById('assign-group-id').value || 0);
+    const groupId = Number(selectedGroupId || 0);
     if (!groupId) {
       AppCenterApi.toast('Grup seciniz');
       return;
     }
-    const uuids = selectValues(document.getElementById('assigned-agent-uuids'));
+    const uuids = currentAssignAssigned.map((agent) => agent.uuid);
     try {
       await AppCenterApi.req(`/groups/${groupId}/agents`, {
         method: 'PUT',

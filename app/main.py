@@ -66,14 +66,13 @@ NAV_SCHEMA: list[dict[str, Any]] = [
                 "permission": "ui.menu.dashboard",
             },
             {
-                "key": "announcements",
-                "title": "Duyurular",
-                "path": "/announcements",
-                "active_pages": ["announcements"],
+                "key": "dashboard_v2",
+                "title": "Dashboard v2",
+                "path": "/dashboard-v2",
+                "active_pages": ["dashboard_v2"],
                 "roles": ["admin", "operator", "viewer"],
                 "feature_flag": None,
-                "permission": "ui.menu.announcements",
-                "icon": "ti ti-speakerphone",
+                "permission": "ui.menu.dashboard",
             },
         ],
     },
@@ -139,6 +138,16 @@ NAV_SCHEMA: list[dict[str, Any]] = [
                 "permission": "ui.menu.remote_support",
             },
         ],
+    },
+    {
+        "key": "announcements",
+        "title": "Duyurular",
+        "path": "/announcements",
+        "active_pages": ["announcements"],
+        "roles": ["admin", "operator", "viewer"],
+        "feature_flag": None,
+        "permission": "ui.menu.announcements",
+        "icon": "ti ti-speakerphone",
     },
     {
         "key": "software",
@@ -313,6 +322,7 @@ NAV_SCHEMA: list[dict[str, Any]] = [
 
 PAGE_PERMISSION_BY_ACTIVE: dict[str, str] = {
     "dashboard": "ui.page.dashboard",
+    "dashboard_v2": "ui.page.dashboard",
     "agents": "ui.page.agents",
     "remote_support": "ui.page.remote_support",
     "asset_registry": "ui.page.asset_registry",
@@ -639,7 +649,7 @@ def dashboard_page(request: Request):
 
 @app.get("/dashboard-v2")
 def dashboard_v2_page(request: Request):
-    return templates.TemplateResponse("dashboard_v2.html", _page_ctx(request, "dashboard"))
+    return templates.TemplateResponse("dashboard_v2.html", _page_ctx(request, "dashboard_v2"))
 
 
 @app.get("/agents")

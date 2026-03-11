@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 
 class Settings(BaseModel):
     app_name: str = "AppCenter Server"
-    app_version: str = "1.1.6"
+    app_version: str = "1.1.7"
     api_v1_prefix: str = "/api/v1"
 
     # Database

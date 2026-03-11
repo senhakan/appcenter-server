@@ -272,7 +272,7 @@
     - `base.html` uzerinden otomatik permission kontrolu uygulanir.
   - Rol profilleri:
     - Sistem rolleri: `viewer`, `operator`, `admin`
-    - Varsayilan ozel profil: `support_center_only` (Destek Merkezi odakli erisim)
+    - Varsayilan ozel profil: `support_center_only` (Destek Merkezi + Session Recordings odakli erisim)
     - Ozel rol profili ekleme/duzenleme/pasife alma akisi aktif
     - Her rol profili dogrudan `permissions` listesi ile tanimlanir
     - Kullanici olustur/duzenle ekraninda rol secimi `Rol Profili` uzerinden yapilir
