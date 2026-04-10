@@ -169,18 +169,18 @@ def create_session(
     db.refresh(session)
     agent_signal.notify_agent(agent_uuid)
     if ws_manager.is_agent_connected(agent_uuid):
+        approval_required = is_approval_required_for_agent(db, agent_uuid)
         ws_manager.schedule_send_to_agent(
             agent_uuid,
             make_message(
                 "server.rs.request",
                 {
                     "session_id": session.id,
-                    "admin_user_id": admin_user_id,
+                    "admin_name": admin_name_for_session(db, session),
                     "reason": clean_reason,
                     "requested_at": session.requested_at.isoformat() if session.requested_at else None,
-                    "approval_timeout_at": session.approval_timeout_at.isoformat() if session.approval_timeout_at else None,
-                    "vnc_password": session.vnc_password,
-                    "max_duration_min": session.max_duration_min,
+                    "timeout_at": session.approval_timeout_at.isoformat() if session.approval_timeout_at else None,
+                    "requires_approval": approval_required,
                 },
                 ack=True,
             ),
