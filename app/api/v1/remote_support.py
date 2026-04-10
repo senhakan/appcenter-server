@@ -451,6 +451,9 @@ def approve_remote_session(
     session = rs.approve_from_agent(db, session_id, x_agent_uuid, body.approved, body.monitor_count)
     if body.approved and session.status == "approved":
         runtime = runtime_config.get_remote_support_runtime(db)
+        helper_user_display_name = None
+        if runtime.helper_show_operator_name_enabled:
+            helper_user_display_name = rs.admin_name_for_session(db, session)
         return {
             "status": "ok",
             "vnc_password": session.vnc_password,
@@ -458,6 +461,8 @@ def approve_remote_session(
             "guacd_reverse_port": rs.settings.guac_reverse_vnc_port,
             "novnc_mode": runtime.novnc_mode,
             "ws_mode": runtime.ws_mode,
+            "helper_connection_overlay_enabled": runtime.helper_connection_overlay_enabled,
+            "helper_user_display_name": helper_user_display_name,
         }
     return {"status": "ok", "message": "Session rejected"}
 

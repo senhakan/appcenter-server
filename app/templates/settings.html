@@ -304,6 +304,30 @@
                           </label>
                           <div class="form-hint">Session ekraninin altindaki baglanti log panelini gosterir veya gizler.</div>
                         </div>
+                        <div class="col-12">
+                          <div class="border rounded-3 p-3 h-100">
+                            <div class="settings-section-title mb-3">
+                              <span class="badge bg-red-lt text-red">Ajan Bilgilendirme</span>
+                              <div class="subheader mb-0">Client ekraninda baglanti oldugunu gorunur hale getiren rshelper parametreleri</div>
+                            </div>
+                            <div class="row g-3">
+                              <div class="col-12 col-md-6">
+                                <label class="form-check form-switch mt-1">
+                                  <input class="form-check-input" id="s-remote-support-helper-connection-overlay-enabled" type="checkbox" />
+                                  <span class="form-check-label">Baglanti Ekraninda kirmizi cerceve ekle</span>
+                                </label>
+                                <div class="form-hint">Aktifse rshelper komutuna <code>-connectionoverlay</code> eklenir.</div>
+                              </div>
+                              <div class="col-12 col-md-6">
+                                <label class="form-check form-switch mt-1">
+                                  <input class="form-check-input" id="s-remote-support-helper-show-operator-name-enabled" type="checkbox" />
+                                  <span class="form-check-label">Baglanan kisi ismini ekranda goster</span>
+                                </label>
+                                <div class="form-hint">Aktifse rshelper komutuna <code>-user &lt;appcenter username&gt;</code> eklenir.</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -454,6 +478,8 @@
       document.getElementById('s-remote-support-ws-mode').value = map.remote_support_ws_mode || 'internal';
       document.getElementById('s-remote-support-control-bar-mode').value = map.remote_support_control_bar_mode || 'embedded';
       document.getElementById('s-remote-support-log-screen-enabled').checked = ['1', 'true', 'yes', 'on'].includes((map.remote_support_log_screen_enabled || 'true').toString().toLowerCase());
+      document.getElementById('s-remote-support-helper-connection-overlay-enabled').checked = ['1', 'true', 'yes', 'on'].includes((map.remote_support_helper_connection_overlay_enabled || 'false').toString().toLowerCase());
+      document.getElementById('s-remote-support-helper-show-operator-name-enabled').checked = ['1', 'true', 'yes', 'on'].includes((map.remote_support_helper_show_operator_name_enabled || 'false').toString().toLowerCase());
       initialRemoteSupportApprovalRequired = document.getElementById('s-remote-support-approval-required').checked;
       document.getElementById('s-session-recording-enabled').checked = ['1', 'true', 'yes', 'on'].includes((map.session_recording_enabled || 'false').toString().toLowerCase());
       document.getElementById('s-session-recording-fps').value = map.session_recording_fps || '10';
@@ -538,6 +564,8 @@
             remote_support_ws_mode: document.getElementById('s-remote-support-ws-mode').value,
             remote_support_control_bar_mode: document.getElementById('s-remote-support-control-bar-mode').value,
             remote_support_log_screen_enabled: document.getElementById('s-remote-support-log-screen-enabled').checked ? 'true' : 'false',
+            remote_support_helper_connection_overlay_enabled: document.getElementById('s-remote-support-helper-connection-overlay-enabled').checked ? 'true' : 'false',
+            remote_support_helper_show_operator_name_enabled: document.getElementById('s-remote-support-helper-show-operator-name-enabled').checked ? 'true' : 'false',
             session_recording_enabled: document.getElementById('s-session-recording-enabled').checked ? 'true' : 'false',
             session_recording_fps: document.getElementById('s-session-recording-fps').value,
             session_recording_watermark_enabled: document.getElementById('s-session-recording-watermark-enabled').checked ? 'true' : 'false',

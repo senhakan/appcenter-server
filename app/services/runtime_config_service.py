@@ -15,6 +15,8 @@ REMOTE_SUPPORT_NOVNC_MODE_KEY = "remote_support_novnc_mode"
 REMOTE_SUPPORT_WS_MODE_KEY = "remote_support_ws_mode"
 REMOTE_SUPPORT_CONTROL_BAR_MODE_KEY = "remote_support_control_bar_mode"
 REMOTE_SUPPORT_LOG_SCREEN_ENABLED_KEY = "remote_support_log_screen_enabled"
+REMOTE_SUPPORT_HELPER_CONNECTION_OVERLAY_ENABLED_KEY = "remote_support_helper_connection_overlay_enabled"
+REMOTE_SUPPORT_HELPER_SHOW_OPERATOR_NAME_ENABLED_KEY = "remote_support_helper_show_operator_name_enabled"
 
 
 @dataclass(frozen=True)
@@ -27,6 +29,8 @@ class RemoteSupportRuntimeConfig:
     ws_mode: str
     control_bar_mode: str
     log_screen_enabled: bool
+    helper_connection_overlay_enabled: bool
+    helper_show_operator_name_enabled: bool
 
 
 def _setting_map(db: Session, keys: list[str]) -> dict[str, str]:
@@ -73,6 +77,8 @@ def get_remote_support_runtime(db: Session) -> RemoteSupportRuntimeConfig:
             REMOTE_SUPPORT_WS_MODE_KEY,
             REMOTE_SUPPORT_CONTROL_BAR_MODE_KEY,
             REMOTE_SUPPORT_LOG_SCREEN_ENABLED_KEY,
+            REMOTE_SUPPORT_HELPER_CONNECTION_OVERLAY_ENABLED_KEY,
+            REMOTE_SUPPORT_HELPER_SHOW_OPERATOR_NAME_ENABLED_KEY,
         ],
     )
     enabled = str(values[REMOTE_SUPPORT_ENABLED_KEY]).strip().lower() in {"1", "true", "yes", "on"}
@@ -109,6 +115,14 @@ def get_remote_support_runtime(db: Session) -> RemoteSupportRuntimeConfig:
     if control_bar_mode not in {"embedded", "topbar"}:
         control_bar_mode = "embedded"
     log_screen_enabled = str(values[REMOTE_SUPPORT_LOG_SCREEN_ENABLED_KEY] or "true").strip().lower() in {"1", "true", "yes", "on"}
+    helper_connection_overlay_enabled = (
+        str(values[REMOTE_SUPPORT_HELPER_CONNECTION_OVERLAY_ENABLED_KEY] or "false").strip().lower()
+        in {"1", "true", "yes", "on"}
+    )
+    helper_show_operator_name_enabled = (
+        str(values[REMOTE_SUPPORT_HELPER_SHOW_OPERATOR_NAME_ENABLED_KEY] or "false").strip().lower()
+        in {"1", "true", "yes", "on"}
+    )
     return RemoteSupportRuntimeConfig(
         enabled=enabled,
         approval_timeout_sec=approval_timeout_sec,
@@ -118,6 +132,8 @@ def get_remote_support_runtime(db: Session) -> RemoteSupportRuntimeConfig:
         ws_mode=ws_mode,
         control_bar_mode=control_bar_mode,
         log_screen_enabled=log_screen_enabled,
+        helper_connection_overlay_enabled=helper_connection_overlay_enabled,
+        helper_show_operator_name_enabled=helper_show_operator_name_enabled,
     )
 
 

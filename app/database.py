@@ -63,6 +63,8 @@ DEFAULT_SETTINGS = {
     "remote_support_ws_mode": ("internal", "Viewer websocket bridge modu: internal veya external"),
     "remote_support_control_bar_mode": ("embedded", "Session sayfasinda kontrol bari yeri: embedded veya topbar"),
     "remote_support_log_screen_enabled": ("true", "Session sayfasinda baglanti log ekrani gorunsun"),
+    "remote_support_helper_connection_overlay_enabled": ("false", "Agent rshelper cagrisina -connectionoverlay parametresi ekle"),
+    "remote_support_helper_show_operator_name_enabled": ("false", "Agent rshelper cagrisina -user <username> parametresi ekle"),
     "inventory_history_retention_days": ("90", "Yazilim degisim gecmisi saklama suresi (gun)"),
     "system_history_retention_days": ("360", "Sistem profili degisim gecmisi saklama suresi (gun)"),
     "runtime_update_interval_min": ("60", "Agent runtime update kontrol araligi (dakika)"),
