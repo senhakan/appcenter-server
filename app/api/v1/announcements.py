@@ -22,6 +22,20 @@ from app.services import audit_service as audit
 router = APIRouter(prefix="/api/v1/announcements", tags=["announcements"])
 
 
+def _parse_agent_target_ids(value: Optional[str]) -> list[str]:
+    if not value:
+        return []
+    items: list[str] = []
+    seen: set[str] = set()
+    for raw in str(value).split(","):
+        agent_uuid = raw.strip()
+        if not agent_uuid or agent_uuid in seen:
+            continue
+        seen.add(agent_uuid)
+        items.append(agent_uuid)
+    return items
+
+
 def _pending_counts_by_announcement(db, announcement_ids: list[int]) -> dict[int, int]:
     if not announcement_ids:
         return {}
@@ -82,7 +96,8 @@ def _enrich_announcements(db, announcements: list[Announcement]) -> list[Announc
             except Exception:
                 pass
         elif item.target_type == "Agent" and item.target_id:
-            agent_uuids.add(str(item.target_id))
+            for agent_uuid in _parse_agent_target_ids(item.target_id):
+                agent_uuids.add(agent_uuid)
 
     group_name_map, agent_name_map = _target_name_maps(db, group_ids, agent_uuids)
 
@@ -98,7 +113,15 @@ def _enrich_announcements(db, announcements: list[Announcement]) -> list[Announc
                 group_id = 0
             target_name = group_name_map.get(group_id) or str(item.target_id)
         elif item.target_type == "Agent" and item.target_id:
-            target_name = agent_name_map.get(str(item.target_id)) or str(item.target_id)
+            agent_ids = _parse_agent_target_ids(item.target_id)
+            if len(agent_ids) == 1:
+                target_name = agent_name_map.get(agent_ids[0]) or agent_ids[0]
+            elif len(agent_ids) > 1:
+                hostnames = [agent_name_map.get(agent_uuid) or agent_uuid for agent_uuid in agent_ids[:2]]
+                extra = len(agent_ids) - len(hostnames)
+                target_name = ", ".join(hostnames)
+                if extra > 0:
+                    target_name = f"{target_name} +{extra} ajan"
 
         response_item = AnnouncementResponse.model_validate(item).model_copy(
             update={

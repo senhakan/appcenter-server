@@ -53,7 +53,12 @@ def test_inventory_heartbeat_flow(client):
     detail = client.get(f"/api/v1/agents/{uid}", headers=auth_headers)
     assert detail.status_code == 200
     data = detail.json()
-    assert data["logged_in_sessions"] == [{"username": "TEST\\alice", "session_type": "rdp", "logon_id": "999"}]
+    assert len(data["logged_in_sessions"]) == 1
+    session = data["logged_in_sessions"][0]
+    assert session["username"] == "TEST\\alice"
+    assert session["session_type"] == "rdp"
+    assert session["logon_id"] == "999"
+    assert session.get("session_state") in {None, "active", "disconnected"}
     assert data["logged_in_sessions_updated_at"] is not None
 
     # Submit inventory

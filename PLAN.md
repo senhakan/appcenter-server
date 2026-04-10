@@ -36,6 +36,9 @@ Tum temel ozellikler uretim ortaminda calisir durumda:
 - [ ] Audit log middleware: her mutating API call'da otomatik kayit (not: su an mutating endpoint seviyesinde kayit aktif)
 - [x] Kritik operasyonlarda UI onay adimi (deployment silme, grup pasife alma, uygulama silme)
 - [x] Rol bazli erisim detaylandirma (admin/operator/viewer, backend `403` + UI gorunurluk)
+- [ ] Sonraki is: server restart sonrasinda `restart grace window`
+  - amac: 60-120 sn boyunca reconnect kaynakli gecici ajan/UI olaylarini gürültü üretmeden toparlamak
+  - etki alani: timeline, audit log ve UI websocket broadcast akislarinda gereksiz event patlamasini azaltmak
 
 **6.4 Tabler UI Gecisi:**
 - 6.1-6.3 tamamlanmadan baslanmaz
@@ -61,6 +64,15 @@ Tum temel ozellikler uretim ortaminda calisir durumda:
 ---
 
 ## Faz 8: Uzak Destek - Server Tarafindaki Isler
+
+Guncel takip notu (2026-04-10):
+- [ ] Destek Merkezi / Ajan Bilgilendirme ayarlari
+  - yeni runtime key: `remote_support_helper_connection_overlay_enabled`
+  - yeni runtime key: `remote_support_helper_show_operator_name_enabled`
+  - approve cevabi / WS push payload'ina helper gorunurluk alanlari eklenecek
+  - agent helper komut satiri:
+    - ayar 1 aciksa `-connectionoverlay`
+    - ayar 2 aciksa `-user <AppCenter username>`
 
 Karar notu (2026-02-20):
 - Bu asamada hedef, remote support modulunu mevcut helper binary ile uctan uca calistirmaktir.

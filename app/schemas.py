@@ -11,6 +11,7 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     expires_at: Optional[datetime] = None
     expires_in_sec: Optional[int] = None
+    auth_source: Optional[str] = None
 
 
 class LoginRequest(BaseModel):
@@ -249,6 +250,7 @@ class UserPublic(BaseModel):
     organization: Optional[str] = None
     department: Optional[str] = None
     avatar_url: Optional[str] = None
+    auth_source: str = "local"
     role: str
     role_profile_id: Optional[int] = None
     role_profile_key: Optional[str] = None

@@ -130,9 +130,9 @@ NAV_SCHEMA: list[dict[str, Any]] = [
             },
             {
                 "key": "connection_history",
-                "title": "Baglanti Gecmisi (Yakinda)",
-                "path": None,
-                "active_pages": [],
+                "title": "Baglanti Gecmisi",
+                "path": "/remote-support/history",
+                "active_pages": ["connection_history"],
                 "roles": ["admin", "operator", "viewer"],
                 "feature_flag": None,
                 "permission": "ui.menu.remote_support",
@@ -325,6 +325,7 @@ PAGE_PERMISSION_BY_ACTIVE: dict[str, str] = {
     "dashboard_v2": "ui.page.dashboard",
     "agents": "ui.page.agents",
     "remote_support": "ui.page.remote_support",
+    "connection_history": "ui.page.remote_support",
     "asset_registry": "ui.page.asset_registry",
     "announcements": "ui.page.announcements",
     "groups": "ui.page.groups",
@@ -665,6 +666,11 @@ def agents_v2_page(request: Request):
 @app.get("/remote-support")
 def remote_support_list_page(request: Request):
     return templates.TemplateResponse("remote_support/list.html", _page_ctx(request, "remote_support"))
+
+
+@app.get("/remote-support/history")
+def remote_support_history_page(request: Request):
+    return templates.TemplateResponse("remote_support/history.html", _page_ctx(request, "connection_history"))
 
 
 @app.get("/asset-registry")

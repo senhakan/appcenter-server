@@ -290,6 +290,159 @@
     padding: 0.35rem;
   }
 
+  .ann-create-page .choice-inline-panel {
+    margin-top: 0.8rem;
+    padding: 0.85rem 0.95rem;
+    border: 1px dashed var(--tblr-border-color, #dce1e7);
+    border-radius: 12px;
+    background: var(--tblr-bg-surface-secondary, #f6f8fb);
+  }
+
+  .ann-create-page .choice-inline-panel .form-label:last-child {
+    margin-bottom: 0.35rem;
+  }
+
+  .selected-agent-pill {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.65rem 0.8rem;
+    border-radius: 16px;
+    background: var(--tblr-primary-lt, #e9f2fd);
+    color: var(--tblr-body-color, #182433);
+    font-weight: 600;
+    line-height: 1.2;
+  }
+
+  .selected-agent-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+  }
+
+  .selected-agent-pill i {
+    margin-top: 0.15rem;
+    color: var(--tblr-primary, #066fd1);
+  }
+
+  .selected-agent-copy {
+    display: grid;
+    gap: 0.18rem;
+  }
+
+  .selected-agent-copy strong {
+    font-size: 0.9rem;
+    color: var(--tblr-body-color, #182433);
+  }
+
+  .selected-agent-copy small {
+    display: block;
+    color: var(--tblr-secondary-color, #626976);
+    font-weight: 500;
+  }
+
+  .selected-agent-copy small.agent-ip {
+    font-size: 0.76rem;
+  }
+
+  .ann-create-page .selection-summary {
+    margin-top: 0.85rem;
+    padding: 0.95rem 1rem;
+    border-radius: 12px;
+    background: var(--tblr-bg-surface-secondary, #f6f8fb);
+    border: 1px solid var(--tblr-border-color, #e6e7e9);
+  }
+
+  .ann-create-page .selection-summary-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--tblr-secondary-color, #626976);
+  }
+
+  .ann-create-page .selection-summary-body {
+    margin-top: 0.45rem;
+    color: var(--tblr-body-color, #182433);
+  }
+
+  .ann-create-page .selection-summary-body div + div {
+    margin-top: 0.25rem;
+  }
+
+  .agent-picker-list {
+    display: grid;
+    gap: 0.55rem;
+    max-height: 420px;
+    overflow-y: auto;
+  }
+
+  .agent-picker-item {
+    width: 100%;
+    border: 1px solid var(--tblr-border-color, #dce1e7);
+    border-radius: 12px;
+    padding: 0.8rem 0.9rem;
+    text-align: left;
+    background: #fff;
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .agent-picker-item:hover,
+  .agent-picker-item.is-selected {
+    border-color: rgba(var(--tblr-primary-rgb, 15, 98, 254), 0.45);
+    background: rgba(15, 98, 254, 0.04);
+  }
+
+  .agent-picker-item.is-selected {
+    box-shadow: inset 0 0 0 1px rgba(var(--tblr-primary-rgb, 15, 98, 254), 0.18);
+  }
+
+  .agent-picker-item-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .agent-picker-host {
+    font-weight: 700;
+    color: var(--tblr-body-color, #182433);
+  }
+
+  .agent-picker-meta {
+    margin-top: 0.18rem;
+    color: var(--tblr-secondary-color, #626976);
+    font-size: 0.8rem;
+  }
+
+  .agent-picker-footer-note {
+    min-height: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+    font-weight: 600;
+    color: var(--tblr-body-color, #182433);
+  }
+
+  .ann-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(15, 23, 42, 0.48);
+  }
+
+  .ann-modal-backdrop.hidden {
+    display: none;
+  }
+
+  .ann-modal-dialog {
+    width: 100%;
+    max-width: 860px;
+  }
+
   .ann-create-page .sticky-col {
     position: sticky;
     top: 1rem;
@@ -352,23 +505,18 @@
               <div class="form-hint">Uzun metin, satir kirilimi ve detayli aciklama burada tutulur.</div>
             </div>
 
-            <div class="col-12 d-none" id="target-agent-wrap">
-              <div class="row g-3">
-                <div class="col-12">
-                  <label class="form-label" for="target-agent-search">Agent Ara</label>
-                  <input id="target-agent-search" class="form-control" placeholder="Hostname / UUID ile ara" />
-                </div>
-                <div class="col-12">
-                  <label class="form-label" for="target-agent-id">Agent Secimi</label>
-                  <select id="target-agent-id" class="form-select ann-agent-select" size="8"></select>
+            <div class="col-12">
+              <div class="d-flex justify-content-end">
+                <button id="ann-submit" class="btn btn-primary" type="submit">
+                  <i class="ti ti-send me-1"></i><span id="ann-submit-text">Yayinla</span>
+                </button>
+              </div>
+              <div id="announcement-selection-summary" class="selection-summary">
+                <div class="selection-summary-title">Yayin Ozeti</div>
+                <div id="announcement-selection-summary-body" class="selection-summary-body">
+                  <div>Mesaj secilen hedefe gore hazirlaniyor.</div>
                 </div>
               </div>
-            </div>
-
-            <div class="col-12 d-flex justify-content-end">
-              <button id="ann-submit" class="btn btn-primary" type="submit">
-                <i class="ti ti-send me-1"></i><span id="ann-submit-text">Yayinla</span>
-              </button>
             </div>
           </form>
         </div>
@@ -436,20 +584,27 @@
                   <span>
                     <span class="choice-option-title">Belirli grup</span>
                     <span class="choice-option-hint">Secilen gruba uye ajanlar hedeflenir.</span>
+                    <div class="choice-inline-panel d-none" id="target-group-wrap">
+                      <label class="form-label" for="target-group-id">Grup Secimi</label>
+                      <select id="target-group-id" class="form-select"></select>
+                    </div>
                   </span>
                 </label>
                 <label class="choice-option">
                   <input class="form-check-input" type="radio" name="target_type" value="Agent" />
                   <span>
-                    <span class="choice-option-title">Tek ajan</span>
-                    <span class="choice-option-hint">Arama ile belirli bir client secilir.</span>
+                    <span class="choice-option-title">Ajan sec</span>
+                    <span class="choice-option-hint">Arama ile bir veya daha fazla client secilir.</span>
+                    <div class="choice-inline-panel d-none" id="target-agent-wrap">
+                      <div class="d-flex flex-column align-items-start gap-2">
+                        <button id="open-agent-picker" class="btn btn-outline-primary btn-sm" type="button">
+                          <i class="ti ti-device-desktop-search me-1"></i>Ajan Sec
+                        </button>
+                        <div id="selected-agent-display" class="d-none"></div>
+                      </div>
+                    </div>
                   </span>
                 </label>
-              </div>
-
-              <div class="d-none" id="target-group-wrap">
-                <label class="form-label" for="target-group-id">Grup</label>
-                <select id="target-group-id" class="form-select"></select>
               </div>
             </div>
 
@@ -538,12 +693,42 @@
                 <i class="ti ti-users-group"></i>
                 <div>
                   <div class="fw-semibold">Hedef kontrolu</div>
-                  <div class="text-secondary small">Tek ajan seciliyken arama kutusundaki filtre secili listeyi aninda daraltir.</div>
+                  <div class="text-secondary small">Ajan secimi modalinda birden fazla client isaretlenebilir, filtre secili listeyi hizla daraltir.</div>
                 </div>
               </div>
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="agent-picker-modal" class="ann-modal-backdrop hidden" aria-live="polite">
+  <div class="ann-modal-dialog">
+    <div class="card mb-0">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Ajan Secimi</h3>
+        <button id="agent-picker-close-top" class="btn btn-outline-secondary btn-sm" type="button">
+          <i class="ti ti-x me-1"></i>Kapat
+        </button>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label" for="target-agent-search">Ajan Ara</label>
+          <div class="input-icon">
+            <span class="input-icon-addon"><i class="ti ti-search"></i></span>
+            <input id="target-agent-search" class="form-control" placeholder="Hostname / UUID ile ara" autocomplete="off" />
+          </div>
+        </div>
+        <input id="target-agent-id" type="hidden" />
+        <div id="agent-picker-empty" class="text-secondary d-none">Aramaya uygun ajan bulunamadi.</div>
+        <div id="agent-picker-list" class="agent-picker-list"></div>
+      </div>
+      <div class="card-footer d-flex justify-content-between gap-2 flex-wrap">
+        <div id="agent-picker-selection-count" class="agent-picker-footer-note">0 ajan secildi</div>
+        <button id="clear-agent-selection" class="btn btn-outline-secondary me-auto" type="button">Secimi Temizle</button>
+        <button id="agent-picker-close-bottom" class="btn btn-outline-secondary" type="button">Kapat</button>
       </div>
     </div>
   </div>
@@ -555,6 +740,8 @@
 
   const editAnnouncementId = Number(new URLSearchParams(window.location.search).get('announcement_id') || 0);
   let allAgents = [];
+  let allGroups = [];
+  const agentPickerModal = document.getElementById('agent-picker-modal');
 
   function esc(v) {
     return (v ?? '')
@@ -589,17 +776,20 @@
     const targetType = parseRadio('target_type');
     document.getElementById('target-group-wrap').classList.toggle('d-none', targetType !== 'Group');
     document.getElementById('target-agent-wrap').classList.toggle('d-none', targetType !== 'Agent');
+    renderSelectionSummary();
   }
 
   function syncScheduleMode() {
     const isScheduled = parseRadio('schedule_mode') === 'scheduled';
     document.getElementById('scheduled-at-wrap').classList.toggle('d-none', !isScheduled);
     document.getElementById('ann-submit-text').textContent = isScheduled ? 'Planla' : 'Yayinla';
+    renderSelectionSummary();
   }
 
   function syncExpireMode() {
     const enabled = document.getElementById('expires-enabled').checked;
     document.getElementById('expires-at-wrap').classList.toggle('d-none', !enabled);
+    renderSelectionSummary();
   }
 
   function renderErrors(errors) {
@@ -618,8 +808,92 @@
     box.classList.remove('d-none');
   }
 
+  function getSelectedAgentIds() {
+    return (document.getElementById('target-agent-id').value || '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean);
+  }
+
+  function getAgentGroupNames(agent) {
+    if (!agent || !Array.isArray(agent.group_ids)) return [];
+    return agent.group_ids
+      .map((groupId) => allGroups.find((group) => Number(group.id || 0) === Number(groupId || 0)))
+      .filter(Boolean)
+      .map((group) => (group.name || '').toString().trim())
+      .filter(Boolean);
+  }
+
+  function getAgentIpText(agent) {
+    if (!agent) return '-';
+    const allIps = Array.isArray(agent.full_ip_list) ? agent.full_ip_list : [];
+    const base = [agent.ip_address, ...allIps]
+      .map((value) => (value || '').toString().trim())
+      .filter(Boolean);
+    const unique = Array.from(new Set(base));
+    if (!unique.length) return '-';
+    return unique.join(', ');
+  }
+
+  function renderAgentSelectionCount() {
+    const root = document.getElementById('agent-picker-selection-count');
+    if (!root) return;
+    const count = getSelectedAgentIds().length;
+    root.textContent = `${count} ajan secildi`;
+  }
+
+  function renderSelectedAgent() {
+    const root = document.getElementById('selected-agent-display');
+    const selectedIds = getSelectedAgentIds();
+    if (!root) return;
+    if (!selectedIds.length) {
+      root.classList.add('d-none');
+      root.innerHTML = '';
+      renderAgentSelectionCount();
+      renderSelectionSummary();
+      return;
+    }
+    const selectedAgents = selectedIds
+      .map((agentId) => allAgents.find((agent) => (agent.uuid || '').toString() === agentId))
+      .filter(Boolean);
+    root.classList.remove('d-none');
+    root.innerHTML = `
+      <div class="selected-agent-pills">
+        ${selectedAgents.map((agent) => {
+          const statusClass = (agent.status || '').toLowerCase() === 'online' ? 'bg-green-lt text-green' : 'bg-secondary-lt text-secondary';
+          const groupNames = getAgentGroupNames(agent);
+          const groupLabel = groupNames.length ? groupNames.join(', ') : 'Grup yok';
+          return `
+            <div class="selected-agent-pill">
+              <i class="ti ti-device-desktop"></i>
+              <span class="selected-agent-copy">
+                <strong>${esc(agent.hostname || '-')}</strong>
+                <small>${esc(groupLabel)}</small>
+                <small class="agent-ip">${esc(getAgentIpText(agent))}</small>
+              </span>
+              <span class="badge ${statusClass}">${esc(agent.status || '-')}</span>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+    renderAgentSelectionCount();
+    renderSelectionSummary();
+  }
+
+  function openAgentPickerModal() {
+    if (!agentPickerModal) return;
+    agentPickerModal.classList.remove('hidden');
+  }
+
+  function closeAgentPickerModal() {
+    if (!agentPickerModal) return;
+    agentPickerModal.classList.add('hidden');
+  }
+
   function renderAgentOptions(query) {
-    const select = document.getElementById('target-agent-id');
+    const list = document.getElementById('agent-picker-list');
+    const selectedIds = new Set(getSelectedAgentIds());
     const q = (query || '').toLowerCase().trim();
     const rows = q
       ? allAgents.filter((agent) => {
@@ -628,7 +902,110 @@
         return hostname.includes(q) || uuid.includes(q);
       })
       : allAgents;
-    select.innerHTML = rows.map((agent) => `<option value="${esc(agent.uuid)}">${esc((agent.hostname || '-') + ' (' + agent.uuid + ')')}</option>`).join('');
+    const empty = document.getElementById('agent-picker-empty');
+    if (empty) empty.classList.toggle('d-none', rows.length > 0);
+    renderAgentSelectionCount();
+    list.innerHTML = rows.map((agent) => {
+      const selected = selectedIds.has((agent.uuid || '').toString());
+      const statusClass = (agent.status || '').toLowerCase() === 'online' ? 'bg-green-lt text-green' : 'bg-secondary-lt text-secondary';
+      const groupNames = getAgentGroupNames(agent);
+      const metaLine = groupNames.length ? groupNames.join(', ') : 'Grup yok';
+      return `
+        <button
+          class="agent-picker-item ${selected ? 'is-selected' : ''}"
+          type="button"
+          data-agent-uuid="${esc(agent.uuid)}"
+        >
+          <div class="agent-picker-item-top">
+            <div>
+              <div class="agent-picker-host">${esc(agent.hostname || '-')}</div>
+              <div class="agent-picker-meta">${esc(metaLine)}</div>
+              <div class="agent-picker-meta">${esc(getAgentIpText(agent))}</div>
+            </div>
+            <span class="badge ${statusClass}">${esc(agent.status || '-')}</span>
+          </div>
+        </button>
+      `;
+    }).join('');
+    list.querySelectorAll('[data-agent-uuid]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const agentId = btn.getAttribute('data-agent-uuid') || '';
+        const next = new Set(getSelectedAgentIds());
+        if (next.has(agentId)) next.delete(agentId);
+        else next.add(agentId);
+        document.getElementById('target-agent-id').value = Array.from(next).join(',');
+        renderAgentOptions(document.getElementById('target-agent-search').value || '');
+        renderSelectedAgent();
+      });
+    });
+  }
+
+  function countTargetAgents(targetType, targetId, deliveryMode) {
+    let scoped = [];
+    if (targetType === 'Agent') {
+      const ids = Array.isArray(targetId) ? targetId : String(targetId || '').split(',').map((x) => x.trim()).filter(Boolean);
+      const idSet = new Set(ids);
+      scoped = allAgents.filter((agent) => idSet.has((agent.uuid || '').toString()));
+    } else if (targetType === 'Group') {
+      const groupId = Number(targetId || 0);
+      scoped = groupId
+        ? allAgents.filter((agent) => Array.isArray(agent.group_ids) && agent.group_ids.map((x) => Number(x || 0)).includes(groupId))
+        : [];
+    } else {
+      scoped = allAgents.slice();
+    }
+    const online = scoped.filter((agent) => (agent.status || '').toLowerCase() === 'online').length;
+    const offline = Math.max(0, scoped.length - online);
+    const effective = deliveryMode === 'online_only' ? online : scoped.length;
+    return { total: scoped.length, online, offline, effective };
+  }
+
+  function renderSelectionSummary() {
+    const root = document.getElementById('announcement-selection-summary-body');
+    if (!root) return;
+    const targetType = parseRadio('target_type') || 'All';
+    const deliveryMode = parseRadio('delivery_mode') || 'online_only';
+    const groupId = Number(document.getElementById('target-group-id').value || 0) || null;
+    const agentIds = getSelectedAgentIds();
+    const targetId = targetType === 'Group' ? groupId : (targetType === 'Agent' ? agentIds : null);
+    const counts = countTargetAgents(targetType, targetId, deliveryMode);
+    const when = parseRadio('schedule_mode') === 'scheduled'
+      ? (document.getElementById('scheduled-at').value ? AppCenterApi.formatDate(toUtcIso(document.getElementById('scheduled-at').value)) : 'secilen tarihte')
+      : 'hemen';
+    const lines = [];
+
+    if (targetType === 'Group') {
+      const group = allGroups.find((item) => Number(item.id || 0) === Number(groupId || 0));
+      if (groupId && group) lines.push(`Mesaj <strong>${counts.effective}</strong> ajana ${when} iletilecek. Hedef grup: <strong>${esc(group.name || '-')}</strong>.`);
+      else lines.push('Belirli grup secildiginde yayin hedefi burada netlesecek.');
+    } else if (targetType === 'Agent') {
+      if (agentIds.length) {
+        const selectedAgents = agentIds
+          .map((agentId) => allAgents.find((agent) => (agent.uuid || '').toString() === agentId))
+          .filter(Boolean);
+        const names = selectedAgents.slice(0, 2).map((agent) => esc(agent.hostname || agent.uuid || '-'));
+        const extra = Math.max(0, selectedAgents.length - names.length);
+        const label = extra > 0 ? `${names.join(', ')} +${extra} ajan` : names.join(', ');
+        lines.push(`Mesaj secili <strong>${counts.effective}</strong> ajan icin ${when} iletilecek. Hedef: <strong>${label}</strong>.`);
+      } else lines.push('Ajan hedefi secildi. Devam etmek icin en az bir client secin.');
+    } else {
+      lines.push(`Mesaj ${when} sistemdeki <strong>${counts.effective}</strong> ajana iletilecek.`);
+    }
+
+    if (deliveryMode === 'online_only') {
+      lines.push(`Yalnizca su an online olan <strong>${counts.online}</strong> ajan teslim alacak.`);
+    } else {
+      lines.push(`Offline kalan <strong>${counts.offline}</strong> ajan, online olduklarinda teslim sirasina dahil olacak.`);
+    }
+
+    if (document.getElementById('expires-enabled').checked) {
+      const expiresAt = document.getElementById('expires-at').value;
+      lines.push(expiresAt
+        ? `Duyuru <strong>${esc(AppCenterApi.formatDate(toUtcIso(expiresAt)))}</strong> tarihinden sonra devre disi kalacak.`
+        : 'Sona erme acik fakat tarih secilmedi.');
+    }
+
+    root.innerHTML = lines.map((line) => `<div>${line}</div>`).join('');
   }
 
   async function loadTargets() {
@@ -638,12 +1015,15 @@
     ]);
 
     const groupSelect = document.getElementById('target-group-id');
+    allGroups = (groupsData.items || []).slice();
     groupSelect.innerHTML = '<option value="">Grup secin</option>' + (groupsData.items || []).map((group) => (
-      `<option value="${Number(group.id || 0)}">${esc((group.name || '-') + ' (#' + Number(group.id || 0) + ')')}</option>`
+      `<option value="${Number(group.id || 0)}">${esc(group.name || '-')}</option>`
     )).join('');
 
     allAgents = (agentsData.items || []).slice();
     renderAgentOptions('');
+    renderSelectedAgent();
+    renderSelectionSummary();
   }
 
   async function loadEditData() {
@@ -665,9 +1045,6 @@
       document.getElementById('target-group-id').value = (data.target_id || '').toString();
     } else if (data.target_type === 'Agent') {
       document.getElementById('target-agent-id').value = (data.target_id || '').toString();
-      if (!document.getElementById('target-agent-id').value) {
-        document.getElementById('target-agent-search').value = (data.target_name || data.target_id || '').toString();
-      }
     }
 
     const isScheduled = !!data.scheduled_at;
@@ -688,6 +1065,9 @@
     }
 
     document.getElementById('ann-submit-text').textContent = isScheduled ? 'Planla' : 'Yayinla';
+    renderAgentOptions(document.getElementById('target-agent-search').value || '');
+    renderSelectedAgent();
+    renderSelectionSummary();
   }
 
   function buildPayload() {
@@ -703,7 +1083,7 @@
     if (targetType === 'Group') {
       targetId = Number(document.getElementById('target-group-id').value || 0) || null;
     } else if (targetType === 'Agent') {
-      targetId = (document.getElementById('target-agent-id').value || '').trim() || null;
+      targetId = getSelectedAgentIds().join(',') || null;
     }
 
     return {
@@ -723,7 +1103,7 @@
     if (!payload.title || payload.title.length < 3) errors.push('Baslik en az 3 karakter olmalidir.');
     if (!payload.message || payload.message.length < 3) errors.push('Mesaj en az 3 karakter olmalidir.');
     if (payload.target_type === 'Group' && !payload.target_id) errors.push('Grup hedefi secilmelidir.');
-    if (payload.target_type === 'Agent' && !payload.target_id) errors.push('Agent hedefi secilmelidir.');
+    if (payload.target_type === 'Agent' && !payload.target_id) errors.push('En az bir ajan secilmelidir.');
     if (parseRadio('schedule_mode') === 'scheduled' && !payload.scheduled_at) errors.push('Planli yayin icin tarih-saat girilmelidir.');
     if (document.getElementById('expires-enabled').checked && !payload.expires_at) errors.push('Sona erme aciksa tarih-saat girilmelidir.');
     return errors;
@@ -731,8 +1111,33 @@
 
   document.querySelectorAll('input[name="target_type"]').forEach((el) => el.addEventListener('change', syncTargetType));
   document.querySelectorAll('input[name="schedule_mode"]').forEach((el) => el.addEventListener('change', syncScheduleMode));
+  document.querySelectorAll('input[name="delivery_mode"]').forEach((el) => el.addEventListener('change', renderSelectionSummary));
   document.getElementById('expires-enabled').addEventListener('change', syncExpireMode);
   document.getElementById('target-agent-search').addEventListener('input', (evt) => renderAgentOptions(evt.target.value || ''));
+  document.getElementById('target-group-id').addEventListener('change', renderSelectionSummary);
+  document.getElementById('scheduled-at').addEventListener('change', renderSelectionSummary);
+  document.getElementById('expires-at').addEventListener('change', renderSelectionSummary);
+  document.getElementById('open-agent-picker').addEventListener('click', (evt) => {
+    evt.preventDefault();
+    evt.stopPropagation();
+    const targetRadio = document.querySelector('input[name="target_type"][value="Agent"]');
+    if (targetRadio && !targetRadio.checked) {
+      targetRadio.checked = true;
+      syncTargetType();
+    }
+    renderAgentOptions(document.getElementById('target-agent-search').value || '');
+    openAgentPickerModal();
+  });
+  document.getElementById('clear-agent-selection').addEventListener('click', () => {
+    document.getElementById('target-agent-id').value = '';
+    renderAgentOptions(document.getElementById('target-agent-search').value || '');
+    renderSelectedAgent();
+  });
+  document.getElementById('agent-picker-close-top').addEventListener('click', closeAgentPickerModal);
+  document.getElementById('agent-picker-close-bottom').addEventListener('click', closeAgentPickerModal);
+  agentPickerModal.addEventListener('click', (evt) => {
+    if (evt.target === agentPickerModal) closeAgentPickerModal();
+  });
 
   document.getElementById('ann-form').addEventListener('submit', async (evt) => {
     evt.preventDefault();

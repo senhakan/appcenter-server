@@ -1,0 +1,52 @@
+; AppCenter Server bootstrap configuration example
+;
+; Bu dosya example amaclidir. Gercek secret degerleri repo icinde tutulmamalidir.
+
+[app]
+app_name = AppCenter Server
+app_version = 1.1.7
+api_v1_prefix = /api/v1
+
+[database]
+database_url = postgresql+psycopg2://appcenter:<db-password>@127.0.0.1:5432/appcenter
+
+[jwt]
+secret_key = <strong-random-jwt-secret>
+jwt_algorithm = HS256
+jwt_expire_minutes = 60
+
+[uploads]
+upload_dir = /var/lib/appcenter/uploads
+max_upload_size = 2147483648
+max_icon_size = 5242880
+
+[server]
+server_host = 0.0.0.0
+server_port = 8000
+debug = false
+cors_origins = ["*"]
+
+[logging]
+log_file = /var/log/appcenter/server.log
+log_level = INFO
+
+[remote_support]
+guac_reverse_vnc_host =
+guac_reverse_vnc_port = 5500
+novnc_token_file = /opt/appcenter/novnc/tokens.txt
+novnc_ws_path = /novnc-ws
+
+[ldap]
+; Bootstrap/secret alanlari burada tutulur.
+; Runtime davranis ayarlari DB `settings` + `/settings` ekranindadir.
+ldap_server_uri = ldap://ldap.example.local:389
+ldap_use_ssl = false
+ldap_start_tls = false
+ldap_bind_dn = CN=appcenter-ldap,OU=Service Accounts,DC=example,DC=local
+ldap_bind_password = <ldap-bind-password>
+ldap_user_base_dn = OU=Users,DC=example,DC=local
+ldap_user_filter = (&(objectClass=user)(sAMAccountName={username}))
+ldap_group_base_dn = OU=Groups,DC=example,DC=local
+ldap_group_filter = (|(member={user_dn})(uniqueMember={user_dn})(memberUid={username}))
+ldap_ca_cert_file =
+ldap_timeout_sec = 10

@@ -43,6 +43,19 @@ class Settings(BaseModel):
     novnc_token_file: str = "/opt/appcenter/novnc/tokens.txt"
     novnc_ws_path: str = "/novnc-ws"
 
+    # LDAP bootstrap
+    ldap_server_uri: str = ""
+    ldap_use_ssl: bool = False
+    ldap_start_tls: bool = False
+    ldap_bind_dn: str = ""
+    ldap_bind_password: str = ""
+    ldap_user_base_dn: str = ""
+    ldap_user_filter: str = "(sAMAccountName={username})"
+    ldap_group_base_dn: str = ""
+    ldap_group_filter: str = "(|(member={user_dn})(uniqueMember={user_dn})(memberUid={username}))"
+    ldap_ca_cert_file: str = ""
+    ldap_timeout_sec: int = 10
+
     # Diagnostics
     config_file: str = ""
 
@@ -81,12 +94,12 @@ def _candidate_config_paths() -> list[Path]:
 
 def _flatten_config(data: dict[str, Any]) -> dict[str, Any]:
     flat: dict[str, Any] = {}
-    for section in ("app", "database", "jwt", "uploads", "server", "logging", "remote_support"):
+    for section in ("app", "database", "jwt", "uploads", "server", "logging", "remote_support", "ldap"):
         value = data.get(section)
         if isinstance(value, dict):
             flat.update(value)
     for key, value in data.items():
-        if key not in {"app", "database", "jwt", "uploads", "server", "logging", "remote_support"}:
+        if key not in {"app", "database", "jwt", "uploads", "server", "logging", "remote_support", "ldap"}:
             flat[key] = value
     return flat
 

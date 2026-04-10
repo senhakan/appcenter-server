@@ -69,3 +69,22 @@ Not:
 2. App startup'ta config parse hatasi
 - Neden: `cors_origins=*` gibi hatali format
 - Cozum: `cors_origins=["*"]` kullan
+
+## 6. PostgreSQL Gunluk Backup Topolojisi
+
+- Gunluk backup script:
+  - `/opt/appcenter/server/scripts/postgres-backup-daily.sh`
+- Cron kaydi:
+  - `/etc/cron.d/appcenter-postgres-backup`
+- Backup root:
+  - `/backup/appcenter-postgresql`
+- Canli DB gunluk hedefi:
+  - `/backup/appcenter-postgresql/appcenter/`
+- Test DB gunluk hedefi:
+  - `/backup/appcenter-postgresql/appcenter_test/`
+- Saklama politikasi:
+  - 30 gun
+- Her DB klasorunde:
+  - timestamp'li `.dump` dosyalari
+  - `.sha256` checksum dosyalari
+  - `latest.dump` symlink'i

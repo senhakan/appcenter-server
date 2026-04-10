@@ -299,6 +299,7 @@ class User(Base):
     __tablename__ = "users"
     __table_args__ = (
         CheckConstraint("role IN ('admin', 'operator', 'viewer')", name="ck_user_role"),
+        CheckConstraint("auth_source IN ('local', 'ldap')", name="ck_user_auth_source"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -311,6 +312,9 @@ class User(Base):
     organization: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     department: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     avatar_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    auth_source: Mapped[str] = mapped_column(String, default="local", nullable=False)
+    ldap_dn: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    last_directory_sync: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     role: Mapped[str] = mapped_column(String, default="viewer", nullable=False)
     role_profile_id: Mapped[Optional[int]] = mapped_column(ForeignKey("role_profiles.id", ondelete="SET NULL"), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -435,6 +439,8 @@ Index("idx_task_app", TaskHistory.app_id)
 Index("idx_task_status", TaskHistory.status)
 Index("idx_task_created", TaskHistory.created_at)
 Index("idx_user_username", User.username)
+Index("idx_user_auth_source", User.auth_source)
+Index("idx_user_ldap_dn", User.ldap_dn)
 Index("idx_user_role_profile", User.role_profile_id)
 Index("idx_role_profile_key", RoleProfile.key)
 Index("idx_role_profile_active", RoleProfile.is_active)

@@ -79,6 +79,14 @@ DEFAULT_SETTINGS = {
     "ui_ws_enabled": ("false", "UI WebSocket aktif/pasif"),
     "ui_ws_fallback_poll_sec": ("10", "UI WS yokken polling suresi (sn)"),
     "agent_auth_recovery_enabled": ("false", "Agent auth uyumsuzlugunda UUID/secret ile gecici otomatik toparlama"),
+    "auth_ldap_enabled": ("false", "LDAP/AD login akisi aktif/pasif"),
+    "auth_ldap_allow_local_fallback": ("true", "LDAP aktifken lokal kullanicilarin lokal sifre ile girisine izin ver"),
+    "auth_ldap_jit_create_users": ("false", "LDAP login basariliysa eksik web kullanicisini otomatik olustur"),
+    "auth_ldap_directory_type": ("openldap", "LDAP dizin tipi: openldap veya ad"),
+    "auth_ldap_default_role_profile_key": ("viewer", "JIT olusan LDAP kullanicilarina atanacak varsayilan role profile key"),
+    "auth_ldap_group_admin": ("", "Admin role icin LDAP grup adi veya CN listesi (virgulle ayrilmis)"),
+    "auth_ldap_group_operator": ("", "Operator role icin LDAP grup adi veya CN listesi (virgulle ayrilmis)"),
+    "auth_ldap_group_viewer": ("", "Viewer role icin LDAP grup adi veya CN listesi (virgulle ayrilmis)"),
 }
 
 DEFAULT_ROLE_PROFILES = [
@@ -176,6 +184,7 @@ def _run_startup_migrations() -> None:
     _migrate_users_role_profile_column()
     _migrate_users_avatar_column()
     _migrate_users_profile_columns()
+    _migrate_users_auth_source_columns()
     _migrate_groups_dynamic_columns()
     _migrate_agent_platform_columns()
     _migrate_agent_runtime_network_columns()
@@ -300,6 +309,47 @@ def _migrate_users_profile_columns() -> None:
         for col, sql_type in expected.items():
             if col not in existing:
                 conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {sql_type} NULL"))
+
+
+def _migrate_users_auth_source_columns() -> None:
+    with engine.begin() as conn:
+        table_exists = conn.execute(
+            text("SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='users' LIMIT 1")
+        ).first()
+        if not table_exists:
+            return
+        rows = conn.execute(
+            text("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='users'")
+        ).all()
+        existing = {row[0] for row in rows}
+        if "auth_source" not in existing:
+            conn.execute(text("ALTER TABLE users ADD COLUMN auth_source VARCHAR NOT NULL DEFAULT 'local'"))
+        if "ldap_dn" not in existing:
+            conn.execute(text("ALTER TABLE users ADD COLUMN ldap_dn VARCHAR NULL"))
+        if "last_directory_sync" not in existing:
+            conn.execute(text("ALTER TABLE users ADD COLUMN last_directory_sync TIMESTAMPTZ NULL"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_user_auth_source ON users(auth_source)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_user_ldap_dn ON users(ldap_dn)"))
+        constraint_exists = conn.execute(
+            text(
+                """
+                SELECT 1
+                FROM information_schema.table_constraints
+                WHERE table_schema='public'
+                  AND table_name='users'
+                  AND constraint_name='ck_user_auth_source'
+                LIMIT 1
+                """
+            )
+        ).first()
+        if not constraint_exists:
+            conn.execute(
+                text(
+                    "ALTER TABLE users "
+                    "ADD CONSTRAINT ck_user_auth_source "
+                    "CHECK (auth_source IN ('local', 'ldap'))"
+                )
+            )
 
 
 def _migrate_groups_dynamic_columns() -> None:

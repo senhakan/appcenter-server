@@ -82,6 +82,19 @@ def test_settings_broadcast_self_update_supports_mode(client: TestClient, auth_h
             sent.append((uuid, message))
 
         ws_manager.schedule_send_to_agent = _capture  # type: ignore[assignment]
+        settings_seed = client.put(
+            '/api/v1/settings',
+            headers=auth_headers,
+            json={
+                'values': {
+                    'agent_latest_version_windows': '1.2.3',
+                    'agent_download_url_windows': '/api/v1/agent/update/download/windows-agent-test.exe',
+                    'agent_hash_windows': 'abc123force',
+                }
+            },
+        )
+        assert settings_seed.status_code == 200
+        sent.clear()
 
         resp = client.post(
             '/api/v1/settings/agents/broadcast',

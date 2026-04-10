@@ -26,6 +26,7 @@ from app.models import (
     Application,
     Deployment,
     Group,
+    RoleProfile,
     RemoteSupportSession,
     Setting,
     SoftwareLicense,
@@ -111,6 +112,7 @@ MIN_REMOTE_SUPPORT_DURATION_MIN = 1
 MAX_REMOTE_SUPPORT_DURATION_MIN = 480
 MAX_SCRIPT_PREVIEW_BYTES = 256 * 1024
 SCRIPT_PREVIEW_FILE_TYPES = {"ps1", "sh"}
+VALID_LDAP_DIRECTORY_TYPES = {"openldap", "ad"}
 
 
 def _as_utc(dt_value):
@@ -1522,6 +1524,30 @@ def settings_update(
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"{key} must be >= 0",
+                )
+        if key == "auth_ldap_directory_type":
+            mode = (value or "").strip().lower()
+            if mode not in VALID_LDAP_DIRECTORY_TYPES:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid auth_ldap_directory_type",
+                )
+        if key == "auth_ldap_default_role_profile_key":
+            role_key = (value or "").strip().lower()
+            if not role_key:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="auth_ldap_default_role_profile_key is required",
+                )
+            role_exists = (
+                db.query(RoleProfile.id)
+                .filter(func.lower(RoleProfile.key) == role_key, RoleProfile.is_active.is_(True))
+                .first()
+            )
+            if not role_exists:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid auth_ldap_default_role_profile_key",
                 )
         if key == "dynamic_group_sync_interval_sec":
             try:

@@ -67,7 +67,7 @@ class UIConnection:
 class WSManager:
     def __init__(self):
         self._agents: dict[str, AgentConnection] = {}  # uuid -> conn
-        self._ui_clients: dict[int, UIConnection] = {}  # user_id -> conn
+        self._ui_clients: dict[int, list[UIConnection]] = {}  # user_id -> conns
         self._lock = asyncio.Lock()
         self._loop: asyncio.AbstractEventLoop | None = None
 
@@ -158,34 +158,37 @@ class WSManager:
 
     # --- UI ---
     async def register_ui(self, ws: WebSocket, user_id: int, role: str) -> None:
-        old_conn: UIConnection | None = None
         async with self._lock:
-            old_conn = self._ui_clients.get(user_id)
-            self._ui_clients[user_id] = UIConnection(ws=ws, user_id=user_id, role=role)
-            logger.info("ws ui registered user_id=%s role=%s ui_clients=%s", user_id, role, len(self._ui_clients))
-
-        if old_conn and old_conn.ws is not ws:
-            try:
-                await old_conn.ws.close(code=1001, reason="replaced")
-            except Exception:
-                pass
-            logger.warning("ws ui replaced old connection user_id=%s", user_id)
+            bucket = self._ui_clients.setdefault(user_id, [])
+            bucket.append(UIConnection(ws=ws, user_id=user_id, role=role))
+            total = sum(len(conns) for conns in self._ui_clients.values())
+            logger.info("ws ui registered user_id=%s role=%s ui_clients=%s", user_id, role, total)
 
     async def unregister_ui(self, user_id: int, ws: WebSocket | None = None) -> None:
         removed = False
         async with self._lock:
-            conn = self._ui_clients.get(user_id)
-            if conn is not None and (ws is None or conn.ws is ws):
-                del self._ui_clients[user_id]
-                removed = True
-                count = len(self._ui_clients)
-            else:
-                count = len(self._ui_clients)
+            conns = self._ui_clients.get(user_id) or []
+            if conns:
+                if ws is None:
+                    removed = bool(conns)
+                    self._ui_clients.pop(user_id, None)
+                else:
+                    kept = [conn for conn in conns if conn.ws is not ws]
+                    removed = len(kept) != len(conns)
+                    if kept:
+                        self._ui_clients[user_id] = kept
+                    else:
+                        self._ui_clients.pop(user_id, None)
+            count = sum(len(items) for items in self._ui_clients.values())
         if removed:
             logger.info("ws ui unregistered user_id=%s ui_clients=%s", user_id, count)
 
     async def broadcast_to_ui(self, message: dict) -> None:
-        clients = list(self._ui_clients.items())
+        clients = [
+            (user_id, conn)
+            for user_id, conns in list(self._ui_clients.items())
+            for conn in list(conns)
+        ]
         dead_clients: list[tuple[int, WebSocket]] = []
 
         for user_id, conn in clients:
@@ -204,13 +207,13 @@ class WSManager:
     @property
     def ui_count(self) -> int:
         # NOTE: lock-free read; relies on CPython GIL for concurrent dict reads.
-        return len(self._ui_clients)
+        return sum(len(conns) for conns in self._ui_clients.values())
 
     # --- Cleanup ---
     async def close_all(self) -> None:
         async with self._lock:
             agents = list(self._agents.values())
-            ui_clients = list(self._ui_clients.values())
+            ui_clients = [conn for conns in self._ui_clients.values() for conn in conns]
             self._agents.clear()
             self._ui_clients.clear()
 

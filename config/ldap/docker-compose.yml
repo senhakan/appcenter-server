@@ -1,0 +1,18 @@
+version: "3.3"
+
+services:
+  openldap:
+    image: osixia/openldap:1.5.0
+    container_name: appcenter-openldap
+    hostname: ldap.appcenter.local
+    environment:
+      LDAP_ORGANISATION: AppCenter
+      LDAP_DOMAIN: appcenter.local
+      LDAP_BASE_DN: dc=appcenter,dc=local
+      LDAP_ADMIN_PASSWORD: admin123
+      LDAP_CONFIG_PASSWORD: config123
+      LDAP_TLS: "false"
+    ports:
+      - "1389:389"
+    volumes:
+      - ./seed.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/50-seed.ldif:ro

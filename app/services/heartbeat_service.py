@@ -491,15 +491,28 @@ def process_heartbeat(
         incoming_state = (payload.remote_support.state or "").strip().lower()
         incoming_sid = int(payload.remote_support.session_id or 0)
         active_sid = _resolve_active_remote_session_id(db, agent.uuid)
+        passive_states = {"idle", "ended", "none", "", "rejected"}
+        terminal_states = passive_states | {"error"}
 
         accept = False
         if active_sid is None:
             # No active server-side session: only accept terminal/idle snapshots.
-            accept = incoming_state in {"idle", "ended", "none", ""}
+            accept = incoming_state in passive_states
         else:
-            # Active session exists: accept if heartbeat matches active session id
-            # or if agent doesn't provide id but state is active-ish.
-            accept = (incoming_sid == active_sid) or (incoming_sid == 0 and incoming_state in {"approved", "connecting", "active"})
+            if incoming_sid == active_sid and incoming_state in terminal_states:
+                # Agent reports the active session as terminal/error. Reconcile the
+                # server-side session immediately so stale sessions do not block
+                # the next remote support attempt.
+                from app.services import remote_support_service as rs
+
+                ended_by = "agent_error" if incoming_state == "error" else "agent"
+                rs.end_session_from_agent(db, active_sid, agent.uuid, ended_by)
+                active_sid = None
+                accept = incoming_state in passive_states
+            else:
+                # Active session exists: accept if heartbeat matches active session id
+                # or if agent doesn't provide id but state is active-ish.
+                accept = (incoming_sid == active_sid) or (incoming_sid == 0 and incoming_state in {"approved", "connecting", "active"})
 
         if accept:
             agent.remote_support_state = payload.remote_support.state

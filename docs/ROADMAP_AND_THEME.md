@@ -36,6 +36,9 @@ Bu dokuman iki amac icin tutulur:
 - Audit log: kim, neyi, ne zaman degistirdi
 - Kritik operasyonlarda onay adimi
 - Rol bazli erisim detaylandirma (admin/operator/viewer)
+- Sonraki is notu: server restart sonrasinda `restart grace window` eklenmesi
+  - Hedef: 60-120 sn gecis penceresinde reconnect kaynakli gecici agent/UI event gurultusunu baskilamak
+  - Kapsam: timeline, audit ve UI broadcast tarafinda anlamsiz reconnect patlamalarini azaltmak
 
 ### Faz 6.4 (Final UI Modernizasyonu - En Son Asama)
 - Tabler tabanli UI gecisi bu fazda yapilacak.
@@ -92,7 +95,7 @@ Bilgi mimarisi buyuyen kapsam dikkate alinarak gorev odakli olacak sekilde su se
 - `Destek`
   - `Destek Merkezi`
   - `Session Recordings`
-  - `Baglanti Gecmisi (yakinda)`
+  - `Baglanti Gecmisi`
 - `Yazilim`
   - `Uygulamalar`
   - `Dagitimlar`

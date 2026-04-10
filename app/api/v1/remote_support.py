@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import require_permission
 from app.database import get_db
-from app.models import Agent, RemoteSupportRecording, User
+from app.models import Agent, RemoteSupportRecording, RemoteSupportSession, User
 from app.schemas import (
     MessageResponse,
     RemoteSessionAgentApproveRequest,
@@ -25,6 +25,19 @@ from app.services import audit_service as audit
 from app.api.v1.agent import _authenticate_agent
 
 router = APIRouter(tags=["remote-support"])
+
+
+def _duration_sec(started_at, ended_at) -> Optional[int]:
+    if not started_at:
+        return None
+    end_value = ended_at
+    if not end_value:
+        return None
+    try:
+        delta = end_value - started_at
+        return max(int(delta.total_seconds()), 0)
+    except Exception:
+        return None
 
 
 @router.get("/remote-support/recording/service-status")
@@ -257,6 +270,63 @@ def list_remote_sessions(
             for s in sessions
         ],
     }
+
+
+@router.get("/remote-support/history")
+def list_remote_history(
+    q: Optional[str] = None,
+    outcome: Optional[str] = None,
+    limit: int = 100,
+    user: User = Depends(require_permission("remote_support.session.view")),
+    db: Session = Depends(get_db),
+):
+    _ = user
+    rs.ensure_enabled(db)
+    sessions = rs.list_sessions(db, limit=max(1, min(limit, 300)))
+    agent_map = {
+        item.uuid: item.hostname
+        for item in db.query(Agent).filter(Agent.uuid.in_({s.agent_uuid for s in sessions})).all()
+    } if sessions else {}
+    query_text = (q or "").strip().lower()
+    items = []
+    for s in sessions:
+        hostname = (agent_map.get(s.agent_uuid) or "").strip()
+        admin_name = rs.admin_name_for_session(db, s)
+        duration_sec = _duration_sec(s.connected_at, s.ended_at)
+        derived_outcome = "connected" if s.connected_at else ("failed" if s.ended_at or s.status in {"rejected", "timeout", "error"} else "pending")
+        record = {
+            "id": s.id,
+            "agent_uuid": s.agent_uuid,
+            "agent_hostname": hostname or None,
+            "admin_name": admin_name,
+            "status": s.status,
+            "outcome": derived_outcome,
+            "reason": s.reason,
+            "requested_at": s.requested_at,
+            "approved_at": s.approved_at,
+            "connected_at": s.connected_at,
+            "ended_at": s.ended_at,
+            "ended_by": s.ended_by,
+            "duration_sec": duration_sec,
+            "max_duration_min": s.max_duration_min,
+        }
+        if query_text:
+            haystack = " ".join([
+                str(record["id"]),
+                record["agent_uuid"] or "",
+                record["agent_hostname"] or "",
+                record["admin_name"] or "",
+                record["reason"] or "",
+                record["status"] or "",
+                record["ended_by"] or "",
+            ]).lower()
+            if query_text not in haystack:
+                continue
+        if outcome and outcome not in {"all", derived_outcome}:
+            continue
+        items.append(record)
+
+    return {"status": "ok", "items": items, "total": len(items)}
 
 
 @router.get("/remote-support/sessions/{session_id}")

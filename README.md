@@ -55,6 +55,18 @@
   - `server_host` / `server_port`
   - `log_file`
   - `novnc_token_file`
+  - LDAP/AD bootstrap baglanti ayarlari:
+    - `ldap_server_uri`
+    - `ldap_use_ssl`
+    - `ldap_start_tls`
+    - `ldap_bind_dn`
+    - `ldap_bind_password`
+    - `ldap_user_base_dn`
+    - `ldap_user_filter`
+    - `ldap_group_base_dn`
+    - `ldap_group_filter`
+    - `ldap_ca_cert_file`
+    - `ldap_timeout_sec`
 - Runtime davranis ayarlari artik DB `settings` tablosunda tutulur ve `/settings` ekranindan yonetilir:
   - `remote_support_enabled`
   - `remote_support_approval_timeout_sec`
@@ -62,9 +74,25 @@
   - `remote_support_max_duration_min`
   - `remote_support_novnc_mode`
   - `remote_support_ws_mode`
+  - helper bilgilendirme ayarlari:
+    - `remote_support_helper_connection_overlay_enabled`
+    - `remote_support_helper_show_operator_name_enabled`
+  - LDAP runtime ayarlari:
+    - `auth_ldap_enabled`
+    - `auth_ldap_allow_local_fallback`
+    - `auth_ldap_jit_create_users`
+    - `auth_ldap_directory_type`
+    - `auth_ldap_default_role_profile_key`
+    - `auth_ldap_group_admin`
+    - `auth_ldap_group_operator`
+    - `auth_ldap_group_viewer`
 - Kural:
   - davranis/config degisimi icin `.env` kullanilmaz
   - remote support runtime ayarlari servis restart gerektirmez
+  - helper bilgilendirme ayarlari `/settings > Destek Merkezi > Ajan Bilgilendirme` altindan yonetilir
+  - LDAP/AD baglanti secret'lari `/settings` ekranina tasinmaz; `config/server.ini` icinde tutulur
+  - LDAP bootstrap alanlari icin paylasim/referans dosyasi `config/server.ini.example` kullanilir
+  - `config/server.ini` altindaki LDAP alanlari degisirse servis restart gerekir
 
 ## CSS Kurali
 
@@ -212,12 +240,58 @@
     - Legacy `app.css` icindeki global `.badge` ezmesi `app-shell` disina scope'landi.
     - Boylece Tabler tema sayfalarinda badge koseleri/olculeri tema ile bire bir uyumlu kalir.
   - noVNC session sayfasi acikken aktif menu `Destek Merkezi` olarak isaretlenir.
+  - Agent helper bilgilendirme politikasi:
+    - `/settings > Destek Merkezi > Ajan Bilgilendirme` altinda iki runtime ayar bulunur.
+    - `Baglanti Ekraninda kirmizi cerceve ekle` aktifse agent helper `-connectionoverlay` ile cagrilir.
+    - `Baglanan kisi ismini ekranda goster` aktifse agent helper `-user <appcenter_username>` ile cagrilir.
+    - `-user` icin gonderilen deger remote support session'i baslatan AppCenter kullanicisinin `username` alanidir.
+    - Bu iki ayar sadece agent helper komut satirini etkiler; noVNC ticket/bridge port mantigini degistirmez.
   - Dinamik grup altyapisi:
     - Grup olustur/duzenle ekranina `Dinamik (Otomatik grup)` secenegi eklendi.
     - Kurallar: `hostname` ve `ip` wildcard desenleri (`*`) ile tanimlanir.
     - `Kosulu Kontrol Et` ile eslesen ajan sayisi + ilk 5 ornek listelenir.
     - Dinamik gruplarda manuel ajan atama backend/UI seviyesinde kapatilir.
     - Yeni/Duzenle grup modal genisligi artirildi; dinamik `Hostname` ve `IP` kosul alanlari yan yana kullanilir.
+
+## LDAP / Active Directory Durumu (2026-03-24)
+
+- LDAP/AD login entegrasyonu aktif kod yoluna alinmistir.
+- Login akisi:
+  - lokal kullanici + parola login devam eder
+  - `auth_ldap_enabled=true` iken LDAP/AD branch devreye girer
+  - `auth_ldap_allow_local_fallback=true` ise lokal admin fallback korunur
+- Kullanici veri modeli:
+  - `users.auth_source`: `local | ldap`
+  - `users.ldap_dn`
+  - `users.last_directory_sync`
+- JIT kullanici olusturma desteklenir:
+  - `auth_ldap_jit_create_users=true` ise dizinde dogrulanan kullanici AppCenter'da yoksa olusturulur
+- `/settings` ekranina LDAP / Active Directory bolumu eklendi:
+  - `LDAP Girisi Aktif`
+  - `Lokal Fallback Aktif`
+  - `JIT Kullanici Olustur`
+  - `Dizin Tipi`
+  - `Varsayilan Role Profile Key`
+  - admin/operator/viewer grup esleme alanlari
+- Guvenlik modeli:
+  - bind password gibi secret alanlar DB/UI yerine `config/server.ini` icinde tutulur
+  - `auth_source=ldap` olan kullanicilarda lokal parola degistirme desteklenmez
+- Test dogrulamasi:
+  - OpenLDAP lab ile gercek bind/search/login testi gecmistir
+  - AD ile servis hesabi bind + user lookup + user bind + AppCenter login smoke dogrulanmistir
+- Guncel canli not:
+  - AD testinde `auser / 1234Asd!!!` ile login basarili dogrulandi
+  - Guncel AD filtre modeli `sAMAccountName` bazlidir; `userPrincipalName` login varsayilan olarak acik degildir
+- Hata davranisi ozeti:
+  - LDAP config hatasi -> `503`
+  - LDAP auth/search/bind hatasi -> `401`
+  - basarili login audit event'leri: `auth.login.local`, `auth.login.ldap`
+- Secret hijyeni:
+  - repo icinde placeholder/example tercih edilir
+  - gercek `ldap_bind_password` gibi degerler kalici dokumana tasinmaz
+  - referans example: `config/server.ini.example`
+- Detayli referans:
+  - `docs/LDAP_INTEGRATION_PREP.md`
     - Global `.row` ezmesi etkisine karsi dinamik kural alani Bootstrap kolondan bagimsiz CSS grid ile yan yana sabitlendi.
     - Dinamik uyelikler scheduler job ile otomatik guncellenir.
       - Ayar anahtari: `dynamic_group_sync_interval_sec` (min `30`, varsayilan `120`)

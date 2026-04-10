@@ -1,0 +1,300 @@
+{% extends 'base.html' %}
+{% block title %}Baglanti Gecmisi{% endblock %}
+{% block page_title %}Baglanti Gecmisi{% endblock %}
+{% block content %}
+<style>
+  .history-summary-card .card-body {
+    padding: 1rem 1.1rem;
+  }
+  .history-summary-label {
+    color: var(--tblr-secondary, #667382);
+    font-size: .75rem;
+    font-weight: 600;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+  }
+  .history-summary-value {
+    color: var(--tblr-body-color, #182433);
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.15;
+    margin-top: .35rem;
+  }
+  .history-summary-note {
+    color: var(--tblr-secondary, #667382);
+    font-size: .8rem;
+    margin-top: .3rem;
+  }
+  .history-toolbar .form-control,
+  .history-toolbar .form-select,
+  .history-toolbar .btn {
+    min-height: 2.5rem;
+  }
+  .history-user {
+    font-weight: 600;
+  }
+  .history-meta {
+    color: var(--tblr-secondary, #667382);
+    font-size: .8rem;
+  }
+  .history-reason {
+    max-width: 320px;
+    white-space: normal;
+    word-break: break-word;
+  }
+  .history-empty {
+    padding: 2rem 1rem;
+    text-align: center;
+  }
+  .history-empty .icon {
+    color: var(--tblr-secondary, #667382);
+    font-size: 2rem;
+    margin-bottom: .75rem;
+  }
+  .history-empty-title {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+  .history-empty-note {
+    color: var(--tblr-secondary, #667382);
+    font-size: .9rem;
+    margin-top: .25rem;
+  }
+  .history-duration {
+    white-space: nowrap;
+    font-weight: 600;
+  }
+</style>
+
+<div class="row row-cards mb-3" id="history-summary">
+  <div class="col-sm-6 col-lg-3">
+    <div class="card history-summary-card">
+      <div class="card-body">
+        <div class="history-summary-label">Toplam Talep</div>
+        <div class="history-summary-value" id="summary-total">0</div>
+        <div class="history-summary-note">Filtreye gore listelenen kayitlar</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card history-summary-card">
+      <div class="card-body">
+        <div class="history-summary-label">Basarili Baglanti</div>
+        <div class="history-summary-value text-green" id="summary-connected">0</div>
+        <div class="history-summary-note">Client'a baglanilan oturumlar</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card history-summary-card">
+      <div class="card-body">
+        <div class="history-summary-label">Basarisiz Talep</div>
+        <div class="history-summary-value text-red" id="summary-failed">0</div>
+        <div class="history-summary-note">Onay, timeout veya hata nedeniyle tamamlanmayanlar</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card history-summary-card">
+      <div class="card-body">
+        <div class="history-summary-label">Toplam Sure</div>
+        <div class="history-summary-value text-blue" id="summary-duration">0 dk</div>
+        <div class="history-summary-note">Basarili oturumlarin toplam baglanti suresi</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="w-100 d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+      <div>
+        <h3 class="card-title mb-1">Destek Baglanti Gecmisi</h3>
+        <div class="text-secondary">Hangi kullanici hangi client'a ne zaman baglandi, ne kadar sure bagli kaldi ve baglanamayan taleplerin sonucu burada gorulur.</div>
+      </div>
+      <div class="history-toolbar d-flex flex-column flex-md-row align-items-stretch align-items-md-center gap-2">
+        <div class="input-icon">
+          <span class="input-icon-addon"><i class="ti ti-search"></i></span>
+          <input id="history-search" class="form-control" placeholder="Kullanici / client / neden" autocomplete="off" />
+        </div>
+        <select id="history-outcome" class="form-select">
+          <option value="all">Tum Sonuclar</option>
+          <option value="connected">Basarili</option>
+          <option value="failed">Basarisiz</option>
+          <option value="pending">Bekleyen</option>
+        </select>
+        <button id="history-refresh" class="btn btn-primary" type="button">
+          <i class="ti ti-refresh me-1"></i>Yenile
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-vcenter card-table">
+      <thead>
+        <tr>
+          <th>Talep Zamani</th>
+          <th>Kullanici</th>
+          <th>Client</th>
+          <th>Sonuc</th>
+          <th>Sure</th>
+          <th>Durum</th>
+          <th>Detay</th>
+        </tr>
+      </thead>
+      <tbody id="history-rows">
+        <tr>
+          <td colspan="7" class="text-secondary">Baglanti gecmisi yukleniyor...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  AppCenterApi.protectPage();
+
+  function esc(value) {
+    return (value ?? '')
+      .toString()
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  function durationLabel(sec) {
+    const total = Number(sec || 0);
+    if (!total) return '-';
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const seconds = total % 60;
+    if (hours > 0) return `${hours}s ${minutes}dk`;
+    if (minutes > 0) return `${minutes}dk ${seconds}sn`;
+    return `${seconds}sn`;
+  }
+
+  function summaryDurationLabel(sec) {
+    const total = Number(sec || 0);
+    if (!total) return '0 dk';
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    if (hours > 0) return `${hours}s ${minutes}dk`;
+    return `${Math.max(1, minutes)} dk`;
+  }
+
+  function outcomeBadge(outcome) {
+    const key = (outcome || '').toLowerCase();
+    if (key === 'connected') return '<span class="badge bg-green-lt text-green">Baglandi</span>';
+    if (key === 'failed') return '<span class="badge bg-red-lt text-red">Baglanamadi</span>';
+    return '<span class="badge bg-yellow-lt text-yellow">Bekliyor</span>';
+  }
+
+  function statusBadge(status) {
+    const key = (status || '').toLowerCase();
+    if (key === 'active') return '<span class="badge bg-green-lt text-green">active</span>';
+    if (key === 'approved' || key === 'connecting' || key === 'pending_approval') return `<span class="badge bg-yellow-lt text-yellow">${esc(key)}</span>`;
+    if (key === 'ended') return '<span class="badge bg-blue-lt text-blue">ended</span>';
+    if (key === 'timeout' || key === 'rejected' || key === 'error') return `<span class="badge bg-red-lt text-red">${esc(key)}</span>`;
+    return `<span class="badge bg-secondary-lt text-secondary">${esc(key || '-')}</span>`;
+  }
+
+  function detailHtml(item) {
+    const parts = [];
+    if (item.reason) parts.push(`<div class="history-reason">${esc(item.reason)}</div>`);
+    if (item.connected_at) {
+      parts.push(`<div class="history-meta">Baglanti: ${esc(AppCenterApi.formatDate(item.connected_at))}</div>`);
+    }
+    if (item.ended_at) {
+      parts.push(`<div class="history-meta">Bitis: ${esc(AppCenterApi.formatDate(item.ended_at))}${item.ended_by ? ` · ${esc(item.ended_by)}` : ''}</div>`);
+    } else if (item.outcome === 'failed') {
+      parts.push('<div class="history-meta">Talep olustu ancak baglanti tamamlanmadi.</div>');
+    }
+    return parts.join('') || '<span class="text-secondary">-</span>';
+  }
+
+  function renderSummary(items) {
+    const total = items.length;
+    const connected = items.filter((item) => item.outcome === 'connected').length;
+    const failed = items.filter((item) => item.outcome === 'failed').length;
+    const duration = items.reduce((sum, item) => sum + Number(item.duration_sec || 0), 0);
+    document.getElementById('summary-total').textContent = `${total}`;
+    document.getElementById('summary-connected').textContent = `${connected}`;
+    document.getElementById('summary-failed').textContent = `${failed}`;
+    document.getElementById('summary-duration').textContent = summaryDurationLabel(duration);
+  }
+
+  function renderRows(items) {
+    const rows = document.getElementById('history-rows');
+    if (!items.length) {
+      rows.innerHTML = `
+        <tr>
+          <td colspan="7">
+            <div class="history-empty">
+              <div class="icon"><i class="ti ti-history"></i></div>
+              <div class="history-empty-title">Baglanti gecmisi bulunamadi</div>
+              <div class="history-empty-note">Secilen filtrelerde destek talebi veya baglanti kaydi yok.</div>
+            </div>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+    rows.innerHTML = items.map((item) => {
+      const clientLabel = item.agent_hostname || item.agent_uuid || '-';
+      return `
+        <tr>
+          <td>
+            <div>${esc(AppCenterApi.formatDate(item.requested_at))}</div>
+            <div class="history-meta">#${esc(item.id)}</div>
+          </td>
+          <td>
+            <div class="history-user">${esc(item.admin_name || '-')}</div>
+          </td>
+          <td>
+            <div>${esc(clientLabel)}</div>
+            <div class="history-meta">${esc(item.agent_uuid || '-')}</div>
+          </td>
+          <td>${outcomeBadge(item.outcome)}</td>
+          <td><span class="history-duration">${esc(durationLabel(item.duration_sec))}</span></td>
+          <td>${statusBadge(item.status)}</td>
+          <td>${detailHtml(item)}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  async function loadHistory() {
+    const rows = document.getElementById('history-rows');
+    try {
+      rows.innerHTML = '<tr><td colspan="8" class="text-secondary">Baglanti gecmisi yukleniyor...</td></tr>';
+      const q = [];
+      const search = (document.getElementById('history-search').value || '').trim();
+      const outcome = (document.getElementById('history-outcome').value || 'all').trim();
+      if (search) q.push(`q=${encodeURIComponent(search)}`);
+      if (outcome && outcome !== 'all') q.push(`outcome=${encodeURIComponent(outcome)}`);
+      q.push('limit=150');
+      const data = await AppCenterApi.req(`/remote-support/history?${q.join('&')}`);
+      const items = Array.isArray(data.items) ? data.items : [];
+      renderSummary(items);
+      renderRows(items);
+    } catch (err) {
+      rows.innerHTML = `<tr><td colspan="7" class="text-danger">Baglanti gecmisi yuklenemedi: ${esc(err.message || 'Bilinmeyen hata')}</td></tr>`;
+      AppCenterApi.toast(err.message || 'Baglanti gecmisi yuklenemedi');
+    }
+  }
+
+  document.getElementById('history-refresh').addEventListener('click', loadHistory);
+  document.getElementById('history-outcome').addEventListener('change', loadHistory);
+  document.getElementById('history-search').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      loadHistory();
+    }
+  });
+
+  loadHistory();
+</script>
+{% endblock %}

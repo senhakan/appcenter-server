@@ -178,6 +178,122 @@ Bu dokuman production ortami icin deploy, smoke ve rollback adimlarini tanimlar.
   - `CREATE EXTENSION IF NOT EXISTS pg_stat_statements`
   - Migration sonrasi `vacuumdb --analyze-in-stages` calistirildi.
 
+### 1.9.1 PostgreSQL Gunluk Yedekleme (2026-03-25)
+
+- Gunluk backup script:
+  - repo: `server/scripts/postgres-backup-daily.sh`
+  - canli: `/opt/appcenter/server/scripts/postgres-backup-daily.sh`
+- Calisma modeli:
+  - `pg_dump -Fc`
+  - UTC timestamp ile dosya uretir
+  - `pg_restore --list` ile dump okunabilirligini kontrol eder
+  - `sha256` sidecar dosyasi olusturur
+  - 30 gunden eski dump ve checksum dosyalarini siler
+- Cron:
+  - `/etc/cron.d/appcenter-postgres-backup`
+  - varsayilan saat: her gun `02:15 UTC`
+- Hedef dizin:
+  - canli DB `appcenter`:
+    - `/backup/appcenter-postgresql/appcenter/`
+  - test DB `appcenter_test`:
+    - `/backup/appcenter-postgresql/appcenter_test/`
+- Kolay erisim:
+  - her DB klasorunde `latest.dump` ve `latest.dump.sha256` symlink'leri guncel dosyayi gosterir
+- Geri donus penceresi:
+  - 30 gun
+- Elle calistirma:
+
+```bash
+sudo /opt/appcenter/server/scripts/postgres-backup-daily.sh
+```
+
+- Geri yukleme ornegi:
+
+```bash
+PGPASSWORD='***' pg_restore -h 127.0.0.1 -U appcenter -d appcenter -c /backup/appcenter-postgresql/appcenter/latest.dump
+```
+
+### 1.11 LDAP / Active Directory Isletim Notu (2026-03-24)
+
+- LDAP/AD entegrasyon modeli iki katmanlidir:
+  - bootstrap/secret alanlari: `config/server.ini`
+  - runtime davranis ve role mapping: DB `settings` + `/settings`
+- `config/server.ini` icindeki LDAP alanlari:
+  - `ldap_server_uri`
+  - `ldap_use_ssl`
+  - `ldap_start_tls`
+  - `ldap_bind_dn`
+  - `ldap_bind_password`
+  - `ldap_user_base_dn`
+  - `ldap_user_filter`
+  - `ldap_group_base_dn`
+  - `ldap_group_filter`
+  - `ldap_ca_cert_file`
+  - `ldap_timeout_sec`
+- `/settings` uzerinden yonetilen LDAP runtime key'leri:
+  - `auth_ldap_enabled`
+  - `auth_ldap_allow_local_fallback`
+  - `auth_ldap_jit_create_users`
+  - `auth_ldap_directory_type`
+  - `auth_ldap_default_role_profile_key`
+  - `auth_ldap_group_admin`
+  - `auth_ldap_group_operator`
+  - `auth_ldap_group_viewer`
+- Operasyon kurali:
+  - bind password ve benzeri secret alanlar DB'ye tasinmaz
+  - lokal break-glass admin her zaman korunur
+  - LDAP acildiginda once local admin fallback ile smoke alinmadan rollout tamamlanmis sayilmaz
+  - `config/server.ini` altindaki LDAP bootstrap alanlari degisirse `appcenter` servisi restart edilir
+  - repo paylasimi icin `config/server.ini.example` kullanilir; gercek secret degerler commit edilmez
+- Canli smoke minimumu:
+  - `GET /health` -> `200`
+  - lokal admin login -> `200`
+  - LDAP/AD test kullanicisi login -> `200`
+  - `GET /api/v1/auth/me` icinde `auth_source=ldap`
+- AD/OpenLDAP notu:
+  - `auth_ldap_directory_type=ad` iken arama attribute seti AD'ye gore secilir
+  - `auth_ldap_directory_type=openldap` iken OpenLDAP uyumlu attribute seti kullanilir
+- UPN login ihtiyaci varsa:
+  - `ldap_user_filter` degeri acikca genisletilir
+  - ornek:
+    - `(&(objectClass=user)(|(sAMAccountName={username})(userPrincipalName={username})))`
+
+### 1.12 LDAP Hata Davranisi ve Operator Notlari (2026-03-25)
+
+- Login sonuc matrisi:
+  - lokal login basarili -> `200`
+  - LDAP config eksigi/hatasi -> `503`
+  - LDAP auth/bind/search basarisiz -> `401`
+  - beklenmeyen LDAP exception -> fiilen `401`, ayirim logdan yapilir
+- Kullaniciya donen `401` mesaji bilerek geneldir:
+  - `Incorrect username or password`
+- Operator kontrol listesi:
+  - `config/server.ini` LDAP alanlarini dogrula
+  - `auth_ldap_enabled` / `auth_ldap_allow_local_fallback` runtime degerlerini kontrol et
+  - local admin ile girisin halen acik oldugunu dogrula
+  - server logunda LDAP configuration/bind hatalarini incele
+- Guncel audit garantisi:
+  - `auth.login.local`
+  - `auth.login.ldap`
+- Henuz standartlastirilmasi acik alanlar:
+  - `auth.login.ldap_failed`
+  - `user.sync_from_ldap`
+
+### 1.13 LDAP Rollout ve Secret Hijyeni (2026-03-25)
+
+- Onerilen rollout sirasi:
+  1. `config/server.ini` bootstrap alanlarini hazirla
+  2. `systemctl restart appcenter`
+  3. `GET /health`
+  4. local break-glass admin login
+  5. `/settings` uzerinden LDAP runtime ayarlarini dogrula
+  6. LDAP test kullanicisi login
+  7. `GET /api/v1/auth/me` icinde `auth_source=ldap` kontrolu
+- Secret hijyeni:
+  - repo referansi olarak `config/server.ini.example` kullan
+  - gercek bind password degerlerini ticket/chat/dokuman icine kopyalama
+  - sizinti supesinde LDAP servis hesabi sifresini rotate et
+
 ### 1.10 PostgreSQL Uyumluluk Notu (Timeline)
 
 - `GET /api/v1/dashboard/timeline` endpoint'i PostgreSQL'e geciste iki SQL uyumluluk guncellemesi aldi:
@@ -392,6 +508,12 @@ Web login ve kritik akislar manuel kontrol edilir:
     - `Remote Guncelleme`
 - settings update
   - `ui_timezone` (IANA) guncellemesi ve zaman gosterimlerinin dogrulanmasi
+  - `Destek Merkezi > Ajan Bilgilendirme` ayarlari:
+    - `Baglanti Ekraninda kirmizi cerceve ekle`
+    - `Baglanan kisi ismini ekranda goster`
+  - remote support helper davranisi:
+    - ayar 1 acikken Windows agent helper komut satirinda `-connectionoverlay`
+    - ayar 2 acikken Windows agent helper komut satirinda `-user <AppCenter username>`
 - agent update upload/download
 - RBAC smoke:
   - viewer: mutating endpointlerde `403` (or: `POST /api/v1/groups`)

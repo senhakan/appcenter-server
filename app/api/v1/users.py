@@ -59,6 +59,7 @@ def _to_user_public(db: Session, user: User) -> UserPublic:
         organization=user.organization,
         department=user.department,
         avatar_url=user.avatar_url,
+        auth_source=user.auth_source,
         role=user.role,
         role_profile_id=role_profile.id if role_profile else None,
         role_profile_key=role_profile.key if role_profile else None,
@@ -197,6 +198,8 @@ def update_user(
     if next_active is not None:
         target.is_active = next_active
     if payload.password is not None:
+        if (target.auth_source or "local").strip().lower() == "ldap":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password cannot be set for LDAP users")
         target.password_hash = get_password_hash(payload.password)
     if payload.full_name is not None:
         target.full_name = payload.full_name.strip() or None

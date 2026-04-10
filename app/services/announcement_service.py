@@ -35,6 +35,20 @@ def _pending_count(db: Session, announcement_id: int) -> int:
     )
 
 
+def _parse_agent_target_ids(value: Optional[str]) -> list[str]:
+    if not value:
+        return []
+    items: list[str] = []
+    seen: set[str] = set()
+    for raw in str(value).split(","):
+        agent_uuid = raw.strip()
+        if not agent_uuid or agent_uuid in seen:
+            continue
+        seen.add(agent_uuid)
+        items.append(agent_uuid)
+    return items
+
+
 def _get_announcement_or_error(db: Session, announcement_id: int) -> Announcement:
     announcement = db.query(Announcement).filter(Announcement.id == announcement_id).first()
     if not announcement:
@@ -72,9 +86,15 @@ def create_announcement(
     elif target_type == "Agent":
         if not target_id:
             raise ValueError("target_id is required for Agent target_type")
-        agent = db.query(Agent).filter(Agent.uuid == target_id).first()
-        if not agent:
-            raise ValueError("Agent target does not exist")
+        agent_ids = _parse_agent_target_ids(target_id)
+        if not agent_ids:
+            raise ValueError("At least one agent target must be selected")
+        rows = db.query(Agent.uuid).filter(Agent.uuid.in_(agent_ids)).all()
+        existing = {str(row[0]) for row in rows if row and row[0]}
+        missing = [agent_uuid for agent_uuid in agent_ids if agent_uuid not in existing]
+        if missing:
+            raise ValueError("One or more agent targets do not exist")
+        target_id = ",".join(agent_ids)
     elif target_type != "All":
         raise ValueError("Invalid target_type")
 
@@ -133,9 +153,15 @@ def update_announcement(db: Session, announcement_id: int, **kwargs: Any) -> Ann
     elif next_target_type == "Agent":
         if not next_target_id:
             raise ValueError("target_id is required for Agent target_type")
-        agent = db.query(Agent).filter(Agent.uuid == str(next_target_id)).first()
-        if not agent:
-            raise ValueError("Agent target does not exist")
+        agent_ids = _parse_agent_target_ids(str(next_target_id))
+        if not agent_ids:
+            raise ValueError("At least one agent target must be selected")
+        rows = db.query(Agent.uuid).filter(Agent.uuid.in_(agent_ids)).all()
+        existing = {str(row[0]) for row in rows if row and row[0]}
+        missing = [agent_uuid for agent_uuid in agent_ids if agent_uuid not in existing]
+        if missing:
+            raise ValueError("One or more agent targets do not exist")
+        kwargs["target_id"] = ",".join(agent_ids)
     elif next_target_type != "All":
         raise ValueError("Invalid target_type")
 
@@ -253,8 +279,12 @@ def resolve_targets(db: Session, target_type: str, target_id: Optional[str]) -> 
     if target_type == "Agent":
         if not target_id:
             return []
-        exists = db.query(Agent.uuid).filter(Agent.uuid == target_id).first()
-        return [str(target_id)] if exists else []
+        agent_ids = _parse_agent_target_ids(target_id)
+        if not agent_ids:
+            return []
+        rows = db.query(Agent.uuid).filter(Agent.uuid.in_(agent_ids)).all()
+        existing = {str(row[0]) for row in rows if row and row[0]}
+        return [agent_uuid for agent_uuid in agent_ids if agent_uuid in existing]
 
     return []
 

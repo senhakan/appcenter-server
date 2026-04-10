@@ -1,0 +1,58 @@
+dn: ou=people,dc=appcenter,dc=local
+objectClass: organizationalUnit
+ou: people
+
+dn: ou=groups,dc=appcenter,dc=local
+objectClass: organizationalUnit
+ou: groups
+
+dn: uid=admin.user,ou=people,dc=appcenter,dc=local
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+cn: Admin User
+sn: User
+uid: admin.user
+mail: admin.user@appcenter.local
+userPassword: AdminPass123!
+
+dn: uid=operator.user,ou=people,dc=appcenter,dc=local
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+cn: Operator User
+sn: User
+uid: operator.user
+mail: operator.user@appcenter.local
+userPassword: OperatorPass123!
+
+dn: uid=viewer.user,ou=people,dc=appcenter,dc=local
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+cn: Viewer User
+sn: User
+uid: viewer.user
+mail: viewer.user@appcenter.local
+userPassword: ViewerPass123!
+
+dn: cn=appcenter-admins,ou=groups,dc=appcenter,dc=local
+objectClass: groupOfNames
+objectClass: top
+cn: appcenter-admins
+member: uid=admin.user,ou=people,dc=appcenter,dc=local
+
+dn: cn=appcenter-operators,ou=groups,dc=appcenter,dc=local
+objectClass: groupOfNames
+objectClass: top
+cn: appcenter-operators
+member: uid=operator.user,ou=people,dc=appcenter,dc=local
+
+dn: cn=appcenter-viewers,ou=groups,dc=appcenter,dc=local
+objectClass: groupOfNames
+objectClass: top
+cn: appcenter-viewers
+member: uid=viewer.user,ou=people,dc=appcenter,dc=local

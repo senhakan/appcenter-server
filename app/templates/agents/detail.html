@@ -32,7 +32,14 @@
     padding: 18px;
   }
   .agent-note-col textarea {
-    min-height: 82px;
+    min-height: 180px;
+    resize: vertical;
+    width: 100%;
+    border: 1px solid var(--tblr-border-color, #dce1e7);
+    border-radius: 12px;
+    padding: 0.875rem 1rem;
+    background: var(--tblr-bg-surface, #fff);
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
   }
   .agent-overview-kv {
     display: grid;
@@ -102,6 +109,88 @@
     gap: 8px;
     margin-top: 8px;
     justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+  .agent-note-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    color: var(--tblr-secondary-color, #6b7280);
+    font-size: 0.82rem;
+  }
+  .agent-note-status {
+    min-height: 1.25rem;
+  }
+  .agent-note-empty {
+    color: var(--tblr-secondary-color, #6b7280);
+  }
+  .agent-note-col textarea:focus {
+    outline: none;
+    border-color: rgba(6, 111, 209, 0.55);
+    box-shadow: 0 0 0 0.2rem rgba(6, 111, 209, 0.12);
+  }
+  .agent-note-trigger-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0.875rem;
+    padding-top: 0.875rem;
+    border-top: 1px dashed var(--tblr-border-color, #dce1e7);
+  }
+  .agent-note-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .agent-note-open-btn {
+    color: #d6c34a;
+    border-color: rgba(214, 195, 74, 0.45);
+    background: rgba(214, 195, 74, 0.12);
+  }
+  .agent-note-open-btn:hover,
+  .agent-note-open-btn:focus {
+    color: #d6c34a;
+    border-color: rgba(214, 195, 74, 0.7);
+    background: rgba(214, 195, 74, 0.2);
+  }
+  .agent-note-summary {
+    color: var(--tblr-secondary-color, #6b7280);
+    font-size: 0.82rem;
+    min-width: 0;
+    text-align: right;
+  }
+  .agent-note-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1100;
+    padding: 16px;
+  }
+  .agent-note-modal-backdrop.hidden {
+    display: none;
+  }
+  .agent-note-modal {
+    width: 100%;
+    max-width: 680px;
+    background: #fff;
+    border: 1px solid var(--tblr-border-color, #dce1e7);
+    border-radius: 18px;
+    box-shadow: 0 24px 80px rgba(15, 23, 42, 0.18);
+    overflow: hidden;
+  }
+  .agent-note-modal-header,
+  .agent-note-modal-footer {
+    padding: 1rem 1.125rem;
+    background: rgba(248, 250, 252, 0.85);
+  }
+  .agent-note-modal-body {
+    padding: 1rem 1.125rem 1.125rem;
   }
   /* Keep Tabler tabs intact against legacy .nav/.nav a global styles. */
   .agent-tabs.nav {
@@ -345,7 +434,37 @@
     return {
       noteInput: document.getElementById('agent-note-input'),
       noteSaveBtn: document.getElementById('agent-note-save-btn'),
+      noteResetBtn: document.getElementById('agent-note-reset-btn'),
+      noteOpenBtn: document.getElementById('agent-note-open-btn'),
+      noteCloseBtn: document.getElementById('agent-note-close-btn'),
+      noteCancelBtn: document.getElementById('agent-note-cancel-btn'),
+      noteModal: document.getElementById('agent-note-modal'),
+      noteStatus: document.getElementById('agent-note-status'),
+      noteCount: document.getElementById('agent-note-count'),
+      noteSummary: document.getElementById('agent-note-summary'),
     };
+  }
+
+  function summarizeNote(value) {
+    const text = (value || '').trim();
+    if (!text) return 'Not yok';
+    if (text.length <= 72) return text;
+    return `${text.slice(0, 72)}...`;
+  }
+
+  function openNoteModal() {
+    const { noteModal, noteInput } = getNoteElements();
+    if (!noteModal) return;
+    noteModal.classList.remove('hidden');
+    setTimeout(() => {
+      if (noteInput) noteInput.focus();
+    }, 10);
+  }
+
+  function closeNoteModal() {
+    const { noteModal } = getNoteElements();
+    if (!noteModal) return;
+    noteModal.classList.add('hidden');
   }
 
   function openDeleteModal() { deleteModal.classList.remove('hidden'); }
@@ -416,12 +535,28 @@
   }
 
   function syncNoteSaveButton() {
-    const { noteInput, noteSaveBtn } = getNoteElements();
+    const { noteInput, noteSaveBtn, noteResetBtn, noteCount, noteStatus, noteSummary } = getNoteElements();
     if (!noteInput || !noteSaveBtn) return;
     const current = (noteInput.value || '').trim();
     const dirty = current !== savedNote;
     noteSaveBtn.disabled = !dirty;
     noteSaveBtn.className = dirty ? 'btn btn-primary' : 'btn btn-outline-secondary';
+    if (noteResetBtn) noteResetBtn.disabled = !dirty;
+    if (noteCount) noteCount.textContent = `${(noteInput.value || '').length} / 2000`;
+    if (noteStatus) {
+      if (dirty) noteStatus.textContent = 'Kaydedilmemis degisiklik var';
+      else if (current) noteStatus.textContent = 'Kayitli';
+      else noteStatus.textContent = 'Not yok';
+    }
+    if (noteSummary) noteSummary.textContent = summarizeNote(noteInput.value || '');
+  }
+
+  function resetNoteDraft() {
+    const { noteInput, noteStatus } = getNoteElements();
+    if (!noteInput) return;
+    noteInput.value = savedNote || '';
+    if (noteStatus) noteStatus.textContent = savedNote ? 'Kayitli' : 'Not yok';
+    syncNoteSaveButton();
   }
 
   function isTruthy(value) {
@@ -542,9 +677,10 @@
   }
 
   async function saveNote() {
-    const { noteInput, noteSaveBtn } = getNoteElements();
+    const { noteInput, noteSaveBtn, noteStatus } = getNoteElements();
     if (!noteInput || !noteSaveBtn || noteSaveBtn.disabled) return;
     try {
+      if (noteStatus) noteStatus.textContent = 'Kaydediliyor...';
       const payload = { notes: noteInput.value || '' };
       const updated = await AppCenterApi.req(`/agents/${agentId}/notes`, {
         method: 'PUT',
@@ -554,8 +690,11 @@
       savedNote = (updated.notes || '').trim();
       noteInput.value = updated.notes || '';
       syncNoteSaveButton();
+      if (noteStatus) noteStatus.textContent = savedNote ? 'Kaydedildi' : 'Not temizlendi';
+      closeNoteModal();
       AppCenterApi.toast('Not kaydedildi');
     } catch (err) {
+      if (noteStatus) noteStatus.textContent = 'Kayit hatasi';
       AppCenterApi.toast(err.message);
     }
   }
@@ -663,6 +802,14 @@
                   <div class="datagrid-item"><div class="datagrid-title">Remote session ID</div><div class="datagrid-content">${escHtml(data.remote_support_session_id || '-')}</div></div>
                   <div class="datagrid-item"><div class="datagrid-title">OS kullanici</div><div class="datagrid-content">${escHtml(data.os_user || '-')}</div></div>
                 </div>
+                <div class="agent-note-trigger-row">
+                  <div class="agent-note-trigger">
+                    <button class="btn btn-sm agent-note-open-btn" id="agent-note-open-btn" type="button">
+                      <i class="ti ti-note me-1"></i>Notlar
+                    </button>
+                  </div>
+                  <div id="agent-note-summary" class="agent-note-summary">${escHtml(summarizeNote(data.notes || ''))}</div>
+                </div>
               </div>
             </div>
           </div>
@@ -686,21 +833,39 @@
               </div>
             </div>
           </div>
-          <div class="full">
-            <div class="card">
-              <div class="card-header"><h3 class="card-title mb-0">Notlar</h3></div>
-              <div class="card-body">
-                <div class="agent-note-col">
-                  <textarea id="agent-note-input" rows="3" maxlength="2000" placeholder="Ajan ile ilgili not..." ${canWrite ? '' : 'readonly'}></textarea>
-                  <div class="agent-note-actions"${canWrite ? '' : ' style="display:none;"'}>
-                    <button class="btn btn-outline-secondary" id="agent-note-save-btn" type="button" disabled ${canWrite ? '' : 'hidden'}><i class="ti ti-device-floppy me-1"></i>Kaydet</button>
-                  </div>
+        </div>
+      `;
+      el.insertAdjacentHTML('beforeend', `
+        <div id="agent-note-modal" class="agent-note-modal-backdrop hidden">
+          <div class="agent-note-modal">
+            <div class="agent-note-modal-header d-flex align-items-start justify-content-between gap-3">
+              <div>
+                <h3 class="card-title mb-1">Ajan Notlari</h3>
+                <div class="text-secondary small">Kisa operasyon notlari, cihaz ozel uyarilar ve kalici hatirlatmalar.</div>
+              </div>
+              <button class="btn btn-icon btn-outline-secondary btn-sm" id="agent-note-close-btn" type="button">
+                <i class="ti ti-x"></i>
+              </button>
+            </div>
+            <div class="agent-note-modal-body">
+              <div class="agent-note-col">
+                <textarea id="agent-note-input" rows="6" maxlength="2000" placeholder="Ajan ile ilgili not..." ${canWrite ? '' : 'readonly'}></textarea>
+                <div class="agent-note-meta">
+                  <div id="agent-note-status" class="agent-note-status">Not yok</div>
+                  <div id="agent-note-count">0 / 2000</div>
                 </div>
+              </div>
+            </div>
+            <div class="agent-note-modal-footer">
+              <div class="agent-note-actions"${canWrite ? '' : ' style="display:none;"'}>
+                <button class="btn btn-outline-secondary" id="agent-note-reset-btn" type="button" disabled ${canWrite ? '' : 'hidden'}><i class="ti ti-rotate-2 me-1"></i>Vazgec</button>
+                <button class="btn btn-outline-secondary" id="agent-note-cancel-btn" type="button"><i class="ti ti-x me-1"></i>Kapat</button>
+                <button class="btn btn-outline-secondary" id="agent-note-save-btn" type="button" disabled ${canWrite ? '' : 'hidden'}><i class="ti ti-device-floppy me-1"></i>Kaydet</button>
               </div>
             </div>
           </div>
         </div>
-      `;
+      `);
       savedNote = (data.notes || '').trim();
       currentServiceOverride = data.service_monitoring_enabled === null || data.service_monitoring_enabled === undefined
         ? null
@@ -708,10 +873,19 @@
       currentRemoteApprovalOverride = data.remote_support_approval_required === null || data.remote_support_approval_required === undefined
         ? null
         : !!data.remote_support_approval_required;
-      const { noteInput, noteSaveBtn } = getNoteElements();
+      const { noteInput, noteSaveBtn, noteResetBtn, noteOpenBtn, noteCloseBtn, noteCancelBtn, noteModal } = getNoteElements();
       if (noteInput) noteInput.value = data.notes || '';
       if (noteInput) noteInput.addEventListener('input', syncNoteSaveButton);
       if (noteSaveBtn) noteSaveBtn.addEventListener('click', saveNote);
+      if (noteResetBtn) noteResetBtn.addEventListener('click', resetNoteDraft);
+      if (noteOpenBtn) noteOpenBtn.addEventListener('click', openNoteModal);
+      if (noteCloseBtn) noteCloseBtn.addEventListener('click', closeNoteModal);
+      if (noteCancelBtn) noteCancelBtn.addEventListener('click', closeNoteModal);
+      if (noteModal) {
+        noteModal.addEventListener('click', (evt) => {
+          if (evt.target === noteModal) closeNoteModal();
+        });
+      }
       syncNoteSaveButton();
       renderServiceMonitoringState();
       renderRemoteApprovalState();

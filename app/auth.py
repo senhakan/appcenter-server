@@ -74,6 +74,8 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional[Use
         return None
     if not user.is_active:
         return None
+    if (user.auth_source or "local").strip().lower() != "local":
+        return None
     if not verify_password(password, user.password_hash):
         return None
     return user
