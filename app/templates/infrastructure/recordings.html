@@ -120,6 +120,43 @@
     return '<span class="badge bg-red-lt text-red">failed</span>';
   }
 
+  function buildSessionRecordingMap(items) {
+    const bySession = new Map();
+    (items || []).forEach((item) => {
+      const sessionId = Number(item.session_id || 0);
+      const monitor = Number(item.monitor_index || 1) === 2 ? 2 : 1;
+      if (!sessionId) return;
+      if (!bySession.has(sessionId)) bySession.set(sessionId, new Map());
+      bySession.get(sessionId).set(monitor, item);
+    });
+    return bySession;
+  }
+
+  function renderWatchButtons(recording, sessionRecordingMap) {
+    const sessionId = Number(recording.session_id || 0);
+    const byMonitor = sessionRecordingMap.get(sessionId);
+    if (!byMonitor || byMonitor.size <= 1) {
+      return `
+        <button class="btn btn-sm btn-outline-primary" type="button" data-watch="${recording.id}" ${recording.status === 'recording' ? 'disabled' : ''}>
+          <i class="ti ti-player-play me-1"></i>Izle M${Number(recording.monitor_index || 1)}
+        </button>
+      `;
+    }
+    return Array.from(byMonitor.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([monitor, item]) => `
+        <button
+          class="btn btn-sm ${Number(item.id) === Number(recording.id) ? 'btn-primary' : 'btn-outline-primary'}"
+          type="button"
+          data-watch="${item.id}"
+          ${item.status === 'recording' ? 'disabled' : ''}
+        >
+          <i class="ti ti-player-play me-1"></i>Izle M${monitor}
+        </button>
+      `)
+      .join(' ');
+  }
+
   function closeInlinePlayer() {
     if (!activePlayer) return;
     const { detailRow, button } = activePlayer;
@@ -190,6 +227,7 @@
       const data = await AppCenterApi.req(`/remote-support/recordings?${q.join('&')}`);
       const rows = document.getElementById('rows');
       const items = Array.isArray(data.items) ? data.items : [];
+      const sessionRecordingMap = buildSessionRecordingMap(items);
       if (!items.length) {
         rows.innerHTML = `
           <tr>
@@ -216,11 +254,7 @@
           <td>${r.duration_sec != null ? `${r.duration_sec}s` : '-'}</td>
           <td>${r.target_fps != null ? `${r.target_fps}` : '-'}</td>
           <td>${fmtSize(r.file_size_bytes)}</td>
-          <td>
-            <button class="btn btn-sm btn-outline-primary" type="button" data-watch="${r.id}" ${r.status === 'recording' ? 'disabled' : ''}>
-              <i class="ti ti-player-play me-1"></i>Izle M${Number(r.monitor_index || 1)}
-            </button>
-          </td>
+          <td class="d-flex flex-wrap gap-1">${renderWatchButtons(r, sessionRecordingMap)}</td>
         </tr>
       `).join('');
       closeInlinePlayer();
