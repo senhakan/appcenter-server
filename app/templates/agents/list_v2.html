@@ -591,6 +591,7 @@
 <script>
   AppCenterApi.protectPage();
 
+  const AGENTSV2_FILTERS_STORAGE_KEY = 'appcenter.agents.filters';
   const AGENTSV2_PAGE_SIZE = 20;
   const AGENTSV2_FAST_MS = 2000;
   const AGENTSV2_SLOW_MS = 60000;
@@ -606,6 +607,7 @@
   let pendingRemoteTarget = null;
   let noteModal = null;
   let remoteModal = null;
+  let agentsV2PendingVersionSelection = null;
 
   function esc(value) {
     return (value || '')
@@ -704,6 +706,41 @@
     return picked;
   }
 
+  function saveAgentsV2Filters() {
+    try {
+      const payload = {
+        search: (document.getElementById('agentsv2-search')?.value || '').toString(),
+        group: (document.getElementById('agentsv2-group')?.value || 'all').toString(),
+        status: selectedRadio('agentsv2-status', 'all'),
+        platform: selectedRadio('agentsv2-platform', 'all'),
+        conn: selectedRadio('agentsv2-conn', 'all'),
+        sort: (document.getElementById('agentsv2-sort')?.value || 'hostname_asc').toString(),
+        versions: selectedVersions(),
+      };
+      localStorage.setItem(AGENTSV2_FILTERS_STORAGE_KEY, JSON.stringify(payload));
+    } catch (_) {}
+  }
+
+  function restoreAgentsV2Filters() {
+    try {
+      const raw = localStorage.getItem(AGENTSV2_FILTERS_STORAGE_KEY) || '';
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return;
+      document.getElementById('agentsv2-search').value = (parsed.search || '').toString();
+      document.getElementById('agentsv2-group').value = (parsed.group || 'all').toString();
+      document.getElementById('agentsv2-sort').value = (parsed.sort || 'hostname_asc').toString();
+      [['agentsv2-status', parsed.status], ['agentsv2-platform', parsed.platform], ['agentsv2-conn', parsed.conn]].forEach(([name, value]) => {
+        const wanted = (value || 'all').toString();
+        const target = document.querySelector(`input[name="${name}"][value="${wanted}"]`) || document.querySelector(`input[name="${name}"][value="all"]`);
+        if (target) target.checked = true;
+      });
+      agentsV2PendingVersionSelection = Array.isArray(parsed.versions)
+        ? parsed.versions.map((v) => (v || '').toString().trim().toLowerCase()).filter(Boolean)
+        : null;
+    } catch (_) {}
+  }
+
   function sortKeyValue(agent, mode) {
     if (mode === 'last_seen_desc') {
       const dt = AppCenterApi.parseDate(agent.last_seen);
@@ -772,7 +809,10 @@
     const wrap = document.getElementById('agentsv2-version-list');
     const summary = document.getElementById('agentsv2-version-summary');
     if (!wrap || !summary) return;
-    const prev = new Set(selectedVersions());
+    const prev = agentsV2PendingVersionSelection && agentsV2PendingVersionSelection.length
+      ? new Set(agentsV2PendingVersionSelection)
+      : new Set(selectedVersions());
+    agentsV2PendingVersionSelection = null;
     const versions = [...new Set(allAgents.map((agent) => (agent.version || '').toString().trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
     if (!versions.length) {
       wrap.innerHTML = '<div class="text-secondary small">Versiyon bilgisi yok</div>';
@@ -791,6 +831,7 @@
       el.addEventListener('change', () => {
         const selectedCount = wrap.querySelectorAll('.js-agentsv2-version:checked').length;
         summary.textContent = selectedCount === versions.length ? 'Tumleri' : `${selectedCount} secili`;
+        saveAgentsV2Filters();
         rerenderFromFilter();
       });
     });
@@ -1228,6 +1269,7 @@
 
   function rerenderFromFilter() {
     currentPage = 1;
+    saveAgentsV2Filters();
     rerender();
   }
 
@@ -1318,6 +1360,7 @@
       document.querySelectorAll('.js-agentsv2-version').forEach((el) => { el.checked = true; });
       const summary = document.getElementById('agentsv2-version-summary');
       if (summary) summary.textContent = 'Tumleri';
+      saveAgentsV2Filters();
       rerenderFromFilter();
     });
     document.getElementById('agentsv2-prev').addEventListener('click', () => {
@@ -1382,6 +1425,7 @@
     await AppCenterApi.initUi();
     noteModal = new bootstrap.Modal(document.getElementById('agentsv2-note-modal'));
     remoteModal = new bootstrap.Modal(document.getElementById('agentsv2-rs-modal'));
+    restoreAgentsV2Filters();
     bindEvents();
     await loadData();
     resetPolling();

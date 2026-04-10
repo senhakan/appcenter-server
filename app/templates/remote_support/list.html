@@ -306,6 +306,7 @@
 {% block scripts %}
 <script>
   AppCenterApi.protectPage();
+  const REMOTE_SUPPORT_FILTERS_STORAGE_KEY = 'appcenter.remote_support.filters';
   const AGENT_PAGE_SIZE = 20;
   const RS_WINDOW_PRESENCE_TTL_MS = 15000;
   let allAgents = [];
@@ -314,6 +315,7 @@
   let currentPage = 1;
   let remoteSupportGroupId = 0;
   let pendingRemoteTarget = null;
+  let remoteSupportPendingVersionSelection = null;
 
   function esc(s) {
     return (s || '')
@@ -395,10 +397,45 @@
     return picked;
   }
 
+  function saveRemoteSupportFilters() {
+    try {
+      const selectedSort = document.querySelector('input[name="agent-sort"]:checked');
+      const payload = {
+        search: (document.getElementById('agent-search')?.value || '').toString(),
+        onlineOnly: !!document.getElementById('agent-online-switch')?.checked,
+        group: (document.getElementById('agent-group-filter')?.value || 'all').toString(),
+        sort: (selectedSort && selectedSort.value ? selectedSort.value : 'last_remote_desc').toString(),
+        versions: selectedVersions().map((v) => (v || '').toString().trim()),
+      };
+      localStorage.setItem(REMOTE_SUPPORT_FILTERS_STORAGE_KEY, JSON.stringify(payload));
+    } catch (_) {}
+  }
+
+  function restoreRemoteSupportFilters() {
+    try {
+      const raw = localStorage.getItem(REMOTE_SUPPORT_FILTERS_STORAGE_KEY) || '';
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return;
+      document.getElementById('agent-search').value = (parsed.search || '').toString();
+      document.getElementById('agent-online-switch').checked = !!parsed.onlineOnly;
+      document.getElementById('agent-group-filter').value = (parsed.group || 'all').toString();
+      const sort = (parsed.sort || 'last_remote_desc').toString();
+      const target = document.querySelector(`input[name="agent-sort"][value="${sort}"]`) || document.querySelector('input[name="agent-sort"][value="last_remote_desc"]');
+      if (target) target.checked = true;
+      remoteSupportPendingVersionSelection = Array.isArray(parsed.versions)
+        ? parsed.versions.map((v) => (v || '').toString().trim()).filter(Boolean)
+        : null;
+    } catch (_) {}
+  }
+
   function renderVersionFilters(agents) {
     const wrap = document.getElementById('agent-version-filters');
     if (!wrap) return;
-    const prevSelected = new Set(selectedVersions());
+    const prevSelected = remoteSupportPendingVersionSelection && remoteSupportPendingVersionSelection.length
+      ? new Set(remoteSupportPendingVersionSelection)
+      : new Set(selectedVersions());
+    remoteSupportPendingVersionSelection = null;
     const versions = [...new Set((agents || []).map((a) => (a.version || '').toString().trim()).filter((v) => !!v))].sort((a, b) => a.localeCompare(b));
     if (!versions.length) {
       wrap.innerHTML = '<div class="text-secondary small">Versiyon bilgisi yok</div>';
@@ -413,6 +450,7 @@
     wrap.querySelectorAll('.js-agent-version-filter').forEach((el) => {
       el.addEventListener('change', () => {
         currentPage = 1;
+        saveRemoteSupportFilters();
         applyFilter();
         renderPage();
       });
@@ -467,6 +505,7 @@
         label.textContent = name;
         badge.textContent = count;
         currentPage = 1;
+        saveRemoteSupportFilters();
         applyFilter();
         renderPage();
         renderGroupFilter(allGroups);
@@ -814,6 +853,7 @@
 
   (async function () {
     await AppCenterApi.initUi();
+    restoreRemoteSupportFilters();
     document.getElementById('agent-rows').addEventListener('click', (evt) => {
       const btn = evt.target.closest('.js-connect-remote');
       if (!btn) return;
@@ -882,6 +922,7 @@
     });
     const rerenderFromFilter = () => {
       currentPage = 1;
+      saveRemoteSupportFilters();
       applyFilter();
       renderPage();
     };
@@ -899,6 +940,7 @@
       document.querySelectorAll('.js-agent-version-filter').forEach((el) => {
         el.checked = true;
       });
+      saveRemoteSupportFilters();
       renderGroupFilter(allGroups);
       rerenderFromFilter();
     });
