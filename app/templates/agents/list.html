@@ -326,6 +326,7 @@
 {% block scripts %}
 <script>
   AppCenterApi.protectPage();
+  const AGENTS_FILTERS_STORAGE_KEY = 'appcenter.agents.classic.filters';
   const AGENT_PAGE_SIZE = 20;
   const RS_WINDOW_PRESENCE_TTL_MS = 15000;
   const AGENTS_POLL_FAST_MS = 2000;
@@ -338,6 +339,7 @@
   let currentPage = 1;
   let remoteSupportGroupId = 0;
   let pendingRemoteTarget = null;
+  let agentsPendingVersionSelection = null;
 
   function esc(s) {
     return (s || '')
@@ -424,10 +426,50 @@
     return picked;
   }
 
+  function saveAgentsFilters() {
+    try {
+      const selectedSort = document.querySelector('input[name="agent-sort"]:checked');
+      const selectedPlatformValue = document.querySelector('input[name="agent-platform"]:checked');
+      const payload = {
+        search: (document.getElementById('agent-search')?.value || '').toString(),
+        onlineOnly: !!document.getElementById('agent-online-switch')?.checked,
+        group: (document.getElementById('agent-group-filter')?.value || 'all').toString(),
+        sort: (selectedSort && selectedSort.value ? selectedSort.value : 'hostname_asc').toString(),
+        platform: (selectedPlatformValue && selectedPlatformValue.value ? selectedPlatformValue.value : 'all').toString(),
+        versions: selectedVersions().map((v) => (v || '').toString().trim()),
+      };
+      localStorage.setItem(AGENTS_FILTERS_STORAGE_KEY, JSON.stringify(payload));
+    } catch (_) {}
+  }
+
+  function restoreAgentsFilters() {
+    try {
+      const raw = localStorage.getItem(AGENTS_FILTERS_STORAGE_KEY) || '';
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return;
+      document.getElementById('agent-search').value = (parsed.search || '').toString();
+      document.getElementById('agent-online-switch').checked = !!parsed.onlineOnly;
+      document.getElementById('agent-group-filter').value = (parsed.group || 'all').toString();
+      const sort = (parsed.sort || 'hostname_asc').toString();
+      const sortTarget = document.querySelector(`input[name="agent-sort"][value="${sort}"]`) || document.querySelector('input[name="agent-sort"][value="hostname_asc"]');
+      if (sortTarget) sortTarget.checked = true;
+      const platform = (parsed.platform || 'all').toString();
+      const platformTarget = document.querySelector(`input[name="agent-platform"][value="${platform}"]`) || document.querySelector('input[name="agent-platform"][value="all"]');
+      if (platformTarget) platformTarget.checked = true;
+      agentsPendingVersionSelection = Array.isArray(parsed.versions)
+        ? parsed.versions.map((v) => (v || '').toString().trim()).filter(Boolean)
+        : null;
+    } catch (_) {}
+  }
+
   function renderVersionFilters(agents) {
     const wrap = document.getElementById('agent-version-filters');
     if (!wrap) return;
-    const prevSelected = new Set(selectedVersions());
+    const prevSelected = agentsPendingVersionSelection && agentsPendingVersionSelection.length
+      ? new Set(agentsPendingVersionSelection)
+      : new Set(selectedVersions());
+    agentsPendingVersionSelection = null;
     const versions = [...new Set((agents || []).map((a) => (a.version || '').toString().trim()).filter((v) => !!v))].sort((a, b) => a.localeCompare(b));
     if (!versions.length) {
       wrap.innerHTML = '<div class="text-secondary small">Versiyon bilgisi yok</div>';
@@ -442,6 +484,7 @@
     wrap.querySelectorAll('.js-agent-version-filter').forEach((el) => {
       el.addEventListener('change', () => {
         currentPage = 1;
+        saveAgentsFilters();
         applyFilter();
         renderPage();
       });
@@ -496,6 +539,7 @@
         label.textContent = name;
         badge.textContent = count;
         currentPage = 1;
+        saveAgentsFilters();
         applyFilter();
         renderPage();
         renderGroupFilter(allGroups);
@@ -834,6 +878,7 @@
 
   (async function () {
     await AppCenterApi.initUi();
+    restoreAgentsFilters();
     document.getElementById('agent-rows').addEventListener('click', (evt) => {
       const btn = evt.target.closest('.js-connect-remote');
       if (!btn) return;
@@ -898,6 +943,7 @@
     });
     const rerenderFromFilter = () => {
       currentPage = 1;
+      saveAgentsFilters();
       applyFilter();
       renderPage();
     };
@@ -920,6 +966,7 @@
       document.querySelectorAll('.js-agent-version-filter').forEach((el) => {
         el.checked = true;
       });
+      saveAgentsFilters();
       renderGroupFilter(allGroups);
       rerenderFromFilter();
     });
